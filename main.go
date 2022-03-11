@@ -1,98 +1,87 @@
 package main
 
 import (
-	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
+	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
+	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 	"os"
-	"reflect"
-	"strconv"
-	"strings"
 )
 
-type GeneralsHeader struct {
-	GameType       *ByteString `byte:"size=6"`
-	TimeStampBegin *ByteInt    `byte:"size=4"`
-	TimeStampEnd   *ByteInt    `byte:"size=4"`
-	Unknown        *ByteInt    `byte:"size=1"`
-	FileName       *ByteString `byte:"size=2,nullterm"`
-}
-
-type ByteInterface interface {
-	Write([]byte)
-}
-
-type ByteString string
-
-func NewByteString(s string) *ByteString {
-	bs := ByteString(s)
-	return &bs
-}
-
-func (bs *ByteString) Write(b []byte) {
-	*bs = ByteString(b)
-}
-
-type ByteInt int64
-
-func (bs *ByteInt) Write(b []byte) {
-	*bs = ByteInt(binary.BigEndian.Uint32(b))
+type Replay struct {
+	Header *header.GeneralsHeader
+	Body   []*body.BodyChunk
 }
 
 func main() {
-	file, err := os.Open(os.Args[1])
+
+	if len(os.Getenv("TRACE")) > 0 {
+		log.SetLevel(log.TraceLevel)
+	}
+
+	if len(os.Getenv("SERVER")) == 0 {
+		file, err := os.Open(os.Args[1])
+		if err != nil {
+			log.WithError(err).Fatal("could not open file")
+		}
+
+		bp := &bitparse.BitParser{
+			Source: file,
+		}
+		um, err := json.Marshal(ReadReplay(bp))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(um)
+		return
+	}
+
+	router := gin.Default()
+	router.POST("/replay", saveFileHandler)
+	router.Run()
+}
+
+func ReadReplay(bp *bitparse.BitParser) Replay {
+	replay := Replay{
+		header.ParseHeader(bp),
+		body.ParseBody(bp),
+	}
+	return replay
+}
+
+func saveFileHandler(c *gin.Context) {
+	file, err := c.FormFile("file")
+
+	// The file cannot be received.
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"message": "No file is received",
+		})
+		return
+	}
+
+	// The file is received, so let's save it
+	if err := c.SaveUploadedFile(file, "/tmp/"+file.Filename); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"message": "Unable to save the file",
+			"error":   err,
+		})
+		return
+	}
+
+	fileIn, err := os.Open("/tmp/" + file.Filename)
 	if err != nil {
 		log.WithError(err).Fatal("could not open file")
 	}
-	header := GeneralsHeader{
-		GameType: NewByteString(""),
+
+	bp := &bitparse.BitParser{
+		Source: fileIn,
 	}
-	inst := reflect.ValueOf(&header).Elem()
-	gtype := reflect.TypeOf(header)
-	for i := 0; i < gtype.NumField(); i++ {
-		tagKv := parseTag(gtype.Field(i).Tag.Get("byte"))
-		size, err := strconv.Atoi(tagKv["size"])
-		if err != nil {
-			log.WithError(err).Error("could not parse fieldRaw size")
-			continue
-		}
-		//fieldValue := []byte{}
-		_, nullterm := tagKv["nullterm"]
-		switch {
-		case !nullterm:
-			fieldRaw := make([]byte, size)
-			sizeRead, err := file.Read(fieldRaw)
-			if sizeRead != size {
-				log.Errorf("unable to read fieldRaw. expected size: %d, got: %d", size, sizeRead)
-			}
 
-			if err != nil {
-				log.WithError(err).Error("unable to read fieldRaw")
-			}
-
-			field := inst.Field(i).Interface().(ByteInterface)
-
-			field.Write(fieldRaw)
-
-		case nullterm:
-
-		}
-	}
-	log.Printf("%+v", header)
-}
-
-func parseTag(rawTag string) map[string]string {
-	out := map[string]string{}
-	pairs := strings.Split(rawTag, ",")
-	for _, pair := range pairs {
-		kv := strings.Split(pair, "=")
-		switch len(kv) {
-		case 1:
-			out[kv[0]] = "true"
-		case 2:
-			out[kv[0]] = kv[1]
-		default:
-			log.WithField("pair", pair).Warn("unexpected tag pair format")
-		}
-	}
-	return out
+	// File saved successfully. Return proper result
+	c.JSON(http.StatusOK, ReadReplay(bp))
 }
