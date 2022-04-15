@@ -1,6 +1,8 @@
 package body
 
-import "github.com/bill-rich/cncstats/pkg/bitparse"
+import (
+	"github.com/bill-rich/cncstats/pkg/bitparse"
+)
 
 const (
 	ArgInt = iota
@@ -48,9 +50,9 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 		return []byte{}
 	case ArgPosition:
 		return Position{
-			X: bp.ReadUInt32(),
-			Y: bp.ReadUInt32(),
-			Z: bp.ReadUInt32(),
+			X: bp.ReadFloat(),
+			Y: bp.ReadFloat(),
+			Z: bp.ReadFloat(),
 		}
 	case ArgScreenPosition:
 		return Position{
@@ -78,9 +80,9 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 }
 
 type Position struct {
-	X int
-	Y int
-	Z int
+	X interface{}
+	Y interface{}
+	Z interface{}
 }
 
 type Rectangle [2]Position

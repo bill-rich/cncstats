@@ -36,7 +36,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(um)
+		fmt.Println(string(um))
 		return
 	}
 

@@ -32,15 +32,15 @@ func (bp *BitParser) ReadString(size int) string {
 }
 
 func (bp *BitParser) ReadUInt32() int {
-	return bp.ReadInt(4)
+	return bp.ReadUInt(4)
 }
 
 func (bp *BitParser) ReadUInt16() int {
-	return bp.ReadInt(2)
+	return bp.ReadUInt(2)
 }
 
 func (bp *BitParser) ReadUInt8() int {
-	return bp.ReadInt(1)
+	return bp.ReadUInt(1)
 }
 
 // TODO: Find examples of how this should work so tests can be written.
@@ -66,7 +66,7 @@ func (bp *BitParser) ReadBool() bool {
 	return true
 }
 
-func (bp *BitParser) ReadInt(byteCount int) int {
+func (bp *BitParser) ReadUInt(byteCount int) int {
 	bytesIn := make([]byte, byteCount)
 	n, err := bp.Source.Read(bytesIn)
 	if n < byteCount || err != nil {
@@ -74,6 +74,17 @@ func (bp *BitParser) ReadInt(byteCount int) int {
 		return 0
 	}
 	return int(big.NewInt(0).SetBytes(makeLittleEndian(bytesIn)).Uint64())
+}
+
+func (bp *BitParser) ReadInt(byteCount int) uint32 {
+	bytesIn := make([]byte, byteCount)
+	n, err := bp.Source.Read(bytesIn)
+	if n < byteCount || err != nil {
+		logrus.WithError(err).Debug("failed to read int")
+		return 0
+	}
+	return binary.LittleEndian.Uint32(bytesIn)
+	//return int(big.NewInt(0).SetBytes(makeLittleEndian(bytesIn)).Int64())
 }
 
 func makeLittleEndian(bytesIn []byte) []byte {
