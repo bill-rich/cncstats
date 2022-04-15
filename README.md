@@ -1,6 +1,10 @@
 # cncstats
 
+## Useful commands
+Filter by playerID, and remove checksum, deselects, and camera movements.
+`jq '.Body[] | select(.Number==2 and .OrderType != 1095 and .OrderType != 1092 and .OrderType != 1003)' | less`
 
+## Annotated outputs/thoghts
 ```
 {
   "TimeCode": 210,
