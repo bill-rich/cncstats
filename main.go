@@ -23,13 +23,15 @@ type Replay struct {
 
 func main() {
 	objectStore := iniparse.NewObjectStore()
-	objectStore.LoadObjects("/home/hrich/Downloads/inizh/Data/INI/Object")
-
+	err := objectStore.LoadObjects("/var/Data/INI/Object")
+	if err != nil {
+		log.WithError(err).Fatal("could not load object store")
+	}
 	if len(os.Getenv("TRACE")) > 0 {
 		log.SetLevel(log.TraceLevel)
 	}
 
-	if len(os.Getenv("SERVER")) == 0 {
+	if len(os.Getenv("LOCAL")) > 0 {
 		file, err := os.Open(os.Args[1])
 		if err != nil {
 			log.WithError(err).Fatal("could not open file")
@@ -203,7 +205,10 @@ func saveFileHandler(c *gin.Context) {
 	fileIn, err := file.Open()
 
 	objectStore := iniparse.NewObjectStore()
-	objectStore.LoadObjects("/home/hrich/Downloads/inizh/Data/INI/Object")
+	err = objectStore.LoadObjects("/var/Data/INI/Object")
+	if err != nil {
+		log.WithError(err).Fatal("could not load object store")
+	}
 
 	bp := &bitparse.BitParser{
 		Source:      fileIn,
