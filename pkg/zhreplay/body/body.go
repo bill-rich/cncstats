@@ -2,6 +2,7 @@ package body
 
 import (
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/iniparse"
 )
 
 const (
@@ -95,23 +96,38 @@ type Arg struct {
 
 type BodyChunk struct {
 	TimeCode     int
-	OrderType    int
+	OrderCode    int
+	OrderName    string
 	PlayerID     int // Starts at 2 for humans
+	PlayerName   string
 	UniqueOrders int
+	Details      interface{}
 	Args         []*Arg
 }
 
-func ParseBody(bp *bitparse.BitParser) []*BodyChunk {
+var CommandType map[int]string = map[int]string{
+	1047: "CreateUnit",
+	1048: "CancelUnit",
+	1049: "BuildObject",
+	1051: "CancelBuild",
+	1052: "Sell",
+}
+
+func ParseBody(bp *bitparse.BitParser, playerList []string, objectStore *iniparse.ObjectStore) []*BodyChunk {
 	body := []*BodyChunk{}
 
 	for {
 		chunk := BodyChunk{
 			TimeCode:     bp.ReadUInt32(),
-			OrderType:    bp.ReadUInt32(),
+			OrderCode:    bp.ReadUInt32(),
 			PlayerID:     bp.ReadUInt32(),
 			UniqueOrders: bp.ReadUInt8(),
 			Args:         []*Arg{},
 		}
+		if chunk.PlayerID >= 2 {
+			chunk.PlayerName = playerList[chunk.PlayerID-2]
+		}
+		chunk.OrderName = CommandType[chunk.OrderCode]
 		for i := 0; i < chunk.UniqueOrders; i++ {
 			argCount := &Arg{
 				Type:  bp.ReadUInt8(),
@@ -122,15 +138,31 @@ func ParseBody(bp *bitparse.BitParser) []*BodyChunk {
 		}
 		for _, argType := range chunk.Args {
 			for i := 0; i < argType.Count; i++ {
-				//newArg := bp.ReadBytes(argSize[argType.Type])
-				//argType.Args = append(argType.Args, newArg)
 				argType.Args = append(argType.Args, convertArg(bp, argType.Type))
 			}
 		}
-		if chunk.TimeCode == 0 && chunk.OrderType == 0 && chunk.PlayerID == 0 {
+		chunk.addExtraData(objectStore)
+		if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
 			break
 		}
 		body = append(body, &chunk)
 	}
 	return body
+}
+
+func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore) {
+	switch c.OrderCode {
+	case 1047: // Create Unit
+		object := objectStore.GetObject(c.Args[0].Args[0].(int))
+		c.Details = map[string]interface{}{
+			"object": object.Name,
+			"cost":   object.Cost,
+		}
+	case 1049: // Build
+		object := objectStore.GetObject(c.Args[0].Args[0].(int))
+		c.Details = map[string]interface{}{
+			"object": object.Name,
+			"cost":   object.Cost,
+		}
+	}
 }

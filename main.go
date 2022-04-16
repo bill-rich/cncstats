@@ -15,9 +15,10 @@ import (
 )
 
 type Replay struct {
-	Header  *header.GeneralsHeader
-	Body    []*body.BodyChunk
-	Players []string
+	Header     *header.GeneralsHeader
+	Body       []*body.BodyChunk
+	Players    []string
+	PlayerInfo []PlayerInfo
 }
 
 func main() {
@@ -40,27 +41,29 @@ func main() {
 		}
 		replay := ReadReplay(bp)
 
-		totalSpent := map[string]int{}
-		for _, order := range replay.Body {
-			if order.OrderType == 1047 {
-				object := objectStore.GetObject(order.Args[0].Args[0].(int))
-				playerName := replay.Players[order.Number-2]
-				totalSpent[playerName] += object.Cost
-				fmt.Printf("%d: %s queued up a %s for %d\n",
-					order.TimeCode,
-					replay.Players[order.Number-2],
-					object.Name,
-					object.Cost,
-				)
+		/*
+			totalSpent := map[string]int{}
+			for _, order := range replay.Body {
+				if order.OrderCode == 1047 {
+					object := objectStore.GetObject(order.Args[0].Args[0].(int))
+					playerName := replay.Players[order.PlayerID-2]
+					totalSpent[playerName] += object.Cost
+					fmt.Printf("%d: %s queued up a %s for %d\n",
+						order.TimeCode,
+						replay.Players[order.PlayerID-2],
+						object.Name,
+						object.Cost,
+					)
+				}
 			}
-		}
-		fmt.Printf("Total spent:%+v\n", totalSpent)
+			fmt.Printf("Total spent:%+v\n", totalSpent)
+		*/
 
 		um, err := json.Marshal(replay)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Sprintf(string(um))
+		fmt.Printf(string(um))
 		return
 	}
 
@@ -70,12 +73,11 @@ func main() {
 }
 
 func ReadReplay(bp *bitparse.BitParser) Replay {
-	replay := Replay{
-		header.ParseHeader(bp),
-		body.ParseBody(bp),
-		[]string{},
-	}
+	replay := Replay{}
+	replay.Header = header.ParseHeader(bp)
 	replay.PlayerMap()
+	replay.Body = body.ParseBody(bp, replay.Players, bp.ObjectStore)
+	replay.GenerateData()
 	return replay
 }
 
@@ -90,6 +92,80 @@ func (r *Replay) PlayerMap() {
 				r.Players = append(r.Players, player.Name)
 			}
 		}
+	}
+}
+
+var ConstructorMap map[string]string = map[string]string{
+	"GLAInfantryWorker":        "GLA",
+	"Slth_GLAInfantryWorker":   "GLA Stealth",
+	"Chem_GLAInfantryWorker":   "GLA Toxin",
+	"Demo_GLAInfantryWorker":   "GLA Demo",
+	"AmericaVehicleDozer":      "USA",
+	"AirF_AmericaVehicleDozer": "USA Airforce",
+	"Lazr_AmericaVehicleDozer": "USA Lazr",
+	"SupW_AmericaVehicleDozer": "USA Superweapon",
+	"ChinaVehicleDozer":        "China",
+	"Infa_ChinaVehicleDozer":   "China Infantry",
+	"Nuke_ChinaVehicleDozer":   "China Nuke",
+	"Tank_ChinaVehicleDozer":   "China Tank",
+}
+
+type Unit struct {
+	Name string
+	Cost int
+}
+
+type Building struct {
+	Name string
+	Cost int
+}
+
+type PlayerInfo struct {
+	Name           string
+	Side           string
+	MoneySpent     int
+	UnitsCreated   []Unit
+	BuildingsBuilt []Building
+	Team           string
+}
+
+func (r *Replay) GenerateData() {
+	for _, playerMd := range r.Header.Metadata.Players {
+		player := PlayerInfo{
+			Name: playerMd.Name,
+			Team: playerMd.Team,
+		}
+		for _, order := range r.Body {
+			if order.PlayerName != player.Name {
+				continue
+			}
+			if order.OrderCode == 1047 {
+				if details, ok := order.Details.(map[string]interface{}); ok {
+					if side, ok := ConstructorMap[details["object"].(string)]; ok {
+						if player.Side == "" {
+							player.Side = side
+						}
+					}
+					unit := Unit{
+						Name: details["object"].(string),
+						Cost: details["cost"].(int),
+					}
+					player.UnitsCreated = append(player.UnitsCreated, unit)
+					player.MoneySpent += unit.Cost
+				}
+			}
+			if order.OrderCode == 1049 {
+				if details, ok := order.Details.(map[string]interface{}); ok {
+					building := Building{
+						Name: details["object"].(string),
+						Cost: details["cost"].(int),
+					}
+					player.BuildingsBuilt = append(player.BuildingsBuilt, building)
+					player.MoneySpent += building.Cost
+				}
+			}
+		}
+		r.PlayerInfo = append(r.PlayerInfo, player)
 	}
 }
 
@@ -118,8 +194,12 @@ func saveFileHandler(c *gin.Context) {
 		log.WithError(err).Fatal("could not open file")
 	}
 
+	objectStore := iniparse.NewObjectStore()
+	objectStore.LoadObjects("/home/hrich/Downloads/inizh/Data/INI/Object")
+
 	bp := &bitparse.BitParser{
-		Source: fileIn,
+		Source:      fileIn,
+		ObjectStore: objectStore,
 	}
 
 	// File saved successfully. Return proper result
