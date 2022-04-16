@@ -203,7 +203,10 @@ func (r *Replay) GenerateData() {
 		for k, _ := range teamWins {
 			teamWins[k] = false
 		}
-		for i := len(r.Body) - 1; i >= 0; i++ {
+		for p, _ := range r.PlayerInfo {
+			r.PlayerInfo[p].Win = false
+		}
+		for i := len(r.Body) - 1; i >= 0; i-- {
 			chunk := r.Body[i]
 			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
 				team := 0
@@ -218,9 +221,9 @@ func (r *Replay) GenerateData() {
 				}
 			}
 		}
-		for _, p := range r.PlayerInfo {
-			if teamWins[p.Team] {
-				p.Win = true
+		for p, _ := range r.PlayerInfo {
+			if teamWins[r.PlayerInfo[p].Team] {
+				r.PlayerInfo[p].Win = true
 			}
 		}
 	}
