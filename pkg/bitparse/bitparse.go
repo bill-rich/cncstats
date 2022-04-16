@@ -3,6 +3,7 @@ package bitparse
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/sirupsen/logrus"
 	"io"
 	"math"
@@ -10,7 +11,8 @@ import (
 )
 
 type BitParser struct {
-	Source io.Reader
+	Source      io.Reader
+	ObjectStore *iniparse.ObjectStore
 }
 
 func (bp *BitParser) ReadBytes(size int) []byte {
