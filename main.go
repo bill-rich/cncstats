@@ -191,7 +191,39 @@ func (r *Replay) GenerateData() {
 			p.Win = false
 		}
 	}
+	winners := 0
+	for _, t := range teamWins {
+		if t {
+			winners++
+		}
+	}
 
+	if winners > 1 {
+		// Uh oh. Hack it up real bad
+		for k, _ := range teamWins {
+			teamWins[k] = false
+		}
+		for i := len(r.Body) - 1; i >= 0; i++ {
+			chunk := r.Body[i]
+			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 {
+				team := 0
+				for _, p := range r.PlayerInfo {
+					if p.Name == chunk.PlayerName {
+						team = p.Team
+					}
+				}
+				if team != 0 {
+					teamWins[team] = true
+					break
+				}
+			}
+		}
+		for _, p := range r.PlayerInfo {
+			if teamWins[p.Team] {
+				p.Win = true
+			}
+		}
+	}
 }
 
 func saveFileHandler(c *gin.Context) {
