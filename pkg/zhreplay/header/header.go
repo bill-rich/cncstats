@@ -1,6 +1,7 @@
 package header
 
 import (
+	"fmt"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	log "github.com/sirupsen/logrus"
 	"strings"
@@ -10,7 +11,7 @@ type Metadata struct {
 	MapFile         string   // M
 	MapCRC          string   // MC
 	MapSize         string   // MS
-	SD              string   // SD
+	Seed            string   // Seed
 	C               string   // C
 	SR              string   // SR
 	StartingCredits string   // SC
@@ -32,60 +33,60 @@ type Player struct {
 }
 
 type GeneralsHeader struct {
-	GameType       string
-	TimeStampBegin int
-	TimeStampEnd   int
-	NumTimeStamps  int
-	Filler         []byte
-	FileName       string
-	Year           int
-	Month          int
-	DOW            int
-	Day            int
-	Hour           int
-	Minute         int
-	Second         int
-	Millisecond    int
-	Version        string
-	BuildDate      string
-	VersionMinor   int
-	VersionMajor   int
-	Hash           []byte
-	Metadata       Metadata
-	Unknown1       int
-	Unknown2       int
-	Unknown3       int
-	Unknown4       int
-	GameSpeed      int
+	GameType        string
+	TimeStampBegin  int
+	TimeStampEnd    int
+	NumTimeStamps   int
+	Filler          interface{}
+	FileName        string
+	Year            int
+	Month           int
+	DOW             int
+	Day             int
+	Hour            int
+	Minute          int
+	Second          int
+	Millisecond     int
+	Version         string
+	BuildDate       string
+	VersionMinor    int
+	VersionMajor    int
+	Hash            []byte
+	Metadata        Metadata
+	ReplayOwnerSlot interface{}
+	Unknown1        interface{}
+	Unknown2        interface{}
+	Unknown3        interface{}
+	GameSpeed       int
 }
 
 func ParseHeader(bp *bitparse.BitParser) *GeneralsHeader {
 	return &GeneralsHeader{
-		GameType:       bp.ReadString(6),
-		TimeStampBegin: bp.ReadUInt32(),
-		TimeStampEnd:   bp.ReadUInt32(),
-		NumTimeStamps:  bp.ReadUInt16(),
-		Filler:         bp.ReadBytes(12),
-		FileName:       bp.ReadNullTermString("utf16"),
-		Year:           bp.ReadUInt16(),
-		Month:          bp.ReadUInt16(),
-		DOW:            bp.ReadUInt16(),
-		Day:            bp.ReadUInt16(),
-		Hour:           bp.ReadUInt16(),
-		Minute:         bp.ReadUInt16(),
-		Second:         bp.ReadUInt16(),
-		Millisecond:    bp.ReadUInt16(),
-		Version:        bp.ReadNullTermString("utf16"),
-		BuildDate:      bp.ReadNullTermString("utf16"),
-		VersionMinor:   bp.ReadUInt16(),
-		VersionMajor:   bp.ReadUInt16(),
-		Hash:           bp.ReadBytes(8),
-		Metadata:       parseMetadata(bp.ReadNullTermString("utf8")),
-		Unknown1:       bp.ReadUInt16(),
-		Unknown2:       bp.ReadUInt32(),
-		Unknown3:       bp.ReadUInt32(),
-		Unknown4:       bp.ReadUInt32(),
-		GameSpeed:      bp.ReadUInt32(),
+		GameType:        bp.ReadString(6),
+		TimeStampBegin:  bp.ReadUInt32(),
+		TimeStampEnd:    bp.ReadUInt32(),
+		NumTimeStamps:   bp.ReadUInt16(),
+		Filler:          fmt.Sprintf("%x", bp.ReadBytes(12)),
+		FileName:        bp.ReadNullTermString("utf16"),
+		Year:            bp.ReadUInt16(),
+		Month:           bp.ReadUInt16(),
+		DOW:             bp.ReadUInt16(),
+		Day:             bp.ReadUInt16(),
+		Hour:            bp.ReadUInt16(),
+		Minute:          bp.ReadUInt16(),
+		Second:          bp.ReadUInt16(),
+		Millisecond:     bp.ReadUInt16(),
+		Version:         bp.ReadNullTermString("utf16"),
+		BuildDate:       bp.ReadNullTermString("utf16"),
+		VersionMinor:    bp.ReadUInt16(),
+		VersionMajor:    bp.ReadUInt16(),
+		Hash:            bp.ReadBytes(8),
+		Metadata:        parseMetadata(bp.ReadNullTermString("utf8")),
+		ReplayOwnerSlot: fmt.Sprintf("%x", bp.ReadBytes(2)), // 3000 = slot 0, 3100 = slot 1, etc
+		Unknown1:        fmt.Sprintf("%x", bp.ReadBytes(4)),
+		Unknown2:        fmt.Sprintf("%x", bp.ReadBytes(4)), // Changes when playing solo or maybe against computers
+		Unknown3:        fmt.Sprintf("%x", bp.ReadBytes(4)),
+		GameSpeed:       bp.ReadUInt32(),
 	}
 }
 
@@ -108,7 +109,7 @@ func parseMetadata(raw string) Metadata {
 		case "MS":
 			metadata.MapSize = value
 		case "SD":
-			metadata.SD = value
+			metadata.Seed = value
 		case "C":
 			metadata.C = value
 		case "SR":

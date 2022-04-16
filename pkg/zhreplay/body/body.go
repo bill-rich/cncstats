@@ -96,7 +96,7 @@ type Arg struct {
 type BodyChunk struct {
 	TimeCode     int
 	OrderType    int
-	Number       int
+	PlayerID     int // Starts at 2 for humans
 	UniqueOrders int
 	Args         []*Arg
 }
@@ -108,7 +108,7 @@ func ParseBody(bp *bitparse.BitParser) []*BodyChunk {
 		chunk := BodyChunk{
 			TimeCode:     bp.ReadUInt32(),
 			OrderType:    bp.ReadUInt32(),
-			Number:       bp.ReadUInt32(),
+			PlayerID:     bp.ReadUInt32(),
 			UniqueOrders: bp.ReadUInt8(),
 			Args:         []*Arg{},
 		}
@@ -127,7 +127,7 @@ func ParseBody(bp *bitparse.BitParser) []*BodyChunk {
 				argType.Args = append(argType.Args, convertArg(bp, argType.Type))
 			}
 		}
-		if chunk.TimeCode == 0 && chunk.OrderType == 0 && chunk.Number == 0 {
+		if chunk.TimeCode == 0 && chunk.OrderType == 0 && chunk.PlayerID == 0 {
 			break
 		}
 		body = append(body, &chunk)
