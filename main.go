@@ -128,15 +128,16 @@ type PlayerInfo struct {
 	MoneySpent     int
 	UnitsCreated   []Unit
 	BuildingsBuilt []Building
-	Team           string
+	Team           int
 	Win            bool
 }
 
 func (r *Replay) GenerateData() {
 	for _, playerMd := range r.Header.Metadata.Players {
+		team, _ := strconv.Atoi(playerMd.Team)
 		player := PlayerInfo{
 			Name: playerMd.Name,
-			Team: playerMd.Team,
+			Team: team + 1,
 			Win:  true,
 		}
 		for _, order := range r.Body {
