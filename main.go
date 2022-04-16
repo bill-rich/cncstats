@@ -205,7 +205,7 @@ func (r *Replay) GenerateData() {
 		}
 		for i := len(r.Body) - 1; i >= 0; i++ {
 			chunk := r.Body[i]
-			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 {
+			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
 				team := 0
 				for _, p := range r.PlayerInfo {
 					if p.Name == chunk.PlayerName {
