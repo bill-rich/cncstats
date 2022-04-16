@@ -95,7 +95,7 @@ func (r *Replay) PlayerMap() {
 	}
 }
 
-var ConstructorMap map[string]string = map[string]string{
+var ConstructorMap = map[string]string{
 	"GLAInfantryWorker":        "GLA",
 	"Slth_GLAInfantryWorker":   "GLA Stealth",
 	"Chem_GLAInfantryWorker":   "GLA Toxin",
@@ -127,6 +127,7 @@ type PlayerInfo struct {
 	UnitsCreated   []Unit
 	BuildingsBuilt []Building
 	Team           string
+	Win            bool
 }
 
 func (r *Replay) GenerateData() {
@@ -134,6 +135,7 @@ func (r *Replay) GenerateData() {
 		player := PlayerInfo{
 			Name: playerMd.Name,
 			Team: playerMd.Team,
+			Win:  true,
 		}
 		for _, order := range r.Body {
 			if order.PlayerName != player.Name {
@@ -164,6 +166,9 @@ func (r *Replay) GenerateData() {
 					player.MoneySpent += building.Cost
 				}
 			}
+			if order.OrderCode == 1093 {
+				player.Win = false
+			}
 		}
 		r.PlayerInfo = append(r.PlayerInfo, player)
 	}
@@ -171,7 +176,6 @@ func (r *Replay) GenerateData() {
 
 func saveFileHandler(c *gin.Context) {
 	file, err := c.FormFile("file")
-
 	// The file cannot be received.
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -180,19 +184,23 @@ func saveFileHandler(c *gin.Context) {
 		return
 	}
 
-	// The file is received, so let's save it
-	if err := c.SaveUploadedFile(file, "/tmp/"+file.Filename); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"message": "Unable to save the file",
-			"error":   err,
-		})
-		return
-	}
+	/*
 
-	fileIn, err := os.Open("/tmp/" + file.Filename)
-	if err != nil {
-		log.WithError(err).Fatal("could not open file")
-	}
+		// The file is received, so let's save it
+		if err := c.SaveUploadedFile(file, "/tmp/"+file.Filename); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"message": "Unable to save the file",
+				"error":   err,
+			})
+			return
+		}
+
+		fileIn, err := os.Open("/tmp/" + file.Filename)
+		if err != nil {
+			log.WithError(err).Fatal("could not open file")
+		}
+	*/
+	fileIn, err := file.Open()
 
 	objectStore := iniparse.NewObjectStore()
 	objectStore.LoadObjects("/home/hrich/Downloads/inizh/Data/INI/Object")
