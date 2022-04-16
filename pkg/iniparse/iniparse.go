@@ -3,6 +3,7 @@ package iniparse
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -82,7 +83,7 @@ func matchKey(line string) string {
 	return nilString
 }
 
-func (o *ObjectStore) ParseFile(file *os.File) error {
+func (o *ObjectStore) ParseFile(file io.Reader) error {
 	scanner := bufio.NewScanner(file)
 	var object *Object
 	for scanner.Scan() {

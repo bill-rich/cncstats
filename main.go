@@ -181,14 +181,14 @@ func (r *Replay) GenerateData() {
 	for _, p := range r.PlayerInfo {
 		teamWins[p.Team] = true
 	}
-	for _, p := range r.PlayerInfo {
-		if !p.Win {
-			teamWins[p.Team] = false
+	for p, _ := range r.PlayerInfo {
+		if !r.PlayerInfo[p].Win {
+			teamWins[r.PlayerInfo[p].Team] = false
 		}
 	}
-	for _, p := range r.PlayerInfo {
-		if !teamWins[p.Team] {
-			p.Win = false
+	for p, _ := range r.PlayerInfo {
+		if !teamWins[r.PlayerInfo[p].Team] {
+			r.PlayerInfo[p].Win = false
 		}
 	}
 	winners := 0
