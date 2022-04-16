@@ -4,20 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 type Replay struct {
-	Header *header.GeneralsHeader
-	Body   []*body.BodyChunk
+	Header  *header.GeneralsHeader
+	Body    []*body.BodyChunk
+	Players []string
 }
 
 func main() {
+	objectStore := iniparse.NewObjectStore()
+	objectStore.LoadObjects("/home/hrich/Downloads/inizh/Data/INI/Object")
 
 	if len(os.Getenv("TRACE")) > 0 {
 		log.SetLevel(log.TraceLevel)
@@ -30,13 +35,32 @@ func main() {
 		}
 
 		bp := &bitparse.BitParser{
-			Source: file,
+			Source:      file,
+			ObjectStore: objectStore,
 		}
-		um, err := json.Marshal(ReadReplay(bp))
+		replay := ReadReplay(bp)
+
+		totalSpent := map[string]int{}
+		for _, order := range replay.Body {
+			if order.OrderType == 1047 {
+				object := objectStore.GetObject(order.Args[0].Args[0].(int))
+				playerName := replay.Players[order.Number-2]
+				totalSpent[playerName] += object.Cost
+				fmt.Printf("%d: %s queued up a %s for %d\n",
+					order.TimeCode,
+					replay.Players[order.Number-2],
+					object.Name,
+					object.Cost,
+				)
+			}
+		}
+		fmt.Printf("Total spent:%+v\n", totalSpent)
+
+		um, err := json.Marshal(replay)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(um))
+		fmt.Sprintf(string(um))
 		return
 	}
 
@@ -49,8 +73,24 @@ func ReadReplay(bp *bitparse.BitParser) Replay {
 	replay := Replay{
 		header.ParseHeader(bp),
 		body.ParseBody(bp),
+		[]string{},
 	}
+	replay.PlayerMap()
 	return replay
+}
+
+func (r *Replay) PlayerMap() {
+	for _, player := range r.Header.Metadata.Players {
+		r.Players = append(r.Players, player.Name)
+	}
+	return
+	for i := 0; i <= 7; i++ {
+		for _, player := range r.Header.Metadata.Players {
+			if player.Team == strconv.Itoa(i) {
+				r.Players = append(r.Players, player.Name)
+			}
+		}
+	}
 }
 
 func saveFileHandler(c *gin.Context) {
