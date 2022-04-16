@@ -175,6 +175,23 @@ func (r *Replay) GenerateData() {
 		}
 		r.PlayerInfo = append(r.PlayerInfo, player)
 	}
+
+	// Hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
+	teamWins := map[int]bool{}
+	for _, p := range r.PlayerInfo {
+		teamWins[p.Team] = true
+	}
+	for _, p := range r.PlayerInfo {
+		if !p.Win {
+			teamWins[p.Team] = false
+		}
+	}
+	for _, p := range r.PlayerInfo {
+		if !teamWins[p.Team] {
+			p.Win = false
+		}
+	}
+
 }
 
 func saveFileHandler(c *gin.Context) {
