@@ -13,7 +13,11 @@ import (
 )
 
 func main() {
-	objectStore, err := iniparse.NewObjectStore("/var/Data/INI/Object")
+	objData := os.Getenv("CNC_INI")
+	if len(objData) == 0 {
+		objData = "/var/Data/INI/Object"
+	}
+	objectStore, err := iniparse.NewObjectStore(objData)
 	if err != nil {
 		log.WithError(err).Fatal("could not load object store")
 	}
