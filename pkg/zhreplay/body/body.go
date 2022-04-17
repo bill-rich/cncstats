@@ -155,7 +155,7 @@ var CommandType map[int]string = map[int]string{
 	1095: "Checksum",
 }
 
-func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerInfo, objectStore *iniparse.ObjectStore) []*BodyChunk {
+func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore) []*BodyChunk {
 	body := []*BodyChunk{}
 
 	for {

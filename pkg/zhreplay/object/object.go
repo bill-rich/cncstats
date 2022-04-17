@@ -20,7 +20,7 @@ type ObjectSummary struct {
 	TotalSpent int
 }
 
-type PlayerInfo struct {
+type PlayerSummary struct {
 	Name           string
 	Side           string
 	Team           int

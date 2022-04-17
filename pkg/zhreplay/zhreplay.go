@@ -10,10 +10,10 @@ import (
 )
 
 type Replay struct {
-	Header     *header.GeneralsHeader
-	Body       []*body.BodyChunk
-	PlayerInfo []*object.PlayerInfo
-	Offset     int
+	Header  *header.GeneralsHeader
+	Body    []*body.BodyChunk
+	Summary []*object.PlayerSummary
+	Offset  int
 }
 
 func NewReplay(bp *bitparse.BitParser) *Replay {
@@ -22,7 +22,7 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
-	replay.Body = body.ParseBody(bp, replay.PlayerInfo, bp.ObjectStore)
+	replay.Body = body.ParseBody(bp, replay.Summary, bp.ObjectStore)
 	replay.AdjustOffset()
 	replay.AddUserNames()
 	replay.GenerateData()
@@ -31,9 +31,9 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 
 func (r *Replay) AddUserNames() {
 	for _, chunk := range r.Body {
-		if chunk.PlayerID >= r.Offset && chunk.PlayerID-r.Offset < len(r.PlayerInfo) {
+		if chunk.PlayerID >= r.Offset && chunk.PlayerID-r.Offset < len(r.Summary) {
 			fmt.Printf("%+v\n", chunk.PlayerID)
-			chunk.PlayerName = r.PlayerInfo[chunk.PlayerID-r.Offset].Name
+			chunk.PlayerName = r.Summary[chunk.PlayerID-r.Offset].Name
 		}
 	}
 }
@@ -51,14 +51,14 @@ func (r *Replay) AdjustOffset() {
 func (r *Replay) CreatePlayerList() {
 	for _, playerMd := range r.Header.Metadata.Players {
 		team, _ := strconv.Atoi(playerMd.Team)
-		player := &object.PlayerInfo{
+		player := &object.PlayerSummary{
 			Name:           playerMd.Name,
 			Team:           team + 1,
 			Win:            true,
 			BuildingsBuilt: map[string]*object.ObjectSummary{},
 			UnitsCreated:   map[string]*object.ObjectSummary{},
 		}
-		r.PlayerInfo = append(r.PlayerInfo, player)
+		r.Summary = append(r.Summary, player)
 	}
 }
 
@@ -78,7 +78,7 @@ var ConstructorMap = map[string]string{
 }
 
 func (r *Replay) GenerateData() {
-	for _, player := range r.PlayerInfo {
+	for _, player := range r.Summary {
 		for _, order := range r.Body {
 			if order.PlayerName != player.Name {
 				continue
@@ -124,17 +124,17 @@ func (r *Replay) GenerateData() {
 
 	// Hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
 	teamWins := map[int]bool{}
-	for _, p := range r.PlayerInfo {
+	for _, p := range r.Summary {
 		teamWins[p.Team] = true
 	}
-	for p, _ := range r.PlayerInfo {
-		if !r.PlayerInfo[p].Win {
-			teamWins[r.PlayerInfo[p].Team] = false
+	for p, _ := range r.Summary {
+		if !r.Summary[p].Win {
+			teamWins[r.Summary[p].Team] = false
 		}
 	}
-	for p, _ := range r.PlayerInfo {
-		if !teamWins[r.PlayerInfo[p].Team] {
-			r.PlayerInfo[p].Win = false
+	for p, _ := range r.Summary {
+		if !teamWins[r.Summary[p].Team] {
+			r.Summary[p].Win = false
 		}
 	}
 	winners := 0
@@ -149,14 +149,14 @@ func (r *Replay) GenerateData() {
 		for k, _ := range teamWins {
 			teamWins[k] = false
 		}
-		for p, _ := range r.PlayerInfo {
-			r.PlayerInfo[p].Win = false
+		for p, _ := range r.Summary {
+			r.Summary[p].Win = false
 		}
 		for i := len(r.Body) - 1; i >= 0; i-- {
 			chunk := r.Body[i]
 			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
 				team := 0
-				for _, p := range r.PlayerInfo {
+				for _, p := range r.Summary {
 					if p.Name == chunk.PlayerName {
 						team = p.Team
 					}
@@ -167,9 +167,9 @@ func (r *Replay) GenerateData() {
 				}
 			}
 		}
-		for p, _ := range r.PlayerInfo {
-			if teamWins[r.PlayerInfo[p].Team] {
-				r.PlayerInfo[p].Win = true
+		for p, _ := range r.Summary {
+			if teamWins[r.Summary[p].Team] {
+				r.Summary[p].Win = true
 			}
 		}
 	}
