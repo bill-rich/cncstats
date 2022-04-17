@@ -15,12 +15,17 @@ type Building struct {
 	Cost int
 }
 
+type ObjectSummary struct {
+	Count      int
+	TotalSpent int
+}
+
 type PlayerInfo struct {
 	Name           string
 	Side           string
 	MoneySpent     int
-	UnitsCreated   []Unit
-	BuildingsBuilt []Building
+	UnitsCreated   map[string]*ObjectSummary
+	BuildingsBuilt map[string]*ObjectSummary
 	Team           int
 	Win            bool
 }

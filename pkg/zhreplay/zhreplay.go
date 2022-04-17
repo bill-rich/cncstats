@@ -27,9 +27,11 @@ func (r *Replay) CreatePlayerList() {
 	for _, playerMd := range r.Header.Metadata.Players {
 		team, _ := strconv.Atoi(playerMd.Team)
 		player := &object.PlayerInfo{
-			Name: playerMd.Name,
-			Team: team + 1,
-			Win:  true,
+			Name:           playerMd.Name,
+			Team:           team + 1,
+			Win:            true,
+			BuildingsBuilt: map[string]*object.ObjectSummary{},
+			UnitsCreated:   map[string]*object.ObjectSummary{},
 		}
 		r.PlayerInfo = append(r.PlayerInfo, player)
 	}
@@ -66,7 +68,13 @@ func (r *Replay) GenerateData() {
 					Name: order.Details.GetName(),
 					Cost: order.Details.GetCost(),
 				}
-				player.UnitsCreated = append(player.UnitsCreated, unit)
+				summary, ok := player.UnitsCreated[order.Details.GetName()]
+				if !ok {
+					summary = &object.ObjectSummary{}
+					player.UnitsCreated[order.Details.GetName()] = summary
+				}
+				summary.Count++
+				summary.TotalSpent += unit.Cost
 				player.MoneySpent += unit.Cost
 			}
 			if order.OrderCode == 1049 {
@@ -74,7 +82,13 @@ func (r *Replay) GenerateData() {
 					Name: order.Details.GetName(),
 					Cost: order.Details.GetCost(),
 				}
-				player.BuildingsBuilt = append(player.BuildingsBuilt, building)
+				summary, ok := player.UnitsCreated[order.Details.GetName()]
+				if !ok {
+					summary = &object.ObjectSummary{}
+					player.BuildingsBuilt[order.Details.GetName()] = summary
+				}
+				summary.Count++
+				summary.TotalSpent += building.Cost
 				player.MoneySpent += building.Cost
 			}
 			if order.OrderCode == 1093 {
