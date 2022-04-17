@@ -31,7 +31,7 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 
 func (r *Replay) AddUserNames() {
 	for _, chunk := range r.Body {
-		if chunk.PlayerID >= r.Offset && chunk.PlayerID-2 < len(r.PlayerInfo) {
+		if chunk.PlayerID >= r.Offset && chunk.PlayerID-r.Offset < len(r.PlayerInfo) {
 			fmt.Printf("%+v\n", chunk.PlayerID)
 			chunk.PlayerName = r.PlayerInfo[chunk.PlayerID-r.Offset].Name
 		}
