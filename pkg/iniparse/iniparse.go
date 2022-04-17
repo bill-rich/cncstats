@@ -18,22 +18,6 @@ type Object struct {
 	Cost int
 }
 
-func (o *ObjectStore) LoadObjects(dir string) error {
-	dirItems, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-
-	for _, dirItem := range dirItems {
-		file, err := os.Open(dir + "/" + dirItem.Name())
-		if err != nil {
-			return err
-		}
-		o.ParseFile(file)
-	}
-	return nil
-}
-
 const (
 	nilString   = ""
 	ObjectStart = "Object"
@@ -64,14 +48,38 @@ var IniKey = []string{
 	*/
 }
 
-func NewObjectStore() *ObjectStore {
-	return &ObjectStore{
+func NewObjectStore(dir string) (*ObjectStore, error) {
+	objectStore := &ObjectStore{
 		Object: []Object{},
 	}
+	err := objectStore.loadObjects(dir)
+	return objectStore, err
 }
 
 func (o *ObjectStore) GetObject(i int) *Object {
+	if i < 2 {
+		return nil
+	}
 	return &o.Object[i-2]
+}
+
+func (o *ObjectStore) loadObjects(dir string) error {
+	dirItems, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, dirItem := range dirItems {
+		file, err := os.Open(dir + "/" + dirItem.Name())
+		if err != nil {
+			return err
+		}
+		err = o.parseFile(file)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func matchKey(line string) string {
@@ -83,7 +91,7 @@ func matchKey(line string) string {
 	return nilString
 }
 
-func (o *ObjectStore) ParseFile(file io.Reader) error {
+func (o *ObjectStore) parseFile(file io.Reader) error {
 	scanner := bufio.NewScanner(file)
 	var object *Object
 	for scanner.Scan() {

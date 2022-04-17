@@ -22,8 +22,7 @@ type Replay struct {
 }
 
 func main() {
-	objectStore := iniparse.NewObjectStore()
-	err := objectStore.LoadObjects("/var/Data/INI/Object")
+	objectStore, err := iniparse.NewObjectStore("/var/Data/INI/Object")
 	if err != nil {
 		log.WithError(err).Fatal("could not load object store")
 	}
@@ -63,7 +62,7 @@ func main() {
 
 		um, err := json.Marshal(replay)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		fmt.Printf(string(um))
 		return
@@ -257,8 +256,7 @@ func saveFileHandler(c *gin.Context) {
 	*/
 	fileIn, err := file.Open()
 
-	objectStore := iniparse.NewObjectStore()
-	err = objectStore.LoadObjects("/var/Data/INI/Object")
+	objectStore, err := iniparse.NewObjectStore("/var/Data/INI/Object")
 	if err != nil {
 		log.WithError(err).Fatal("could not load object store")
 	}
