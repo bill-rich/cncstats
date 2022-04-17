@@ -167,9 +167,6 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerInfo, objectSt
 			ArgMetadata:       []*ArgMetadata{},
 			Arguments:         []interface{}{},
 		}
-		if chunk.PlayerID >= 2 {
-			chunk.PlayerName = playerList[chunk.PlayerID-2].Name
-		}
 		chunk.OrderName = CommandType[chunk.OrderCode]
 		for i := 0; i < chunk.NumberOfArguments; i++ {
 			argCount := &ArgMetadata{

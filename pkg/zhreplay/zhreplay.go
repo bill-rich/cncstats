@@ -1,6 +1,7 @@
 package zhreplay
 
 import (
+	"fmt"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -12,15 +13,39 @@ type Replay struct {
 	Header     *header.GeneralsHeader
 	Body       []*body.BodyChunk
 	PlayerInfo []*object.PlayerInfo
+	Offset     int
 }
 
 func NewReplay(bp *bitparse.BitParser) *Replay {
-	replay := &Replay{}
+	replay := &Replay{
+		Offset: 2,
+	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
 	replay.Body = body.ParseBody(bp, replay.PlayerInfo, bp.ObjectStore)
+	replay.AdjustOffset()
+	replay.AddUserNames()
 	replay.GenerateData()
 	return replay
+}
+
+func (r *Replay) AddUserNames() {
+	for _, chunk := range r.Body {
+		if chunk.PlayerID >= r.Offset && chunk.PlayerID-2 < len(r.PlayerInfo) {
+			fmt.Printf("%+v\n", chunk.PlayerID)
+			chunk.PlayerName = r.PlayerInfo[chunk.PlayerID-r.Offset].Name
+		}
+	}
+}
+
+func (r *Replay) AdjustOffset() {
+	lowest := 1000
+	for _, chunk := range r.Body {
+		if chunk.PlayerID < lowest {
+			lowest = chunk.PlayerID
+		}
+	}
+	r.Offset = lowest
 }
 
 func (r *Replay) CreatePlayerList() {
