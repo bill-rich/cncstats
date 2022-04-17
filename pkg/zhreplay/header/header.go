@@ -60,7 +60,7 @@ type GeneralsHeader struct {
 	GameSpeed       int
 }
 
-func ParseHeader(bp *bitparse.BitParser) *GeneralsHeader {
+func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 	return &GeneralsHeader{
 		GameType:        bp.ReadString(6),
 		TimeStampBegin:  bp.ReadUInt32(),

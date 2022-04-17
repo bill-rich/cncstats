@@ -3,6 +3,7 @@ package body
 import (
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
 )
 
 const (
@@ -101,7 +102,7 @@ type BodyChunk struct {
 	PlayerID     int // Starts at 2 for humans
 	PlayerName   string
 	UniqueOrders int
-	Details      interface{}
+	Details      object.Object
 	Args         []*Arg
 }
 
@@ -154,7 +155,7 @@ var CommandType map[int]string = map[int]string{
 	1095: "Checksum",
 }
 
-func ParseBody(bp *bitparse.BitParser, playerList []string, objectStore *iniparse.ObjectStore) []*BodyChunk {
+func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerInfo, objectStore *iniparse.ObjectStore) []*BodyChunk {
 	body := []*BodyChunk{}
 
 	for {
@@ -166,7 +167,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []string, objectStore *inipars
 			Args:         []*Arg{},
 		}
 		if chunk.PlayerID >= 2 {
-			chunk.PlayerName = playerList[chunk.PlayerID-2]
+			chunk.PlayerName = playerList[chunk.PlayerID-2].Name
 		}
 		chunk.OrderName = CommandType[chunk.OrderCode]
 		for i := 0; i < chunk.UniqueOrders; i++ {
@@ -194,16 +195,16 @@ func ParseBody(bp *bitparse.BitParser, playerList []string, objectStore *inipars
 func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore) {
 	switch c.OrderCode {
 	case 1047: // Create Unit
-		object := objectStore.GetObject(c.Args[0].Args[0].(int))
-		c.Details = map[string]interface{}{
-			"object": object.Name,
-			"cost":   object.Cost,
+		newObject := objectStore.GetObject(c.Args[0].Args[0].(int))
+		c.Details = &object.Unit{
+			Name: newObject.Name,
+			Cost: newObject.Cost,
 		}
 	case 1049: // Build
-		object := objectStore.GetObject(c.Args[0].Args[0].(int))
-		c.Details = map[string]interface{}{
-			"object": object.Name,
-			"cost":   object.Cost,
+		newObject := objectStore.GetObject(c.Args[0].Args[0].(int))
+		c.Details = &object.Building{
+			Name: newObject.Name,
+			Cost: newObject.Cost,
 		}
 	}
 }
