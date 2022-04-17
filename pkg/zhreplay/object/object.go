@@ -23,11 +23,11 @@ type ObjectSummary struct {
 type PlayerInfo struct {
 	Name           string
 	Side           string
+	Team           int
+	Win            bool
 	MoneySpent     int
 	UnitsCreated   map[string]*ObjectSummary
 	BuildingsBuilt map[string]*ObjectSummary
-	Team           int
-	Win            bool
 }
 
 func (u *Unit) GetName() string {
