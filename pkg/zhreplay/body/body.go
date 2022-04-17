@@ -89,21 +89,21 @@ type Position struct {
 
 type Rectangle [2]Position
 
-type Arg struct {
+type ArgMetadata struct {
 	Type  int
 	Count int
-	Args  []interface{}
 }
 
 type BodyChunk struct {
-	TimeCode     int
-	OrderCode    int
-	OrderName    string
-	PlayerID     int // Starts at 2 for humans
-	PlayerName   string
-	UniqueOrders int
-	Details      object.Object
-	Args         []*Arg
+	TimeCode          int
+	OrderCode         int
+	OrderName         string
+	PlayerID          int // Starts at 2 for humans
+	PlayerName        string
+	NumberOfArguments int
+	Details           object.Object
+	ArgMetadata       []*ArgMetadata
+	Arguments         []interface{}
 }
 
 var CommandType map[int]string = map[int]string{
@@ -160,27 +160,27 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerInfo, objectSt
 
 	for {
 		chunk := BodyChunk{
-			TimeCode:     bp.ReadUInt32(),
-			OrderCode:    bp.ReadUInt32(),
-			PlayerID:     bp.ReadUInt32(),
-			UniqueOrders: bp.ReadUInt8(),
-			Args:         []*Arg{},
+			TimeCode:          bp.ReadUInt32(),
+			OrderCode:         bp.ReadUInt32(),
+			PlayerID:          bp.ReadUInt32(),
+			NumberOfArguments: bp.ReadUInt8(),
+			ArgMetadata:       []*ArgMetadata{},
+			Arguments:         []interface{}{},
 		}
 		if chunk.PlayerID >= 2 {
 			chunk.PlayerName = playerList[chunk.PlayerID-2].Name
 		}
 		chunk.OrderName = CommandType[chunk.OrderCode]
-		for i := 0; i < chunk.UniqueOrders; i++ {
-			argCount := &Arg{
+		for i := 0; i < chunk.NumberOfArguments; i++ {
+			argCount := &ArgMetadata{
 				Type:  bp.ReadUInt8(),
 				Count: bp.ReadUInt8(),
-				Args:  []interface{}{},
 			}
-			chunk.Args = append(chunk.Args, argCount)
+			chunk.ArgMetadata = append(chunk.ArgMetadata, argCount)
 		}
-		for _, argType := range chunk.Args {
-			for i := 0; i < argType.Count; i++ {
-				argType.Args = append(argType.Args, convertArg(bp, argType.Type))
+		for _, argData := range chunk.ArgMetadata {
+			for i := 0; i < argData.Count; i++ {
+				chunk.Arguments = append(chunk.Arguments, convertArg(bp, argData.Type))
 			}
 		}
 		chunk.addExtraData(objectStore)
@@ -195,13 +195,13 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerInfo, objectSt
 func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore) {
 	switch c.OrderCode {
 	case 1047: // Create Unit
-		newObject := objectStore.GetObject(c.Args[0].Args[0].(int))
+		newObject := objectStore.GetObject(c.Arguments[0].(int))
 		c.Details = &object.Unit{
 			Name: newObject.Name,
 			Cost: newObject.Cost,
 		}
 	case 1049: // Build
-		newObject := objectStore.GetObject(c.Args[0].Args[0].(int))
+		newObject := objectStore.GetObject(c.Arguments[0].(int))
 		c.Details = &object.Building{
 			Name: newObject.Name,
 			Cost: newObject.Cost,

@@ -37,7 +37,7 @@ func main() {
 			totalSpent := map[string]int{}
 			for _, order := range replay.Body {
 				if order.OrderCode == 1047 {
-					object := objectStore.GetObject(order.Args[0].Args[0].(int))
+					object := objectStore.GetObject(order.ArgMetadata[0].ArgMetadata[0].(int))
 					playerName := replay.Players[order.PlayerID-2]
 					totalSpent[playerName] += object.Cost
 					fmt.Printf("%d: %s queued up a %s for %d\n",
