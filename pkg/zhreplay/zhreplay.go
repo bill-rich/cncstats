@@ -51,13 +51,7 @@ var ConstructorMap = map[string]string{
 }
 
 func (r *Replay) GenerateData() {
-	for _, playerMd := range r.Header.Metadata.Players {
-		team, _ := strconv.Atoi(playerMd.Team)
-		player := object.PlayerInfo{
-			Name: playerMd.Name,
-			Team: team + 1,
-			Win:  true,
-		}
+	for _, player := range r.PlayerInfo {
 		for _, order := range r.Body {
 			if order.PlayerName != player.Name {
 				continue
@@ -87,7 +81,6 @@ func (r *Replay) GenerateData() {
 				player.Win = false
 			}
 		}
-		r.PlayerInfo = append(r.PlayerInfo, &player)
 	}
 
 	// Hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
