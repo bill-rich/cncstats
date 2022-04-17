@@ -33,24 +33,6 @@ func main() {
 		}
 		replay := zhreplay.NewReplay(bp)
 
-		/*
-			totalSpent := map[string]int{}
-			for _, order := range replay.Body {
-				if order.OrderCode == 1047 {
-					object := objectStore.GetObject(order.ArgMetadata[0].ArgMetadata[0].(int))
-					playerName := replay.Players[order.PlayerID-2]
-					totalSpent[playerName] += object.Cost
-					fmt.Printf("%d: %s queued up a %s for %d\n",
-						order.TimeCode,
-						replay.Players[order.PlayerID-2],
-						object.Name,
-						object.Cost,
-					)
-				}
-			}
-			fmt.Printf("Total spent:%+v\n", totalSpent)
-		*/
-
 		um, err := json.Marshal(replay)
 		if err != nil {
 			log.Fatal(err)
@@ -74,22 +56,6 @@ func saveFileHandler(c *gin.Context) {
 		return
 	}
 
-	/*
-
-		// The file is received, so let's save it
-		if err := c.SaveUploadedFile(file, "/tmp/"+file.Filename); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"message": "Unable to save the file",
-				"error":   err,
-			})
-			return
-		}
-
-		fileIn, err := os.Open("/tmp/" + file.Filename)
-		if err != nil {
-			log.WithError(err).Fatal("could not open file")
-		}
-	*/
 	fileIn, err := file.Open()
 
 	objectStore, err := iniparse.NewObjectStore("/var/Data/INI/Object")
