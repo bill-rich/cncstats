@@ -107,7 +107,7 @@ func (r *Replay) GenerateData() {
 					Name: order.Details.GetName(),
 					Cost: order.Details.GetCost(),
 				}
-				summary, ok := player.UnitsCreated[order.Details.GetName()]
+				summary, ok := player.BuildingsBuilt[order.Details.GetName()]
 				if !ok {
 					summary = &object.ObjectSummary{}
 					player.BuildingsBuilt[order.Details.GetName()] = summary

@@ -150,6 +150,7 @@ var CommandType map[int]string = map[int]string{
 	1068: "MoveTo",
 	1074: "StopMoving",
 	1078: "ToggleOvercharge",
+	// 1079: "USA PowerPlant Upgrade" GUESS
 	1092: "SetCameraPosition",
 	1093: "Surrender",
 	1095: "Checksum",
