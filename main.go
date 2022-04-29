@@ -15,11 +15,19 @@ import (
 func main() {
 	objData := os.Getenv("CNC_INI")
 	if len(objData) == 0 {
-		objData = "/var/Data/INI/Object"
+		objData = "/var/Data/INI"
 	}
 	objectStore, err := iniparse.NewObjectStore(objData)
 	if err != nil {
 		log.WithError(err).Fatal("could not load object store")
+	}
+	powerStore, err := iniparse.NewPowerStore(objData)
+	if err != nil {
+		log.WithError(err).Fatal("could not load general power store")
+	}
+	upgradeStore, err := iniparse.NewUpgradeStore(objData)
+	if err != nil {
+		log.WithError(err).Fatal("could not load upgrade store")
 	}
 	if len(os.Getenv("TRACE")) > 0 {
 		log.SetLevel(log.TraceLevel)
@@ -32,8 +40,10 @@ func main() {
 		}
 
 		bp := &bitparse.BitParser{
-			Source:      file,
-			ObjectStore: objectStore,
+			Source:       file,
+			ObjectStore:  objectStore,
+			PowerStore:   powerStore,
+			UpgradeStore: upgradeStore,
 		}
 		replay := zhreplay.NewReplay(bp)
 

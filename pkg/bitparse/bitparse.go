@@ -11,8 +11,10 @@ import (
 )
 
 type BitParser struct {
-	Source      io.Reader
-	ObjectStore *iniparse.ObjectStore
+	Source       io.Reader
+	ObjectStore  *iniparse.ObjectStore
+	PowerStore   *iniparse.PowerStore
+	UpgradeStore *iniparse.UpgradeStore
 }
 
 func (bp *BitParser) ReadBytes(size int) []byte {

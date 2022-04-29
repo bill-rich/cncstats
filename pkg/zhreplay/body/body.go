@@ -107,7 +107,9 @@ type BodyChunk struct {
 }
 
 var CommandType map[int]string = map[int]string{
+	27:   "EndReplay",
 	1001: "SetSelection",
+	1002: "Unknown1002", // Can be true or false and have multiple int args
 	1003: "ClearSelection",
 	1006: "CreateGroup0",
 	1007: "CreateGroup1",
@@ -129,6 +131,7 @@ var CommandType map[int]string = map[int]string{
 	1023: "SelectGroup7",
 	1024: "SelectGroup8",
 	1025: "SelectGroup9",
+	1038: "Unknown1038", // Has a position arg. Seems to only be available to China.
 	1040: "SpecialPower",
 	1041: "SpecialPowerAtLocation",
 	1042: "SpecialPowerAtObject",
@@ -141,22 +144,29 @@ var CommandType map[int]string = map[int]string{
 	1049: "BuildObject",
 	1051: "CancelBuild",
 	1052: "Sell",
+	1054: "Unknown1054", // Only used by Jared (China). No args
 	1058: "SelectBox",
 	1059: "AttackObject",
 	1060: "ForceAttackObject",
 	1061: "ForceAttackGround",
+	1062: "Unknown1062", // 555 or 554 for USAs, 972 for china
+	1064: "Unknown1064", // Arg can be 628 or 630. Fairly uncommon (~3 in one game checked). Maybe attack move?
 	1065: "ResumeBuild",
 	1066: "Enter",
+	1067: "Unknown1067", // Something only USA has. Arg can be 402 or 409
 	1068: "MoveTo",
+	1069: "Unknown1069", // Only used by Brendan (USA). 1 position arg
+	1072: "Unknown1072", // Mostly used by Brendan and occasionally Bill (As USA). Maybe guard?
 	1074: "StopMoving",
 	1078: "ToggleOvercharge",
-	// 1079: "USA PowerPlant Upgrade" GUESS
+	1079: "Unknown1079",
 	1092: "SetCameraPosition",
 	1093: "Surrender",
 	1095: "Checksum",
+	1097: "DeclareUserId", // Seems to be the case.
 }
 
-func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore) []*BodyChunk {
+func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {
 	body := []*BodyChunk{}
 
 	for {
@@ -181,7 +191,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 				chunk.Arguments = append(chunk.Arguments, convertArg(bp, argData.Type))
 			}
 		}
-		chunk.addExtraData(objectStore)
+		chunk.addExtraData(objectStore, powerStore, upgradeStore)
 		if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
 			break
 		}
@@ -190,7 +200,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 	return body
 }
 
-func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore) {
+func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
 	switch c.OrderCode {
 	case 1047: // Create Unit
 		newObject := objectStore.GetObject(c.Arguments[0].(int))
@@ -203,6 +213,33 @@ func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore) {
 		c.Details = &object.Building{
 			Name: newObject.Name,
 			Cost: newObject.Cost,
+		}
+	case 1040: // SpecialPower
+		newObject := powerStore.GetObject(c.Arguments[0].(int))
+		c.Details = &object.Power{
+			Name: newObject.Name,
+		}
+	case 1041: // SpecialPower
+		newObject := powerStore.GetObject(c.Arguments[0].(int))
+		c.Details = &object.Power{
+			Name: newObject.Name,
+		}
+	case 1042: // SpecialPower
+		newObject := powerStore.GetObject(c.Arguments[0].(int))
+		c.Details = &object.Power{
+			Name: newObject.Name,
+		}
+	case 1045: // Upgrades
+		newObject := upgradeStore.GetObject(c.Arguments[1].(int))
+		if newObject == nil {
+			c.Details = &object.Upgrade{
+				Name: "dummy",
+			}
+		} else {
+			c.Details = &object.Upgrade{
+				Name: newObject.Name,
+				Cost: newObject.Cost,
+			}
 		}
 	}
 }

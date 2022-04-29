@@ -15,6 +15,15 @@ type Building struct {
 	Cost int
 }
 
+type Power struct {
+	Name string
+}
+
+type Upgrade struct {
+	Name string
+	Cost int
+}
+
 type ObjectSummary struct {
 	Count      int
 	TotalSpent int
@@ -28,6 +37,8 @@ type PlayerSummary struct {
 	MoneySpent     int
 	UnitsCreated   map[string]*ObjectSummary
 	BuildingsBuilt map[string]*ObjectSummary
+	UpgradesBuilt  map[string]*ObjectSummary
+	PowersUsed     map[string]int
 }
 
 func (u *Unit) GetName() string {
@@ -44,4 +55,20 @@ func (b *Building) GetName() string {
 
 func (b *Building) GetCost() int {
 	return b.Cost
+}
+
+func (p *Power) GetName() string {
+	return p.Name
+}
+
+func (p *Power) GetCost() int {
+	return 0
+}
+
+func (u *Upgrade) GetName() string {
+	return u.Name
+}
+
+func (u *Upgrade) GetCost() int {
+	return u.Cost
 }

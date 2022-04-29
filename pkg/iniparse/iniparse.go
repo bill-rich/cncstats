@@ -3,6 +3,7 @@ package iniparse
 import (
 	"bufio"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"strconv"
@@ -18,6 +19,23 @@ type Object struct {
 	Cost int
 }
 
+type UpgradeStore struct {
+	Upgrade []Upgrade
+}
+
+type Upgrade struct {
+	Name string
+	Cost int
+}
+
+type PowerStore struct {
+	Power []Power
+}
+
+type Power struct {
+	Name string
+}
+
 const (
 	nilString   = ""
 	ObjectStart = "Object"
@@ -29,6 +47,8 @@ var IniKey = []string{
 	"Object",
 	"End",
 	"  BuildCost",
+	"Upgrade",
+	"SpecialPower",
 	/*
 		"OkToChangeModelColor",
 		"ConditionState",
@@ -64,13 +84,13 @@ func (o *ObjectStore) GetObject(i int) *Object {
 }
 
 func (o *ObjectStore) loadObjects(dir string) error {
-	dirItems, err := os.ReadDir(dir)
+	dirItems, err := os.ReadDir(dir + "/Object/")
 	if err != nil {
 		return err
 	}
 
 	for _, dirItem := range dirItems {
-		file, err := os.Open(dir + "/" + dirItem.Name())
+		file, err := os.Open(dir + "/Object/" + dirItem.Name())
 		if err != nil {
 			return err
 		}
@@ -78,6 +98,132 @@ func (o *ObjectStore) loadObjects(dir string) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func NewPowerStore(dir string) (*PowerStore, error) {
+	powerStore := &PowerStore{
+		Power: []Power{},
+	}
+	err := powerStore.loadObjects(dir)
+	return powerStore, err
+}
+
+func (p *PowerStore) GetObject(i int) *Power {
+	if i < 2 {
+		return nil
+	}
+	return &p.Power[i-2]
+}
+
+func (p *PowerStore) loadObjects(dir string) error {
+	file, err := os.Open(dir + "/SpecialPower.ini")
+	if err != nil {
+		return err
+	}
+	err = p.parseFile(file)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *PowerStore) parseFile(file io.Reader) error {
+	scanner := bufio.NewScanner(file)
+	var power *Power
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch matchKey(line) {
+		case "SpecialPower":
+			if power != nil {
+				p.Power = append(p.Power, *power)
+			}
+			fields := strings.Split(line, " ")
+			if len(fields) < 2 {
+				return fmt.Errorf("could not get power name from line: %s", line)
+			}
+			power = &Power{
+				Name: fields[1],
+			}
+		case "End":
+		default:
+		}
+	}
+	if power != nil {
+		p.Power = append(p.Power, *power)
+	}
+	return nil
+}
+
+func NewUpgradeStore(dir string) (*UpgradeStore, error) {
+	upgradeStore := &UpgradeStore{
+		Upgrade: []Upgrade{},
+	}
+	err := upgradeStore.loadObjects(dir)
+	return upgradeStore, err
+}
+
+func (u *UpgradeStore) GetObject(i int) *Upgrade {
+	offset := 2270 // It seems that usually the upgrades are part of the object listing. This is where the upgrades start.
+	max := len(u.Upgrade) + offset
+	if i < offset || i >= max {
+		log.WithField("upgradeId", i).WithField("offset", offset).WithField("max", max).Errorf("upgradeId is out of range")
+		return nil
+	}
+	return &u.Upgrade[i-offset]
+}
+
+func (u *UpgradeStore) loadObjects(dir string) error {
+	file, err := os.Open(dir + "/Upgrade.ini")
+	if err != nil {
+		return err
+	}
+	err = u.parseFile(file)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *UpgradeStore) parseFile(file io.Reader) error {
+	scanner := bufio.NewScanner(file)
+	var upgrade *Upgrade
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch matchKey(line) {
+		case "Upgrade":
+			if upgrade != nil {
+				u.Upgrade = append(u.Upgrade, *upgrade)
+			}
+			fields := strings.Split(line, " ")
+			if len(fields) < 2 {
+				return fmt.Errorf("could not get upgrade name from line: %s", line)
+			}
+			upgrade = &Upgrade{
+				Name: fields[1],
+			}
+		case "BuildCost":
+			if upgrade == nil {
+				return fmt.Errorf("need an object to store cost")
+			}
+			fields := strings.Split(line, "=")
+			if len(fields) < 2 {
+				return fmt.Errorf("cannot find object cost")
+			}
+			fieldsComment := strings.Split(fields[1], ";")
+			costString := strings.ReplaceAll(fieldsComment[0], " ", "")
+			cost, err := strconv.Atoi(costString)
+			if err != nil {
+				return err
+			}
+			upgrade.Cost = cost
+		case "End":
+		default:
+		}
+	}
+	if upgrade != nil {
+		u.Upgrade = append(u.Upgrade, *upgrade)
 	}
 	return nil
 }

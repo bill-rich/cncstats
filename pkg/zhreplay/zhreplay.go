@@ -1,7 +1,6 @@
 package zhreplay
 
 import (
-	"fmt"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -22,7 +21,7 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
-	replay.Body = body.ParseBody(bp, replay.Summary, bp.ObjectStore)
+	replay.Body = body.ParseBody(bp, replay.Summary, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
 	replay.AdjustOffset()
 	replay.AddUserNames()
 	replay.GenerateData()
@@ -32,7 +31,6 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 func (r *Replay) AddUserNames() {
 	for _, chunk := range r.Body {
 		if chunk.PlayerID >= r.Offset && chunk.PlayerID-r.Offset < len(r.Summary) {
-			fmt.Printf("%+v\n", chunk.PlayerID)
 			chunk.PlayerName = r.Summary[chunk.PlayerID-r.Offset].Name
 		}
 	}
@@ -57,6 +55,8 @@ func (r *Replay) CreatePlayerList() {
 			Win:            true,
 			BuildingsBuilt: map[string]*object.ObjectSummary{},
 			UnitsCreated:   map[string]*object.ObjectSummary{},
+			UpgradesBuilt:  map[string]*object.ObjectSummary{},
+			PowersUsed:     map[string]int{},
 		}
 		r.Summary = append(r.Summary, player)
 	}
@@ -115,6 +115,25 @@ func (r *Replay) GenerateData() {
 				summary.Count++
 				summary.TotalSpent += building.Cost
 				player.MoneySpent += building.Cost
+			}
+			if order.OrderCode == 1045 {
+				upgrade := object.Upgrade{
+					Name: order.Details.GetName(),
+					Cost: order.Details.GetCost(),
+				}
+				summary, ok := player.UpgradesBuilt[order.Details.GetName()]
+				if !ok {
+					summary = &object.ObjectSummary{}
+					player.UpgradesBuilt[order.Details.GetName()] = summary
+				}
+				summary.Count++
+				summary.TotalSpent += upgrade.Cost
+				player.MoneySpent += upgrade.Cost
+
+			}
+			if order.OrderCode == 1041 || order.OrderCode == 1042 {
+				player.PowersUsed[order.Details.GetName()]++
+
 			}
 			if order.OrderCode == 1093 {
 				player.Win = false
