@@ -109,7 +109,7 @@ type BodyChunk struct {
 var CommandType map[int]string = map[int]string{
 	27:   "EndReplay",
 	1001: "SetSelection",
-	1002: "Unknown1002", // Can be true or false and have multiple int args
+	1002: "SelectAll", // Pretty sure this is "e", the bool is everywhere or just on screen.
 	1003: "ClearSelection",
 	1006: "CreateGroup0",
 	1007: "CreateGroup1",
@@ -131,7 +131,7 @@ var CommandType map[int]string = map[int]string{
 	1023: "SelectGroup7",
 	1024: "SelectGroup8",
 	1025: "SelectGroup9",
-	1038: "Unknown1038", // Has a position arg. Seems to only be available to China.
+	1038: "Unknown1038_Flamewall", // Has a position arg. Seems to only be available to China.
 	1040: "SpecialPower",
 	1041: "SpecialPowerAtLocation",
 	1042: "SpecialPowerAtObject",
@@ -144,6 +144,7 @@ var CommandType map[int]string = map[int]string{
 	1049: "BuildObject",
 	1051: "CancelBuild",
 	1052: "Sell",
+	1053: "Unknown1053", // Takes one int arg
 	1054: "Unknown1054", // Only used by Jared (China). No args
 	1058: "SelectBox",
 	1059: "AttackObject",
@@ -158,8 +159,10 @@ var CommandType map[int]string = map[int]string{
 	1069: "Unknown1069", // Only used by Brendan (USA). 1 position arg
 	1072: "Unknown1072", // Mostly used by Brendan and occasionally Bill (As USA). Maybe guard?
 	1074: "StopMoving",
+	1076: "Unknown1076_HackInternet", // No args
 	1078: "ToggleOvercharge",
 	1079: "Unknown1079",
+	1087: "Unknown1087", // Takes one position arg
 	1092: "SetCameraPosition",
 	1093: "Surrender",
 	1095: "Checksum",

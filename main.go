@@ -72,16 +72,33 @@ func saveFileHandler(c *gin.Context) {
 
 	fileIn, err := file.Open()
 
-	objectStore, err := iniparse.NewObjectStore("/var/Data/INI/Object")
+	objData := os.Getenv("CNC_INI")
+	if len(objData) == 0 {
+		objData = "/var/Data/INI"
+	}
+	objectStore, err := iniparse.NewObjectStore(objData)
 	if err != nil {
 		log.WithError(err).Fatal("could not load object store")
 	}
-
-	bp := &bitparse.BitParser{
-		Source:      fileIn,
-		ObjectStore: objectStore,
+	powerStore, err := iniparse.NewPowerStore(objData)
+	if err != nil {
+		log.WithError(err).Fatal("could not load general power store")
+	}
+	upgradeStore, err := iniparse.NewUpgradeStore(objData)
+	if err != nil {
+		log.WithError(err).Fatal("could not load upgrade store")
+	}
+	if len(os.Getenv("TRACE")) > 0 {
+		log.SetLevel(log.TraceLevel)
 	}
 
+	bp := &bitparse.BitParser{
+		Source:       fileIn,
+		ObjectStore:  objectStore,
+		PowerStore:   powerStore,
+		UpgradeStore: upgradeStore,
+	}
+		
 	// File saved successfully. Return proper result
 	c.JSON(http.StatusOK, zhreplay.NewReplay(bp))
 }
