@@ -131,7 +131,8 @@ var CommandType map[int]string = map[int]string{
 	1023: "SelectGroup7",
 	1024: "SelectGroup8",
 	1025: "SelectGroup9",
-	1038: "Flamewall", // Has a position arg. Seems to only be available to China.
+	1037: "DetonateNow",                   // For bomb truck
+	1038: "FlamewallRocketPodContaminate", // Flamewall for flametank, rocket pods for comanche, contaminate for tractor
 	1040: "SpecialPower",
 	1041: "SpecialPowerAtLocation",
 	1042: "SpecialPowerAtObject",
@@ -162,8 +163,8 @@ var CommandType map[int]string = map[int]string{
 	1075: "Scatter",
 	1076: "HackInternet",
 	1078: "ToggleOvercharge",
-	1079: "Unknown1079",
-	1087: "Unknown1087", // Takes one position arg
+	1079: "ToggleUnitMode", // Ranger: machinegun(0)/flashbang(1), Demotrap:detonate(0),proxy(1),manual(2), Scud:explosive(0)/anthrax(1)
+	1087: "Unknown1087",    // Takes one position arg
 	1092: "SetCameraPosition",
 	1093: "Surrender",
 	1095: "Checksum",
