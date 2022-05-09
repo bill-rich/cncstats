@@ -51,7 +51,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf(string(um))
+
+		fmt.Printf("%+v\n", string(um))
 		return
 	}
 
@@ -98,7 +99,7 @@ func saveFileHandler(c *gin.Context) {
 		PowerStore:   powerStore,
 		UpgradeStore: upgradeStore,
 	}
-		
+
 	// File saved successfully. Return proper result
 	c.JSON(http.StatusOK, zhreplay.NewReplay(bp))
 }

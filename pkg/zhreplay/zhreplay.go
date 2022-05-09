@@ -15,6 +15,13 @@ type Replay struct {
 	Offset  int
 }
 
+type ReplayEasyUnmarshall struct {
+	Header  *header.GeneralsHeader
+	Body    []*body.BodyChunkEasyUnmarshall
+	Summary []*object.PlayerSummary
+	Offset  int
+}
+
 func NewReplay(bp *bitparse.BitParser) *Replay {
 	replay := &Replay{
 		Offset: 2,

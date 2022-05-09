@@ -106,6 +106,23 @@ type BodyChunk struct {
 	Arguments         []interface{}
 }
 
+type BodyChunkEasyUnmarshall struct {
+	TimeCode          int
+	OrderCode         int
+	OrderName         string
+	PlayerID          int // Starts at 2 for humans
+	PlayerName        string
+	NumberOfArguments int
+	Details           GeneralDetail
+	ArgMetadata       []*ArgMetadata
+	Arguments         []interface{}
+}
+
+type GeneralDetail struct {
+	Cost int
+	Name string
+}
+
 var CommandType map[int]string = map[int]string{
 	27:   "EndReplay",
 	1001: "SetSelection",
