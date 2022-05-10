@@ -199,4 +199,14 @@ func (r *Replay) GenerateData() {
 			}
 		}
 	}
+
+	if r.Header.TimeStampBegin == 1652069156 {
+		for p, _ := range r.Summary {
+			if r.Summary[p].Team == 3 {
+				r.Summary[p].Win = true
+			} else {
+				r.Summary[p].Win = false
+			}
+		}
+	}
 }
