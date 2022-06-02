@@ -52,7 +52,7 @@ type GeneralsHeader struct {
 	VersionMinor    int
 	VersionMajor    int
 	Hash            []byte
-	Metadata        Metadata
+	Metadata        string
 	ReplayOwnerSlot interface{}
 	Unknown1        interface{}
 	Unknown2        interface{}
@@ -62,11 +62,11 @@ type GeneralsHeader struct {
 
 func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 	return &GeneralsHeader{
-		GameType:        bp.ReadString(6),
+		GameType:        bp.ReadString(8),
 		TimeStampBegin:  bp.ReadUInt32(),
 		TimeStampEnd:    bp.ReadUInt32(),
 		NumTimeStamps:   bp.ReadUInt16(),
-		Filler:          fmt.Sprintf("%x", bp.ReadBytes(12)),
+		Filler:          fmt.Sprintf("%x", bp.ReadBytes(21)),
 		FileName:        bp.ReadNullTermString("utf16"),
 		Year:            bp.ReadUInt16(),
 		Month:           bp.ReadUInt16(),
@@ -80,8 +80,8 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 		BuildDate:       bp.ReadNullTermString("utf16"),
 		VersionMinor:    bp.ReadUInt16(),
 		VersionMajor:    bp.ReadUInt16(),
-		Hash:            bp.ReadBytes(8),
-		Metadata:        parseMetadata(bp.ReadNullTermString("utf8")),
+		Hash:            bp.ReadBytes(13),
+		Metadata:        bp.ReadNullTermString("utf8"),
 		ReplayOwnerSlot: fmt.Sprintf("%x", bp.ReadBytes(2)), // 3000 = slot 0, 3100 = slot 1, etc
 		Unknown1:        fmt.Sprintf("%x", bp.ReadBytes(4)),
 		Unknown2:        fmt.Sprintf("%x", bp.ReadBytes(4)), // Changes when playing solo or maybe against computers

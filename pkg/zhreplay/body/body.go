@@ -1,6 +1,7 @@
 package body
 
 import (
+	"fmt"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
@@ -200,7 +201,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 			ArgMetadata:       []*ArgMetadata{},
 			Arguments:         []interface{}{},
 		}
-		chunk.OrderName = CommandType[chunk.OrderCode]
+		// chunk.OrderName = CommandType[chunk.OrderCode]
 		for i := 0; i < chunk.NumberOfArguments; i++ {
 			argCount := &ArgMetadata{
 				Type:  bp.ReadUInt8(),
@@ -213,12 +214,13 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 				chunk.Arguments = append(chunk.Arguments, convertArg(bp, argData.Type))
 			}
 		}
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		// chunk.addExtraData(objectStore, powerStore, upgradeStore)
 		if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
 			break
 		}
 		body = append(body, &chunk)
 	}
+	fmt.Printf("%+v\n", body[0])
 	return body
 }
 

@@ -5,7 +5,6 @@ import (
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
-	"strconv"
 )
 
 type Replay struct {
@@ -27,11 +26,11 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 		Offset: 2,
 	}
 	replay.Header = header.NewHeader(bp)
-	replay.CreatePlayerList()
+	//replay.CreatePlayerList()
 	replay.Body = body.ParseBody(bp, replay.Summary, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
-	replay.AdjustOffset()
-	replay.AddUserNames()
-	replay.GenerateData()
+	//replay.AdjustOffset()
+	//replay.AddUserNames()
+	//replay.GenerateData()
 	return replay
 }
 
@@ -53,6 +52,7 @@ func (r *Replay) AdjustOffset() {
 	r.Offset = lowest
 }
 
+/*
 func (r *Replay) CreatePlayerList() {
 	for _, playerMd := range r.Header.Metadata.Players {
 		team, _ := strconv.Atoi(playerMd.Team)
@@ -68,6 +68,7 @@ func (r *Replay) CreatePlayerList() {
 		r.Summary = append(r.Summary, player)
 	}
 }
+*/
 
 var ConstructorMap = map[string]string{
 	"GLAInfantryWorker":        "GLA",
