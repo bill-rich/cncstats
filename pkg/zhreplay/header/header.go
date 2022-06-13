@@ -97,6 +97,12 @@ func parseMetadata(raw string) Metadata {
 	for _, field := range fields {
 		fieldSplit := strings.Split(field, "=")
 		if len(fieldSplit) != 2 {
+			if len(fieldSplit) == 1 && len(fieldSplit[0]) > 3 {
+				log.Debugf("This is probably the map name")
+				noBS := []byte(fieldSplit[0])[2:]
+				metadata.MapFile = string(noBS)
+			}
+
 			log.Debugf("error splitting metadata field: %s", field)
 			continue
 		}
