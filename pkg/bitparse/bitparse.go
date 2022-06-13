@@ -3,11 +3,12 @@ package bitparse
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/bill-rich/cncstats/pkg/iniparse"
-	"github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"math/big"
+
+	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/sirupsen/logrus"
 )
 
 type BitParser struct {
@@ -15,6 +16,7 @@ type BitParser struct {
 	ObjectStore  *iniparse.ObjectStore
 	PowerStore   *iniparse.PowerStore
 	UpgradeStore *iniparse.UpgradeStore
+	Index        int64
 }
 
 func (bp *BitParser) ReadBytes(size int) []byte {
@@ -23,6 +25,7 @@ func (bp *BitParser) ReadBytes(size int) []byte {
 	if n < size || err != nil {
 		logrus.WithError(err).Debugf("could not read %d bytes", size)
 	}
+	bp.Index += int64(n)
 	return bytesIn
 }
 
@@ -32,6 +35,7 @@ func (bp *BitParser) ReadString(size int) string {
 	if n < size || err != nil {
 		logrus.WithError(err).Debugf("could not read %d bytes for string", size)
 	}
+	bp.Index += int64(n)
 	return string(bytesIn)
 }
 
@@ -51,6 +55,7 @@ func (bp *BitParser) ReadUInt8() int {
 func (bp *BitParser) ReadFloat() float32 {
 	bytesIn := make([]byte, 4)
 	n, err := bp.Source.Read(bytesIn)
+	bp.Index += int64(n)
 	if n < 4 || err != nil {
 		logrus.WithError(err).Debug("failed to read float")
 		return 0
@@ -73,6 +78,7 @@ func (bp *BitParser) ReadBool() bool {
 func (bp *BitParser) ReadUInt(byteCount int) int {
 	bytesIn := make([]byte, byteCount)
 	n, err := bp.Source.Read(bytesIn)
+	bp.Index += int64(n)
 	if n < byteCount || err != nil {
 		logrus.WithError(err).Debug("failed to read int")
 		return 0
@@ -83,6 +89,7 @@ func (bp *BitParser) ReadUInt(byteCount int) int {
 func (bp *BitParser) ReadInt(byteCount int) uint32 {
 	bytesIn := make([]byte, byteCount)
 	n, err := bp.Source.Read(bytesIn)
+	bp.Index += int64(n)
 	if n < byteCount || err != nil {
 		logrus.WithError(err).Debug("failed to read int")
 		return 0
@@ -118,6 +125,7 @@ func (bp *BitParser) ReadNullTermString(encoding string) string {
 	for {
 		bytesIn := make([]byte, size)
 		n, err := bp.Source.Read(bytesIn)
+		bp.Index += int64(n)
 
 		if isNull(bytesIn) {
 			logrus.Trace("reached end of null terminated string\n")

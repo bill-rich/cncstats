@@ -2,9 +2,10 @@ package header
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	log "github.com/sirupsen/logrus"
-	"strings"
 )
 
 type Metadata struct {
@@ -52,7 +53,7 @@ type GeneralsHeader struct {
 	VersionMinor    int
 	VersionMajor    int
 	Hash            []byte
-	Metadata        string
+	Metadata        Metadata
 	ReplayOwnerSlot interface{}
 	Unknown1        interface{}
 	Unknown2        interface{}
@@ -81,12 +82,12 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 		VersionMinor:    bp.ReadUInt16(),
 		VersionMajor:    bp.ReadUInt16(),
 		Hash:            bp.ReadBytes(13),
-		Metadata:        bp.ReadNullTermString("utf8"),
-		ReplayOwnerSlot: fmt.Sprintf("%x", bp.ReadBytes(2)), // 3000 = slot 0, 3100 = slot 1, etc
-		Unknown1:        fmt.Sprintf("%x", bp.ReadBytes(4)),
-		Unknown2:        fmt.Sprintf("%x", bp.ReadBytes(4)), // Changes when playing solo or maybe against computers
-		Unknown3:        fmt.Sprintf("%x", bp.ReadBytes(4)),
-		GameSpeed:       bp.ReadUInt32(),
+		Metadata:        parseMetadata(bp.ReadNullTermString("utf8")),
+		ReplayOwnerSlot: fmt.Sprintf("%x", bp.ReadBytes(2)),  // 3000 = slot 0, 3100 = slot 1, etc
+		Unknown1:        fmt.Sprintf("%x", bp.ReadBytes(24)), // This seems very close
+		// Unknown2:        fmt.Sprintf("%x", bp.ReadBytes(4)), // Changes when playing solo or maybe against computers
+		// Unknown3:        fmt.Sprintf("%x", bp.ReadBytes(4)),
+		// GameSpeed:       bp.ReadUInt32(),
 	}
 }
 
@@ -130,7 +131,7 @@ func parsePlayers(raw string) []Player {
 	playersRaw := strings.Split(raw, ":")
 	for _, playerRaw := range playersRaw {
 		fields := strings.Split(playerRaw, ",")
-		if len(fields) != 9 {
+		if len(fields) != 11 {
 			continue
 		}
 		playerType := []byte(fields[0])[0]
@@ -145,6 +146,7 @@ func parsePlayers(raw string) []Player {
 			StartingPosition: fields[6],
 			Team:             fields[7],
 			Unknown:          fields[8],
+			// TODO: These are still the Generals fields. Fixed num field check, but not content.
 		}
 		players = append(players, player)
 	}

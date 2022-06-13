@@ -1,5 +1,26 @@
 # cncstats
 
+
+## How to run
+The default behavior for cncstats is to run as a webserver that will parse replays and return the replay data in JSON format. You can override this by setting the `LOCAL` env variable. You also need to provide the INI location as a env var. eg CNC_INI=./inizh/Data/INI/.
+
+For Zero Hour local:
+```
+LOCAL=true CNC_INI=./inizh/Data/INI go run . ~/Downloads/replay.rep
+```
+
+For BMFE (Still incomplete and hacky. Must use BMFE branch):
+```    
+LOCAL=true go run . ~/Downloads/replay.rep     
+```
+
+For easy CLI viewing, pipe the command into jq:
+```    
+LOCAL=true go run . ~/Downloads/replay.rep | jq . | less
+```
+
+
+
 ## Useful commands
 Filter by playerID, and remove checksum, deselects, and camera movements.
 `jq '.Body[] | select(.Number==2 and .OrderType != 1095 and .OrderType != 1092 and .OrderType != 1003)' | less`

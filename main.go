@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	"os"
 )
 
 func main() {
