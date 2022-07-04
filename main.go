@@ -34,32 +34,32 @@ func main() {
 		log.SetLevel(log.TraceLevel)
 	}
 
-	if len(os.Getenv("LOCAL")) > 0 {
-		file, err := os.Open(os.Args[1])
-		if err != nil {
-			log.WithError(err).Fatal("could not open file")
-		}
-
-		bp := &bitparse.BitParser{
-			Source:       file,
-			ObjectStore:  objectStore,
-			PowerStore:   powerStore,
-			UpgradeStore: upgradeStore,
-		}
-		replay := zhreplay.NewReplay(bp)
-
-		um, err := json.Marshal(replay)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Printf("%+v\n", string(um))
-		return
+	file, err := os.Open(os.Args[1])
+	if err != nil {
+		log.WithError(err).Fatal("could not open file")
 	}
 
-	router := gin.Default()
-	router.POST("/replay", saveFileHandler)
-	router.Run()
+	bp := &bitparse.BitParser{
+		Source:       file,
+		ObjectStore:  objectStore,
+		PowerStore:   powerStore,
+		UpgradeStore: upgradeStore,
+	}
+	replay := zhreplay.NewReplay(bp)
+
+	um, err := json.Marshal(replay)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("%+v\n", string(um))
+	return
+
+	/*
+		router := gin.Default()
+		router.POST("/replay", saveFileHandler)
+		router.Run()
+	*/
 }
 
 func saveFileHandler(c *gin.Context) {
