@@ -3,11 +3,12 @@ package iniparse
 import (
 	"bufio"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ObjectStore struct {
@@ -72,8 +73,8 @@ func NewObjectStore(dir string) (*ObjectStore, error) {
 	objectStore := &ObjectStore{
 		Object: []Object{},
 	}
-	err := objectStore.loadObjects(dir)
-	return objectStore, err
+	// err := objectStore.loadObjects(dir)
+	return objectStore, nil
 }
 
 func (o *ObjectStore) GetObject(i int) *Object {
@@ -106,8 +107,8 @@ func NewPowerStore(dir string) (*PowerStore, error) {
 	powerStore := &PowerStore{
 		Power: []Power{},
 	}
-	err := powerStore.loadObjects(dir)
-	return powerStore, err
+	// err := powerStore.loadObjects(dir)
+	return powerStore, nil
 }
 
 func (p *PowerStore) GetObject(i int) *Power {
@@ -160,8 +161,8 @@ func NewUpgradeStore(dir string) (*UpgradeStore, error) {
 	upgradeStore := &UpgradeStore{
 		Upgrade: []Upgrade{},
 	}
-	err := upgradeStore.loadObjects(dir)
-	return upgradeStore, err
+	// err := upgradeStore.loadObjects(dir)
+	return upgradeStore, nil
 }
 
 func (u *UpgradeStore) GetObject(i int) *Upgrade {
