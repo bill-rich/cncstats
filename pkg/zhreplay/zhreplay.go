@@ -1,11 +1,12 @@
 package zhreplay
 
 import (
+	"strconv"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
-	"strconv"
 )
 
 type Replay struct {
@@ -201,6 +202,15 @@ func (r *Replay) GenerateData() {
 	}
 
 	if r.Header.TimeStampBegin == 1652069156 {
+		for p, _ := range r.Summary {
+			if r.Summary[p].Team == 3 {
+				r.Summary[p].Win = true
+			} else {
+				r.Summary[p].Win = false
+			}
+		}
+	}
+	if r.Header.Metadata.MapFile == "03maps/tournament continent" {
 		for p, _ := range r.Summary {
 			if r.Summary[p].Team == 3 {
 				r.Summary[p].Win = true
