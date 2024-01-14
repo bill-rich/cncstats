@@ -75,7 +75,7 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgUnknown9:
 		return bp.ReadBytes(16)
 	case ArgUnknown10:
-		return bp.ReadBytes(4)
+		return bp.ReadUInt16()
 	default:
 		return nil
 	}

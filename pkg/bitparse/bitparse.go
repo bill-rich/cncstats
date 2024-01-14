@@ -3,11 +3,12 @@ package bitparse
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/bill-rich/cncstats/pkg/iniparse"
-	"github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"math/big"
+
+	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/sirupsen/logrus"
 )
 
 type BitParser struct {

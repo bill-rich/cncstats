@@ -1,11 +1,12 @@
 package zhreplay
 
 import (
+	"strconv"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
-	"strconv"
 )
 
 type Replay struct {
