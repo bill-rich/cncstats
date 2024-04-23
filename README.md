@@ -1,4 +1,5 @@
 # cncstats
+A replay parser for Command and Conquer: Generals: Zero Hour. Includes mappings of most commands and support for parsing INI files to get unit/building info.
 
 ## Useful commands
 Filter by playerID, and remove checksum, deselects, and camera movements.
