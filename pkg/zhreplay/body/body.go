@@ -22,6 +22,8 @@ const (
 
 type ArgType int
 
+// argSize maps argument types to their expected byte sizes
+// Note: Some sizes may be incorrect and need validation
 var argSize = map[int]int{
 	ArgInt:             4,
 	ArgFloat:           4,
@@ -29,19 +31,35 @@ var argSize = map[int]int{
 	ArgObjectID:        4,
 	ArgUnknown4:        4,
 	ArgUnknown5:        0,
-	ArgPosition:        12, // This is weird. I think its wrong. The numbers are all too high
+	ArgPosition:        12, // TODO: Validate this size - may be incorrect
 	ArgScreenPosition:  8,
 	ArgScreenRectangle: 16,
 	ArgUnknown9:        16,
 	ArgUnknown10:       4,
 }
 
+// validateArgType checks if the argument type is valid
+func validateArgType(argType int) bool {
+	return argType >= ArgInt && argType <= ArgUnknown10
+}
+
+// validateArgCount checks if the argument count is within reasonable bounds
+func validateArgCount(count int) bool {
+	return count >= 0 && count <= 50 // Reasonable upper limit
+}
+
+// convertArg safely converts binary data to appropriate types based on argument type
 func convertArg(bp *bitparse.BitParser, at int) interface{} {
+	// Validate argument type
+	if at < ArgInt || at > ArgUnknown10 {
+		return nil
+	}
+
 	switch at {
 	case ArgInt:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return 0
+			return uint32(0)
 		}
 		return val
 	case ArgFloat:
@@ -59,13 +77,13 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgObjectID:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return 0
+			return uint32(0)
 		}
 		return val
 	case ArgUnknown4:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return 0
+			return uint32(0)
 		}
 		return val
 	case ArgUnknown5:
@@ -75,30 +93,30 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 		y, err2 := bp.ReadFloat()
 		z, err3 := bp.ReadFloat()
 		if err1 != nil || err2 != nil || err3 != nil {
-			return Position{X: float32(0), Y: float32(0), Z: float32(0)}
+			return Position3D{X: 0, Y: 0, Z: 0}
 		}
-		return Position{X: x, Y: y, Z: z}
+		return Position3D{X: x, Y: y, Z: z}
 	case ArgScreenPosition:
 		x, err1 := bp.ReadUInt32()
 		y, err2 := bp.ReadUInt32()
 		if err1 != nil || err2 != nil {
-			return Position{X: 0, Y: 0}
+			return ScreenPosition{X: 0, Y: 0}
 		}
-		return Position{X: x, Y: y}
+		return ScreenPosition{X: uint32(x), Y: uint32(y)}
 	case ArgScreenRectangle:
 		x1, err1 := bp.ReadUInt32()
 		y1, err2 := bp.ReadUInt32()
 		x2, err3 := bp.ReadUInt32()
 		y2, err4 := bp.ReadUInt32()
 		if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-			return Rectangle{
-				Position{X: 0, Y: 0},
-				Position{X: 0, Y: 0},
+			return ScreenRectangle{
+				ScreenPosition{X: 0, Y: 0},
+				ScreenPosition{X: 0, Y: 0},
 			}
 		}
-		return Rectangle{
-			Position{X: x1, Y: y1},
-			Position{X: x2, Y: y2},
+		return ScreenRectangle{
+			ScreenPosition{X: uint32(x1), Y: uint32(y1)},
+			ScreenPosition{X: uint32(x2), Y: uint32(y2)},
 		}
 	case ArgUnknown9:
 		val, err := bp.ReadBytes(16)
@@ -109,7 +127,7 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgUnknown10:
 		val, err := bp.ReadUInt16()
 		if err != nil {
-			return 0
+			return uint16(0)
 		}
 		return val
 	default:
@@ -117,12 +135,27 @@ func convertArg(bp *bitparse.BitParser, at int) interface{} {
 	}
 }
 
+// Position3D represents a 3D position with float32 coordinates
+type Position3D struct {
+	X, Y, Z float32
+}
+
+// ScreenPosition represents a 2D screen position with uint32 coordinates
+type ScreenPosition struct {
+	X, Y uint32
+}
+
+// Position is kept for backward compatibility but should be replaced with specific types
 type Position struct {
 	X interface{}
 	Y interface{}
 	Z interface{}
 }
 
+// ScreenRectangle represents a rectangle on screen with two screen positions
+type ScreenRectangle [2]ScreenPosition
+
+// Rectangle is kept for backward compatibility
 type Rectangle [2]Position
 
 type ArgMetadata struct {
@@ -249,6 +282,11 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 			break
 		}
 
+		// Validate reasonable bounds for numberOfArguments
+		if !validateArgCount(int(numberOfArguments)) {
+			break
+		}
+
 		chunk := BodyChunk{
 			TimeCode:          timeCode,
 			OrderCode:         orderCode,
@@ -264,6 +302,10 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 			argType, err1 := bp.ReadUInt8()
 			argCount, err2 := bp.ReadUInt8()
 			if err1 != nil || err2 != nil {
+				break
+			}
+			// Validate argument type and count
+			if !validateArgType(int(argType)) || !validateArgCount(int(argCount)) {
 				break
 			}
 			argCountData := &ArgMetadata{
@@ -290,55 +332,74 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 }
 
 func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
+	if len(c.Arguments) == 0 {
+		return
+	}
+
 	switch c.OrderCode {
 	case 1047: // Create Unit
-		newObject, err := objectStore.GetObject(c.Arguments[0].(int))
-		if err == nil && newObject != nil {
+		c.setUnitDetails(objectStore)
+	case 1049: // Build
+		c.setBuildingDetails(objectStore)
+	case 1040, 1041, 1042: // SpecialPower variants
+		c.setPowerDetails(powerStore)
+	case 1045: // Upgrades
+		c.setUpgradeDetails(upgradeStore)
+	}
+}
+
+// setUnitDetails safely sets unit details from object store
+func (c *BodyChunk) setUnitDetails(objectStore *iniparse.ObjectStore) {
+	if arg, ok := c.Arguments[0].(int); ok {
+		if newObject, err := objectStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Unit{
 				Name: newObject.Name,
 				Cost: newObject.Cost,
 			}
 		}
-	case 1049: // Build
-		newObject, err := objectStore.GetObject(c.Arguments[0].(int))
-		if err == nil && newObject != nil {
+	}
+}
+
+// setBuildingDetails safely sets building details from object store
+func (c *BodyChunk) setBuildingDetails(objectStore *iniparse.ObjectStore) {
+	if arg, ok := c.Arguments[0].(int); ok {
+		if newObject, err := objectStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Building{
 				Name: newObject.Name,
 				Cost: newObject.Cost,
 			}
 		}
-	case 1040: // SpecialPower
-		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
-		if err == nil && newObject != nil {
+	}
+}
+
+// setPowerDetails safely sets power details from power store
+func (c *BodyChunk) setPowerDetails(powerStore *iniparse.PowerStore) {
+	if arg, ok := c.Arguments[0].(int); ok {
+		if newObject, err := powerStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Power{
 				Name: newObject.Name,
 			}
 		}
-	case 1041: // SpecialPower
-		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
-		if err == nil && newObject != nil {
-			c.Details = &object.Power{
-				Name: newObject.Name,
-			}
-		}
-	case 1042: // SpecialPower
-		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
-		if err == nil && newObject != nil {
-			c.Details = &object.Power{
-				Name: newObject.Name,
-			}
-		}
-	case 1045: // Upgrades
-		newObject, err := upgradeStore.GetObject(c.Arguments[1].(int))
-		if err != nil || newObject == nil {
-			c.Details = &object.Upgrade{
-				Name: "dummy",
-			}
-		} else {
+	}
+}
+
+// setUpgradeDetails safely sets upgrade details from upgrade store
+func (c *BodyChunk) setUpgradeDetails(upgradeStore *iniparse.UpgradeStore) {
+	if len(c.Arguments) < 2 {
+		c.Details = &object.Upgrade{Name: "dummy"}
+		return
+	}
+
+	if arg, ok := c.Arguments[1].(int); ok {
+		if newObject, err := upgradeStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Upgrade{
 				Name: newObject.Name,
 				Cost: newObject.Cost,
 			}
+		} else {
+			c.Details = &object.Upgrade{Name: "dummy"}
 		}
+	} else {
+		c.Details = &object.Upgrade{Name: "dummy"}
 	}
 }

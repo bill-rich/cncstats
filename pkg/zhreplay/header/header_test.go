@@ -427,7 +427,7 @@ func TestDataStructures(t *testing.T) {
 			BuildDate:      "2023-12-25",
 			VersionMinor:   0,
 			VersionMajor:   1,
-			Hash:           []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			Hash:           [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 			GameSpeed:      1,
 		}
 
