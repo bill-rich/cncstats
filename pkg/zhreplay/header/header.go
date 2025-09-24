@@ -2,9 +2,10 @@ package header
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	log "github.com/sirupsen/logrus"
-	"strings"
 )
 
 type Metadata struct {
@@ -61,32 +62,183 @@ type GeneralsHeader struct {
 }
 
 func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
+	// Read all fields with error handling
+	gameType, err := bp.ReadString(6)
+	if err != nil {
+		log.WithError(err).Error("failed to read GameType")
+		gameType = ""
+	}
+
+	timeStampBegin, err := bp.ReadUInt32()
+	if err != nil {
+		log.WithError(err).Error("failed to read TimeStampBegin")
+		timeStampBegin = 0
+	}
+
+	timeStampEnd, err := bp.ReadUInt32()
+	if err != nil {
+		log.WithError(err).Error("failed to read TimeStampEnd")
+		timeStampEnd = 0
+	}
+
+	numTimeStamps, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read NumTimeStamps")
+		numTimeStamps = 0
+	}
+
+	fillerBytes, err := bp.ReadBytes(12)
+	if err != nil {
+		log.WithError(err).Error("failed to read Filler")
+		fillerBytes = make([]byte, 12)
+	}
+
+	fileName, err := bp.ReadNullTermString("utf16")
+	if err != nil {
+		log.WithError(err).Error("failed to read FileName")
+		fileName = ""
+	}
+
+	year, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Year")
+		year = 0
+	}
+
+	month, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Month")
+		month = 0
+	}
+
+	dow, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read DOW")
+		dow = 0
+	}
+
+	day, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Day")
+		day = 0
+	}
+
+	hour, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Hour")
+		hour = 0
+	}
+
+	minute, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Minute")
+		minute = 0
+	}
+
+	second, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Second")
+		second = 0
+	}
+
+	millisecond, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read Millisecond")
+		millisecond = 0
+	}
+
+	version, err := bp.ReadNullTermString("utf16")
+	if err != nil {
+		log.WithError(err).Error("failed to read Version")
+		version = ""
+	}
+
+	buildDate, err := bp.ReadNullTermString("utf16")
+	if err != nil {
+		log.WithError(err).Error("failed to read BuildDate")
+		buildDate = ""
+	}
+
+	versionMinor, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read VersionMinor")
+		versionMinor = 0
+	}
+
+	versionMajor, err := bp.ReadUInt16()
+	if err != nil {
+		log.WithError(err).Error("failed to read VersionMajor")
+		versionMajor = 0
+	}
+
+	hash, err := bp.ReadBytes(8)
+	if err != nil {
+		log.WithError(err).Error("failed to read Hash")
+		hash = make([]byte, 8)
+	}
+
+	metadataStr, err := bp.ReadNullTermString("utf8")
+	if err != nil {
+		log.WithError(err).Error("failed to read Metadata")
+		metadataStr = ""
+	}
+
+	replayOwnerSlotBytes, err := bp.ReadBytes(2)
+	if err != nil {
+		log.WithError(err).Error("failed to read ReplayOwnerSlot")
+		replayOwnerSlotBytes = make([]byte, 2)
+	}
+
+	unknown1Bytes, err := bp.ReadBytes(4)
+	if err != nil {
+		log.WithError(err).Error("failed to read Unknown1")
+		unknown1Bytes = make([]byte, 4)
+	}
+
+	unknown2Bytes, err := bp.ReadBytes(4)
+	if err != nil {
+		log.WithError(err).Error("failed to read Unknown2")
+		unknown2Bytes = make([]byte, 4)
+	}
+
+	unknown3Bytes, err := bp.ReadBytes(4)
+	if err != nil {
+		log.WithError(err).Error("failed to read Unknown3")
+		unknown3Bytes = make([]byte, 4)
+	}
+
+	gameSpeed, err := bp.ReadUInt32()
+	if err != nil {
+		log.WithError(err).Error("failed to read GameSpeed")
+		gameSpeed = 0
+	}
+
 	return &GeneralsHeader{
-		GameType:        bp.ReadString(6),
-		TimeStampBegin:  bp.ReadUInt32(),
-		TimeStampEnd:    bp.ReadUInt32(),
-		NumTimeStamps:   bp.ReadUInt16(),
-		Filler:          fmt.Sprintf("%x", bp.ReadBytes(12)),
-		FileName:        bp.ReadNullTermString("utf16"),
-		Year:            bp.ReadUInt16(),
-		Month:           bp.ReadUInt16(),
-		DOW:             bp.ReadUInt16(),
-		Day:             bp.ReadUInt16(),
-		Hour:            bp.ReadUInt16(),
-		Minute:          bp.ReadUInt16(),
-		Second:          bp.ReadUInt16(),
-		Millisecond:     bp.ReadUInt16(),
-		Version:         bp.ReadNullTermString("utf16"),
-		BuildDate:       bp.ReadNullTermString("utf16"),
-		VersionMinor:    bp.ReadUInt16(),
-		VersionMajor:    bp.ReadUInt16(),
-		Hash:            bp.ReadBytes(8),
-		Metadata:        parseMetadata(bp.ReadNullTermString("utf8")),
-		ReplayOwnerSlot: fmt.Sprintf("%x", bp.ReadBytes(2)), // 3000 = slot 0, 3100 = slot 1, etc
-		Unknown1:        fmt.Sprintf("%x", bp.ReadBytes(4)),
-		Unknown2:        fmt.Sprintf("%x", bp.ReadBytes(4)), // Changes when playing solo or maybe against computers
-		Unknown3:        fmt.Sprintf("%x", bp.ReadBytes(4)),
-		GameSpeed:       bp.ReadUInt32(),
+		GameType:        gameType,
+		TimeStampBegin:  timeStampBegin,
+		TimeStampEnd:    timeStampEnd,
+		NumTimeStamps:   numTimeStamps,
+		Filler:          fmt.Sprintf("%x", fillerBytes),
+		FileName:        fileName,
+		Year:            year,
+		Month:           month,
+		DOW:             dow,
+		Day:             day,
+		Hour:            hour,
+		Minute:          minute,
+		Second:          second,
+		Millisecond:     millisecond,
+		Version:         version,
+		BuildDate:       buildDate,
+		VersionMinor:    versionMinor,
+		VersionMajor:    versionMajor,
+		Hash:            hash,
+		Metadata:        parseMetadata(metadataStr),
+		ReplayOwnerSlot: fmt.Sprintf("%x", replayOwnerSlotBytes), // 3000 = slot 0, 3100 = slot 1, etc
+		Unknown1:        fmt.Sprintf("%x", unknown1Bytes),
+		Unknown2:        fmt.Sprintf("%x", unknown2Bytes), // Changes when playing solo or maybe against computers
+		Unknown3:        fmt.Sprintf("%x", unknown3Bytes),
+		GameSpeed:       gameSpeed,
 	}
 }
 

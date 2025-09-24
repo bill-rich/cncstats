@@ -39,43 +39,79 @@ var argSize = map[int]int{
 func convertArg(bp *bitparse.BitParser, at int) interface{} {
 	switch at {
 	case ArgInt:
-		return bp.ReadUInt32()
+		val, err := bp.ReadUInt32()
+		if err != nil {
+			return 0
+		}
+		return val
 	case ArgFloat:
-		return bp.ReadFloat()
+		val, err := bp.ReadFloat()
+		if err != nil {
+			return float32(0)
+		}
+		return val
 	case ArgBool:
-		return bp.ReadBool()
+		val, err := bp.ReadBool()
+		if err != nil {
+			return false
+		}
+		return val
 	case ArgObjectID:
-		return bp.ReadUInt32()
+		val, err := bp.ReadUInt32()
+		if err != nil {
+			return 0
+		}
+		return val
 	case ArgUnknown4:
-		return bp.ReadUInt32()
+		val, err := bp.ReadUInt32()
+		if err != nil {
+			return 0
+		}
+		return val
 	case ArgUnknown5:
 		return []byte{}
 	case ArgPosition:
-		return Position{
-			X: bp.ReadFloat(),
-			Y: bp.ReadFloat(),
-			Z: bp.ReadFloat(),
+		x, err1 := bp.ReadFloat()
+		y, err2 := bp.ReadFloat()
+		z, err3 := bp.ReadFloat()
+		if err1 != nil || err2 != nil || err3 != nil {
+			return Position{X: float32(0), Y: float32(0), Z: float32(0)}
 		}
+		return Position{X: x, Y: y, Z: z}
 	case ArgScreenPosition:
-		return Position{
-			X: bp.ReadUInt32(),
-			Y: bp.ReadUInt32(),
+		x, err1 := bp.ReadUInt32()
+		y, err2 := bp.ReadUInt32()
+		if err1 != nil || err2 != nil {
+			return Position{X: 0, Y: 0}
 		}
+		return Position{X: x, Y: y}
 	case ArgScreenRectangle:
+		x1, err1 := bp.ReadUInt32()
+		y1, err2 := bp.ReadUInt32()
+		x2, err3 := bp.ReadUInt32()
+		y2, err4 := bp.ReadUInt32()
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+			return Rectangle{
+				Position{X: 0, Y: 0},
+				Position{X: 0, Y: 0},
+			}
+		}
 		return Rectangle{
-			Position{
-				X: bp.ReadUInt32(),
-				Y: bp.ReadUInt32(),
-			},
-			Position{
-				X: bp.ReadUInt32(),
-				Y: bp.ReadUInt32(),
-			},
+			Position{X: x1, Y: y1},
+			Position{X: x2, Y: y2},
 		}
 	case ArgUnknown9:
-		return bp.ReadBytes(16)
+		val, err := bp.ReadBytes(16)
+		if err != nil {
+			return make([]byte, 16)
+		}
+		return val
 	case ArgUnknown10:
-		return bp.ReadUInt16()
+		val, err := bp.ReadUInt16()
+		if err != nil {
+			return 0
+		}
+		return val
 	default:
 		return nil
 	}
@@ -192,27 +228,58 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 	body := []*BodyChunk{}
 
 	for {
+		// Read basic chunk data with error handling
+		timeCode, err := bp.ReadUInt32()
+		if err != nil {
+			break // End of data or error
+		}
+
+		orderCode, err := bp.ReadUInt32()
+		if err != nil {
+			break
+		}
+
+		playerID, err := bp.ReadUInt32()
+		if err != nil {
+			break
+		}
+
+		numberOfArguments, err := bp.ReadUInt8()
+		if err != nil {
+			break
+		}
+
 		chunk := BodyChunk{
-			TimeCode:          bp.ReadUInt32(),
-			OrderCode:         bp.ReadUInt32(),
-			PlayerID:          bp.ReadUInt32(),
-			NumberOfArguments: bp.ReadUInt8(),
+			TimeCode:          timeCode,
+			OrderCode:         orderCode,
+			PlayerID:          playerID,
+			NumberOfArguments: numberOfArguments,
 			ArgMetadata:       []*ArgMetadata{},
 			Arguments:         []interface{}{},
 		}
 		chunk.OrderName = CommandType[chunk.OrderCode]
+
+		// Read argument metadata
 		for i := 0; i < chunk.NumberOfArguments; i++ {
-			argCount := &ArgMetadata{
-				Type:  bp.ReadUInt8(),
-				Count: bp.ReadUInt8(),
+			argType, err1 := bp.ReadUInt8()
+			argCount, err2 := bp.ReadUInt8()
+			if err1 != nil || err2 != nil {
+				break
 			}
-			chunk.ArgMetadata = append(chunk.ArgMetadata, argCount)
+			argCountData := &ArgMetadata{
+				Type:  argType,
+				Count: argCount,
+			}
+			chunk.ArgMetadata = append(chunk.ArgMetadata, argCountData)
 		}
+
+		// Read arguments
 		for _, argData := range chunk.ArgMetadata {
 			for i := 0; i < argData.Count; i++ {
 				chunk.Arguments = append(chunk.Arguments, convertArg(bp, argData.Type))
 			}
 		}
+
 		chunk.addExtraData(objectStore, powerStore, upgradeStore)
 		if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
 			break
@@ -225,45 +292,45 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
 	switch c.OrderCode {
 	case 1047: // Create Unit
-		newObject := objectStore.GetObject(c.Arguments[0].(int))
-		if newObject != nil {
+		newObject, err := objectStore.GetObject(c.Arguments[0].(int))
+		if err == nil && newObject != nil {
 			c.Details = &object.Unit{
 				Name: newObject.Name,
 				Cost: newObject.Cost,
 			}
 		}
 	case 1049: // Build
-		newObject := objectStore.GetObject(c.Arguments[0].(int))
-		if newObject != nil {
+		newObject, err := objectStore.GetObject(c.Arguments[0].(int))
+		if err == nil && newObject != nil {
 			c.Details = &object.Building{
 				Name: newObject.Name,
 				Cost: newObject.Cost,
 			}
 		}
 	case 1040: // SpecialPower
-		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		if newObject != nil {
+		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
+		if err == nil && newObject != nil {
 			c.Details = &object.Power{
 				Name: newObject.Name,
 			}
 		}
 	case 1041: // SpecialPower
-		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		if newObject != nil {
+		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
+		if err == nil && newObject != nil {
 			c.Details = &object.Power{
 				Name: newObject.Name,
 			}
 		}
 	case 1042: // SpecialPower
-		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		if newObject != nil {
+		newObject, err := powerStore.GetObject(c.Arguments[0].(int))
+		if err == nil && newObject != nil {
 			c.Details = &object.Power{
 				Name: newObject.Name,
 			}
 		}
 	case 1045: // Upgrades
-		newObject := upgradeStore.GetObject(c.Arguments[1].(int))
-		if newObject == nil {
+		newObject, err := upgradeStore.GetObject(c.Arguments[1].(int))
+		if err != nil || newObject == nil {
 			c.Details = &object.Upgrade{
 				Name: "dummy",
 			}
