@@ -88,8 +88,15 @@ func (bp *BitParser) ReadInt(byteCount int) uint32 {
 		logrus.WithError(err).Debug("failed to read int")
 		return 0
 	}
+
+	// Pad to 4 bytes if necessary
+	if len(bytesIn) < 4 {
+		padded := make([]byte, 4)
+		copy(padded, bytesIn)
+		bytesIn = padded
+	}
+
 	return binary.LittleEndian.Uint32(bytesIn)
-	//return int(big.NewInt(0).SetBytes(makeLittleEndian(bytesIn)).Int64())
 }
 
 func makeLittleEndian(bytesIn []byte) []byte {
