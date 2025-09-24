@@ -3,11 +3,12 @@ package iniparse
 import (
 	"bufio"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ObjectStore struct {
@@ -80,7 +81,11 @@ func (o *ObjectStore) GetObject(i int) *Object {
 	if i < 2 {
 		return nil
 	}
-	return &o.Object[i-2]
+	index := i - 2
+	if index >= len(o.Object) {
+		return nil
+	}
+	return &o.Object[index]
 }
 
 func (o *ObjectStore) loadObjects(dir string) error {
@@ -114,7 +119,11 @@ func (p *PowerStore) GetObject(i int) *Power {
 	if i < 2 {
 		return nil
 	}
-	return &p.Power[i-2]
+	index := i - 2
+	if index >= len(p.Power) {
+		return nil
+	}
+	return &p.Power[index]
 }
 
 func (p *PowerStore) loadObjects(dir string) error {
