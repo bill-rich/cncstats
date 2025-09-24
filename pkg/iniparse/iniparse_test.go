@@ -66,7 +66,10 @@ func TestParseFile(t *testing.T) {
 	reader := bytes.NewReader([]byte("Object LazrGun\n  junk=nothing\n  BuildCost=123\nEnd"))
 	objectStore := &ObjectStore{}
 	objectStore.parseFile(reader)
-	obj := objectStore.GetObject(2)
+	obj, err := objectStore.GetObject(2)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 	if obj.Name != "LazrGun" && obj.Cost != 123 {
 		t.Errorf("parsed object returned bad result: %+v", obj)
 	}
@@ -82,23 +85,34 @@ func TestObjectStoreGetObject(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		id       int
-		expected *Object
+		name        string
+		id          int
+		expected    *Object
+		expectError bool
 	}{
-		{"IDTooLow", 1, nil},
-		{"IDTooLowZero", 0, nil},
-		{"IDTooLowNegative", -1, nil},
-		{"FirstObject", 2, &Object{Name: "Unit1", Cost: 100}},
-		{"SecondObject", 3, &Object{Name: "Unit2", Cost: 200}},
-		{"ThirdObject", 4, &Object{Name: "Unit3", Cost: 300}},
-		{"IDTooHigh", 5, nil},
-		{"IDWayTooHigh", 100, nil},
+		{"IDTooLow", 1, nil, true},
+		{"IDTooLowZero", 0, nil, true},
+		{"IDTooLowNegative", -1, nil, true},
+		{"FirstObject", 2, &Object{Name: "Unit1", Cost: 100}, false},
+		{"SecondObject", 3, &Object{Name: "Unit2", Cost: 200}, false},
+		{"ThirdObject", 4, &Object{Name: "Unit3", Cost: 300}, false},
+		{"IDTooHigh", 5, nil, true},
+		{"IDWayTooHigh", 100, nil, true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			obj := objectStore.GetObject(tc.id)
+			obj, err := objectStore.GetObject(tc.id)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
 			if tc.expected == nil {
 				if obj != nil {
 					t.Errorf("expected nil, got %+v", obj)
@@ -116,7 +130,10 @@ func TestObjectStoreGetObject(t *testing.T) {
 
 func TestObjectStoreGetObjectEmpty(t *testing.T) {
 	objectStore := &ObjectStore{}
-	obj := objectStore.GetObject(2)
+	obj, err := objectStore.GetObject(2)
+	if err == nil {
+		t.Errorf("expected error when object store is empty")
+	}
 	if obj != nil {
 		t.Errorf("expected nil when object store is empty")
 	}
@@ -132,23 +149,34 @@ func TestPowerStoreGetObject(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		id       int
-		expected *Power
+		name        string
+		id          int
+		expected    *Power
+		expectError bool
 	}{
-		{"IDTooLow", 1, nil},
-		{"IDTooLowZero", 0, nil},
-		{"IDTooLowNegative", -1, nil},
-		{"FirstPower", 2, &Power{Name: "Power1"}},
-		{"SecondPower", 3, &Power{Name: "Power2"}},
-		{"ThirdPower", 4, &Power{Name: "Power3"}},
-		{"IDTooHigh", 5, nil},
-		{"IDWayTooHigh", 100, nil},
+		{"IDTooLow", 1, nil, true},
+		{"IDTooLowZero", 0, nil, true},
+		{"IDTooLowNegative", -1, nil, true},
+		{"FirstPower", 2, &Power{Name: "Power1"}, false},
+		{"SecondPower", 3, &Power{Name: "Power2"}, false},
+		{"ThirdPower", 4, &Power{Name: "Power3"}, false},
+		{"IDTooHigh", 5, nil, true},
+		{"IDWayTooHigh", 100, nil, true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			power := powerStore.GetObject(tc.id)
+			power, err := powerStore.GetObject(tc.id)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
 			if tc.expected == nil {
 				if power != nil {
 					t.Errorf("expected nil, got %+v", power)
@@ -174,21 +202,32 @@ func TestUpgradeStoreGetObject(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		id       int
-		expected *Upgrade
+		name        string
+		id          int
+		expected    *Upgrade
+		expectError bool
 	}{
-		{"IDBelowOffset", 2269, nil},
-		{"IDAtOffset", 2270, &Upgrade{Name: "Upgrade1", Cost: 100}},
-		{"IDAtOffsetPlus1", 2271, &Upgrade{Name: "Upgrade2", Cost: 200}},
-		{"IDAtOffsetPlus2", 2272, &Upgrade{Name: "Upgrade3", Cost: 300}},
-		{"IDTooHigh", 2273, nil},
-		{"IDWayTooHigh", 3000, nil},
+		{"IDBelowOffset", 2269, nil, true},
+		{"IDAtOffset", 2270, &Upgrade{Name: "Upgrade1", Cost: 100}, false},
+		{"IDAtOffsetPlus1", 2271, &Upgrade{Name: "Upgrade2", Cost: 200}, false},
+		{"IDAtOffsetPlus2", 2272, &Upgrade{Name: "Upgrade3", Cost: 300}, false},
+		{"IDTooHigh", 2273, nil, true},
+		{"IDWayTooHigh", 3000, nil, true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			upgrade := upgradeStore.GetObject(tc.id)
+			upgrade, err := upgradeStore.GetObject(tc.id)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
 			if tc.expected == nil {
 				if upgrade != nil {
 					t.Errorf("expected nil, got %+v", upgrade)

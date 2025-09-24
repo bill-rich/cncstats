@@ -72,23 +72,23 @@ func TestConvertArg(t *testing.T) {
 			name:        "ArgPosition",
 			input:       []byte{0, 0, 128, 63, 0, 0, 0, 64, 0, 0, 64, 64}, // 1.0, 2.0, 3.0
 			argType:     ArgPosition,
-			expected:    Position{X: float32(1.0), Y: float32(2.0), Z: float32(3.0)},
+			expected:    Position3D{X: float32(1.0), Y: float32(2.0), Z: float32(3.0)},
 			description: "Should read position with X, Y, Z coordinates",
 		},
 		{
 			name:        "ArgScreenPosition",
 			input:       []byte{100, 0, 0, 0, 200, 0, 0, 0}, // 100, 200
 			argType:     ArgScreenPosition,
-			expected:    Position{X: 100, Y: 200},
+			expected:    ScreenPosition{X: 100, Y: 200},
 			description: "Should read screen position with X, Y coordinates",
 		},
 		{
 			name:    "ArgScreenRectangle",
 			input:   []byte{10, 0, 0, 0, 20, 0, 0, 0, 30, 0, 0, 0, 40, 0, 0, 0}, // (10,20) to (30,40)
 			argType: ArgScreenRectangle,
-			expected: Rectangle{
-				Position{X: 10, Y: 20},
-				Position{X: 30, Y: 40},
+			expected: ScreenRectangle{
+				ScreenPosition{X: 10, Y: 20},
+				ScreenPosition{X: 30, Y: 40},
 			},
 			description: "Should read screen rectangle with two positions",
 		},
@@ -124,6 +124,36 @@ func TestConvertArg(t *testing.T) {
 
 			// Handle different comparison types
 			switch expected := tc.expected.(type) {
+			case Position3D:
+				if pos, ok := result.(Position3D); ok {
+					if pos.X != expected.X || pos.Y != expected.Y || pos.Z != expected.Z {
+						t.Errorf("expected: %+v, got: %+v", expected, pos)
+					}
+				} else {
+					t.Errorf("expected Position3D, got %T", result)
+				}
+			case ScreenPosition:
+				if pos, ok := result.(ScreenPosition); ok {
+					if pos.X != expected.X || pos.Y != expected.Y {
+						t.Errorf("expected: %+v, got: %+v", expected, pos)
+					}
+				} else {
+					t.Errorf("expected ScreenPosition, got %T", result)
+				}
+			case ScreenRectangle:
+				if rect, ok := result.(ScreenRectangle); ok {
+					if len(rect) != len(expected) {
+						t.Errorf("expected rectangle length %d, got %d", len(expected), len(rect))
+					} else {
+						for i, pos := range expected {
+							if rect[i].X != pos.X || rect[i].Y != pos.Y {
+								t.Errorf("expected rectangle[%d]: %+v, got: %+v", i, pos, rect[i])
+							}
+						}
+					}
+				} else {
+					t.Errorf("expected ScreenRectangle, got %T", result)
+				}
 			case Position:
 				if pos, ok := result.(Position); ok {
 					if pos.X != expected.X || pos.Y != expected.Y || pos.Z != expected.Z {
@@ -835,12 +865,12 @@ func TestIntegrationScenarios(t *testing.T) {
 			return
 		}
 
-		if pos, ok := chunk.Arguments[0].(Position); ok {
+		if pos, ok := chunk.Arguments[0].(Position3D); ok {
 			if pos.X != float32(1.0) || pos.Y != float32(2.0) || pos.Z != float32(3.0) {
 				t.Errorf("expected position (1.0, 2.0, 3.0), got (%v, %v, %v)", pos.X, pos.Y, pos.Z)
 			}
 		} else {
-			t.Errorf("expected Position, got %T", chunk.Arguments[0])
+			t.Errorf("expected Position3D, got %T", chunk.Arguments[0])
 		}
 	})
 }
