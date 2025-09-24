@@ -226,30 +226,40 @@ func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore, powerStore *
 	switch c.OrderCode {
 	case 1047: // Create Unit
 		newObject := objectStore.GetObject(c.Arguments[0].(int))
-		c.Details = &object.Unit{
-			Name: newObject.Name,
-			Cost: newObject.Cost,
+		if newObject != nil {
+			c.Details = &object.Unit{
+				Name: newObject.Name,
+				Cost: newObject.Cost,
+			}
 		}
 	case 1049: // Build
 		newObject := objectStore.GetObject(c.Arguments[0].(int))
-		c.Details = &object.Building{
-			Name: newObject.Name,
-			Cost: newObject.Cost,
+		if newObject != nil {
+			c.Details = &object.Building{
+				Name: newObject.Name,
+				Cost: newObject.Cost,
+			}
 		}
 	case 1040: // SpecialPower
 		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		c.Details = &object.Power{
-			Name: newObject.Name,
+		if newObject != nil {
+			c.Details = &object.Power{
+				Name: newObject.Name,
+			}
 		}
 	case 1041: // SpecialPower
 		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		c.Details = &object.Power{
-			Name: newObject.Name,
+		if newObject != nil {
+			c.Details = &object.Power{
+				Name: newObject.Name,
+			}
 		}
 	case 1042: // SpecialPower
 		newObject := powerStore.GetObject(c.Arguments[0].(int))
-		c.Details = &object.Power{
-			Name: newObject.Name,
+		if newObject != nil {
+			c.Details = &object.Power{
+				Name: newObject.Name,
+			}
 		}
 	case 1045: // Upgrades
 		newObject := upgradeStore.GetObject(c.Arguments[1].(int))
