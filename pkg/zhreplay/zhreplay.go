@@ -176,9 +176,11 @@ func (r *Replay) GenerateData() {
 		for k, _ := range teamWins {
 			teamWins[k] = false
 		}
+
 		for p, _ := range r.Summary {
 			r.Summary[p].Win = false
 		}
+
 		for i := len(r.Body) - 1; i >= 0; i-- {
 			chunk := r.Body[i]
 			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
@@ -194,19 +196,10 @@ func (r *Replay) GenerateData() {
 				}
 			}
 		}
+
 		for p, _ := range r.Summary {
 			if teamWins[r.Summary[p].Team] {
 				r.Summary[p].Win = true
-			}
-		}
-	}
-
-	if r.Header.TimeStampBegin == 1652069156 {
-		for p, _ := range r.Summary {
-			if r.Summary[p].Team == 3 {
-				r.Summary[p].Win = true
-			} else {
-				r.Summary[p].Win = false
 			}
 		}
 	}
