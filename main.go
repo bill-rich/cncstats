@@ -156,7 +156,11 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	router.POST("/replay", func(c *gin.Context) {
 		saveFileHandler(c, objectStore, powerStore, upgradeStore)
 	})
-	router.Run()
+	port := "8080"
+	if len(os.Getenv("PORT")) > 0 {
+		port = os.Getenv("PORT")
+	}
+	router.Run(":" + port)
 }
 
 func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
