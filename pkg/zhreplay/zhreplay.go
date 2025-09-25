@@ -151,55 +151,55 @@ func (r *Replay) GenerateData() {
 
 	// Hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
 	teamWins := map[int]bool{}
-	for _, p := range r.Summary {
-		teamWins[p.Team] = true
+	for _, player := range r.Summary {
+		teamWins[player.Team] = true
 	}
-	for p, _ := range r.Summary {
-		if !r.Summary[p].Win {
-			teamWins[r.Summary[p].Team] = false
+	for player := range r.Summary {
+		if !r.Summary[player].Win {
+			teamWins[r.Summary[player].Team] = false
 		}
 	}
-	for p, _ := range r.Summary {
-		if !teamWins[r.Summary[p].Team] {
-			r.Summary[p].Win = false
+	for player := range r.Summary {
+		if !teamWins[r.Summary[player].Team] {
+			r.Summary[player].Win = false
 		}
 	}
 	winners := 0
-	for _, t := range teamWins {
-		if t {
+	for _, teamWon := range teamWins {
+		if teamWon {
 			winners++
 		}
 	}
 
 	if winners > 1 {
 		// Uh oh. Hack it up real bad
-		for k, _ := range teamWins {
-			teamWins[k] = false
+		for teamID := range teamWins {
+			teamWins[teamID] = false
 		}
 
-		for p, _ := range r.Summary {
-			r.Summary[p].Win = false
+		for player := range r.Summary {
+			r.Summary[player].Win = false
 		}
 
 		for i := len(r.Body) - 1; i >= 0; i-- {
 			chunk := r.Body[i]
 			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
-				team := 0
-				for _, p := range r.Summary {
-					if p.Name == chunk.PlayerName {
-						team = p.Team
+				teamID := 0
+				for _, player := range r.Summary {
+					if player.Name == chunk.PlayerName {
+						teamID = player.Team
 					}
 				}
-				if team != 0 {
-					teamWins[team] = true
+				if teamID != 0 {
+					teamWins[teamID] = true
 					break
 				}
 			}
 		}
 
-		for p, _ := range r.Summary {
-			if teamWins[r.Summary[p].Team] {
-				r.Summary[p].Win = true
+		for player := range r.Summary {
+			if teamWins[r.Summary[player].Team] {
+				r.Summary[player].Win = true
 			}
 		}
 	}
