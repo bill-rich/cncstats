@@ -1,8 +1,6 @@
 package zhreplay
 
 import (
-	"strconv"
-
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -94,10 +92,10 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 	// Get the player money service
 	playerMoneyService := database.NewPlayerMoneyService()
 
-	// Get seed from metadata and convert to int
-	seed, err := strconv.Atoi(er.Header.Metadata.Seed)
-	if err != nil {
-		// If seed is not a valid int, skip processing
+	// Get seed from metadata
+	seed := er.Header.Metadata.Seed
+	if seed == "" {
+		// If seed is empty, skip processing
 		return
 	}
 

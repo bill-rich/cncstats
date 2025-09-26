@@ -20,16 +20,16 @@ func NewPlayerMoneyService() *PlayerMoneyService {
 
 // CreatePlayerMoneyDataRequest represents the request payload for creating player money data
 type CreatePlayerMoneyDataRequest struct {
-	Seed         int `json:"seed" binding:"required"`
-	Timecode     int `json:"timecode" binding:"required"`
-	Player1Money int `json:"player_1_money"`
-	Player2Money int `json:"player_2_money"`
-	Player3Money int `json:"player_3_money"`
-	Player4Money int `json:"player_4_money"`
-	Player5Money int `json:"player_5_money"`
-	Player6Money int `json:"player_6_money"`
-	Player7Money int `json:"player_7_money"`
-	Player8Money int `json:"player_8_money"`
+	Seed         string `json:"seed" binding:"required"`
+	Timecode     int    `json:"timecode" binding:"required"`
+	Player1Money int    `json:"player_1_money"`
+	Player2Money int    `json:"player_2_money"`
+	Player3Money int    `json:"player_3_money"`
+	Player4Money int    `json:"player_4_money"`
+	Player5Money int    `json:"player_5_money"`
+	Player6Money int    `json:"player_6_money"`
+	Player7Money int    `json:"player_7_money"`
+	Player8Money int    `json:"player_8_money"`
 }
 
 // CreatePlayerMoneyData creates a new player money data record or returns existing one
@@ -74,7 +74,7 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 }
 
 // GetPlayerMoneyDataBySeed retrieves player money data by seed
-func (s *PlayerMoneyService) GetPlayerMoneyDataBySeed(seed int) ([]*PlayerMoneyData, error) {
+func (s *PlayerMoneyService) GetPlayerMoneyDataBySeed(seed string) ([]*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
@@ -102,7 +102,7 @@ func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int) ([]*Play
 }
 
 // GetPlayerMoneyDataByTimecodeAndSeed retrieves player money data by timecode and seed
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndSeed(timecode int, seed int) (*PlayerMoneyData, error) {
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndSeed(timecode int, seed string) (*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}

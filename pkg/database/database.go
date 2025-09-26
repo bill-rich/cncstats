@@ -16,7 +16,7 @@ var DB *gorm.DB
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
-	Seed         int       `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
+	Seed         string    `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
 	Timecode     int       `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
 	Player1Money int       `gorm:"default:0" json:"player_1_money"`
 	Player2Money int       `gorm:"default:0" json:"player_2_money"`
