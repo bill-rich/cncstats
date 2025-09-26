@@ -12,6 +12,7 @@ import (
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
+	"github.com/fsnotify/fsnotify"
 )
 
 type Replay struct {
@@ -239,8 +240,8 @@ func DefaultStreamReplayOptions() *StreamReplayOptions {
 }
 
 // StreamReplay streams body events from a replay file as it's being written.
-// It reads the header first, then continuously reads body chunks and sends them
-// through the returned channel. The channel is closed when the "EndReplay" command
+// It reads the header first, then continuously monitors the file for new data using
+// file system notifications. The channel is closed when the "EndReplay" command
 // (order code 27) is encountered, when no new data has been written for the specified
 // inactivity timeout, or when the context is cancelled.
 func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) (<-chan *body.BodyChunk, *StreamingReplay, error) {
@@ -277,6 +278,29 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 		defer close(bodyChan)
 		defer file.Close()
 
+		// Create file watcher
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			// If file watching fails, fall back to polling
+			streamWithPolling(ctx, file, bodyChan, streamingReplay, objectStore, powerStore, upgradeStore, options)
+			return
+		}
+		defer watcher.Close()
+
+		// Add the file to the watcher
+		err = watcher.Add(filePath)
+		if err != nil {
+			// If we can't watch the file, fall back to polling
+			streamWithPolling(ctx, file, bodyChan, streamingReplay, objectStore, powerStore, upgradeStore, options)
+			return
+		}
+
+		// Track the lowest player ID for offset calculation
+		lowestPlayerID := 1000
+
+		// Track last activity time for inactivity timeout
+		lastActivity := time.Now()
+
 		// Create a new BitParser for body reading that can handle streaming
 		streamBp := &bitparse.BitParser{
 			Source:       file,
@@ -285,65 +309,86 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 			UpgradeStore: upgradeStore,
 		}
 
-		// Track the lowest player ID for offset calculation
-		lowestPlayerID := 1000
+		// Channel to signal when new data is available
+		dataAvailable := make(chan struct{}, 1)
 
-		// Track last activity time for inactivity timeout
-		lastActivity := time.Now()
-		consecutiveEOFCount := 0
+		// Start a goroutine to monitor file changes
+		go func() {
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					if event.Op&fsnotify.Write == fsnotify.Write {
+						// File was written to, signal that data is available
+						select {
+						case dataAvailable <- struct{}{}:
+						default:
+							// Channel already has a signal, don't block
+						}
+					}
+				case _, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					// Log error but continue
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 
+		// Main processing loop
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
-				// Try to read a body chunk
-				chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
-				if err != nil {
-					if err == io.EOF {
-						// No more data available at current position
-						consecutiveEOFCount++
-
-						// Check if we've been inactive for too long
-						if time.Since(lastActivity) > options.InactivityTimeout {
-							// No activity for the specified timeout period, stop streaming
-							return
+			case <-dataAvailable:
+				// New data is available, try to read chunks
+				for {
+					chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
+					if err != nil {
+						if err == io.EOF {
+							// No more data available at current position, wait for next write
+							break
 						}
-
-						// Wait a bit and try again
-						time.Sleep(options.PollInterval)
-						continue
+						// Other error, stop streaming
+						return
 					}
-					// Other error, stop streaming
-					return
+
+					if chunk == nil {
+						// No chunk available yet, wait for next write
+						break
+					}
+
+					// Update activity time when we get a chunk
+					lastActivity = time.Now()
+
+					// Check if this is the EndReplay command
+					if chunk.OrderCode == 27 {
+						// EndReplay command found, close the channel and return
+						return
+					}
+
+					// Update offset if we found a lower player ID
+					if chunk.PlayerID < lowestPlayerID {
+						lowestPlayerID = chunk.PlayerID
+						streamingReplay.Offset = lowestPlayerID
+					}
+
+					// Send chunk through channel
+					select {
+					case bodyChan <- chunk:
+					case <-ctx.Done():
+						return
+					}
 				}
-
-				if chunk == nil {
-					// No chunk available yet, wait and try again
-					time.Sleep(options.PollInterval)
-					continue
-				}
-
-				// Reset consecutive EOF count and update activity time when we get a chunk
-				consecutiveEOFCount = 0
-				lastActivity = time.Now()
-
-				// Check if this is the EndReplay command
-				if chunk.OrderCode == 27 {
-					// EndReplay command found, close the channel and return
-					return
-				}
-
-				// Update offset if we found a lower player ID
-				if chunk.PlayerID < lowestPlayerID {
-					lowestPlayerID = chunk.PlayerID
-					streamingReplay.Offset = lowestPlayerID
-				}
-
-				// Send chunk through channel
-				select {
-				case bodyChan <- chunk:
-				case <-ctx.Done():
+			case <-time.After(options.PollInterval):
+				// Check for inactivity timeout
+				if time.Since(lastActivity) > options.InactivityTimeout {
+					// No activity for the specified timeout period, stop streaming
 					return
 				}
 			}
@@ -351,6 +396,78 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 	}()
 
 	return bodyChan, streamingReplay, nil
+}
+
+// streamWithPolling is a fallback implementation that uses polling instead of file watching
+func streamWithPolling(ctx context.Context, file *os.File, bodyChan chan<- *body.BodyChunk, streamingReplay *StreamingReplay, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) {
+	// Create a new BitParser for body reading that can handle streaming
+	streamBp := &bitparse.BitParser{
+		Source:       file,
+		ObjectStore:  objectStore,
+		PowerStore:   powerStore,
+		UpgradeStore: upgradeStore,
+	}
+
+	// Track the lowest player ID for offset calculation
+	lowestPlayerID := 1000
+
+	// Track last activity time for inactivity timeout
+	lastActivity := time.Now()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// Try to read a body chunk
+			chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
+			if err != nil {
+				if err == io.EOF {
+					// No more data available at current position
+
+					// Check if we've been inactive for too long
+					if time.Since(lastActivity) > options.InactivityTimeout {
+						// No activity for the specified timeout period, stop streaming
+						return
+					}
+
+					// Wait a bit and try again
+					time.Sleep(options.PollInterval)
+					continue
+				}
+				// Other error, stop streaming
+				return
+			}
+
+			if chunk == nil {
+				// No chunk available yet, wait and try again
+				time.Sleep(options.PollInterval)
+				continue
+			}
+
+			// Update activity time when we get a chunk
+			lastActivity = time.Now()
+
+			// Check if this is the EndReplay command
+			if chunk.OrderCode == 27 {
+				// EndReplay command found, close the channel and return
+				return
+			}
+
+			// Update offset if we found a lower player ID
+			if chunk.PlayerID < lowestPlayerID {
+				lowestPlayerID = chunk.PlayerID
+				streamingReplay.Offset = lowestPlayerID
+			}
+
+			// Send chunk through channel
+			select {
+			case bodyChan <- chunk:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
 }
 
 // readStreamingBodyChunk attempts to read a single body chunk from the stream
