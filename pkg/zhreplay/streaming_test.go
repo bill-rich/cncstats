@@ -221,4 +221,8 @@ func TestDefaultStreamReplayOptions(t *testing.T) {
 	if options.BufferSize != 100 {
 		t.Errorf("Expected BufferSize to be 100, got %d", options.BufferSize)
 	}
+
+	if options.InactivityTimeout != 2*time.Minute {
+		t.Errorf("Expected InactivityTimeout to be 2 minutes, got %v", options.InactivityTimeout)
+	}
 }

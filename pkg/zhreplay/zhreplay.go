@@ -224,21 +224,25 @@ type StreamReplayOptions struct {
 	MaxWaitTime time.Duration
 	// BufferSize is the size of the channel buffer for body events
 	BufferSize int
+	// InactivityTimeout is the time to wait with no new data before stopping (default 2 minutes)
+	InactivityTimeout time.Duration
 }
 
 // DefaultStreamReplayOptions returns sensible defaults for streaming
 func DefaultStreamReplayOptions() *StreamReplayOptions {
 	return &StreamReplayOptions{
-		PollInterval: 100 * time.Millisecond,
-		MaxWaitTime:  30 * time.Second,
-		BufferSize:   100,
+		PollInterval:      100 * time.Millisecond,
+		MaxWaitTime:       30 * time.Second,
+		BufferSize:        100,
+		InactivityTimeout: 2 * time.Minute,
 	}
 }
 
 // StreamReplay streams body events from a replay file as it's being written.
 // It reads the header first, then continuously reads body chunks and sends them
 // through the returned channel. The channel is closed when the "EndReplay" command
-// (order code 27) is encountered or when the context is cancelled.
+// (order code 27) is encountered, when no new data has been written for the specified
+// inactivity timeout, or when the context is cancelled.
 func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) (<-chan *body.BodyChunk, *StreamingReplay, error) {
 	if options == nil {
 		options = DefaultStreamReplayOptions()
@@ -284,6 +288,10 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 		// Track the lowest player ID for offset calculation
 		lowestPlayerID := 1000
 
+		// Track last activity time for inactivity timeout
+		lastActivity := time.Now()
+		consecutiveEOFCount := 0
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -293,7 +301,16 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 				chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
 				if err != nil {
 					if err == io.EOF {
-						// No more data available, wait a bit and try again
+						// No more data available at current position
+						consecutiveEOFCount++
+
+						// Check if we've been inactive for too long
+						if time.Since(lastActivity) > options.InactivityTimeout {
+							// No activity for the specified timeout period, stop streaming
+							return
+						}
+
+						// Wait a bit and try again
 						time.Sleep(options.PollInterval)
 						continue
 					}
@@ -306,6 +323,10 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 					time.Sleep(options.PollInterval)
 					continue
 				}
+
+				// Reset consecutive EOF count and update activity time when we get a chunk
+				consecutiveEOFCount = 0
+				lastActivity = time.Now()
 
 				// Check if this is the EndReplay command
 				if chunk.OrderCode == 27 {
