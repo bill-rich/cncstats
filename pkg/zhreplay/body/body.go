@@ -38,18 +38,18 @@ var argSize = map[int]int{
 	ArgUnknown10:       4,
 }
 
-// validateArgType checks if the argument type is valid
-func validateArgType(argType int) bool {
+// ValidateArgType checks if the argument type is valid
+func ValidateArgType(argType int) bool {
 	return argType >= ArgInt && argType <= ArgUnknown10
 }
 
-// validateArgCount checks if the argument count is within reasonable bounds
-func validateArgCount(count int) bool {
+// ValidateArgCount checks if the argument count is within reasonable bounds
+func ValidateArgCount(count int) bool {
 	return count >= 0 && count <= 50 // Reasonable upper limit
 }
 
-// convertArg safely converts binary data to appropriate types based on argument type
-func convertArg(bp *bitparse.BitParser, at int) interface{} {
+// ConvertArg safely converts binary data to appropriate types based on argument type
+func ConvertArg(bp *bitparse.BitParser, at int) interface{} {
 	// Validate argument type
 	if at < ArgInt || at > ArgUnknown10 {
 		return nil
@@ -283,7 +283,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 		}
 
 		// Validate reasonable bounds for numberOfArguments
-		if !validateArgCount(int(numberOfArguments)) {
+		if !ValidateArgCount(int(numberOfArguments)) {
 			break
 		}
 
@@ -305,7 +305,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 				break
 			}
 			// Validate argument type and count
-			if !validateArgType(int(argType)) || !validateArgCount(int(argCount)) {
+			if !ValidateArgType(int(argType)) || !ValidateArgCount(int(argCount)) {
 				break
 			}
 			argCountData := &ArgMetadata{
@@ -318,11 +318,11 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 		// Read arguments
 		for _, argData := range chunk.ArgMetadata {
 			for i := 0; i < argData.Count; i++ {
-				chunk.Arguments = append(chunk.Arguments, convertArg(bp, argData.Type))
+				chunk.Arguments = append(chunk.Arguments, ConvertArg(bp, argData.Type))
 			}
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 		if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
 			break
 		}
@@ -331,7 +331,7 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 	return body
 }
 
-func (c *BodyChunk) addExtraData(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
+func (c *BodyChunk) AddExtraData(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
 	if len(c.Arguments) == 0 {
 		return
 	}

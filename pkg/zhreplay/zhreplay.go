@@ -1,9 +1,14 @@
 package zhreplay
 
 import (
+	"context"
+	"io"
+	"os"
 	"strconv"
+	"time"
 
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
@@ -203,4 +208,199 @@ func (r *Replay) GenerateData() {
 			}
 		}
 	}
+}
+
+// StreamingReplay represents a streaming replay parser
+type StreamingReplay struct {
+	Header *header.GeneralsHeader
+	Offset int
+}
+
+// StreamReplayOptions contains options for streaming replay parsing
+type StreamReplayOptions struct {
+	// PollInterval is the time to wait between file checks when no new data is available
+	PollInterval time.Duration
+	// MaxWaitTime is the maximum time to wait for new data before timing out
+	MaxWaitTime time.Duration
+	// BufferSize is the size of the channel buffer for body events
+	BufferSize int
+}
+
+// DefaultStreamReplayOptions returns sensible defaults for streaming
+func DefaultStreamReplayOptions() *StreamReplayOptions {
+	return &StreamReplayOptions{
+		PollInterval: 100 * time.Millisecond,
+		MaxWaitTime:  30 * time.Second,
+		BufferSize:   100,
+	}
+}
+
+// StreamReplay streams body events from a replay file as it's being written.
+// It reads the header first, then continuously reads body chunks and sends them
+// through the returned channel. The channel is closed when the "EndReplay" command
+// (order code 27) is encountered or when the context is cancelled.
+func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) (<-chan *body.BodyChunk, *StreamingReplay, error) {
+	if options == nil {
+		options = DefaultStreamReplayOptions()
+	}
+
+	// Open the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create BitParser for header reading
+	bp := &bitparse.BitParser{
+		Source:       file,
+		ObjectStore:  objectStore,
+		PowerStore:   powerStore,
+		UpgradeStore: upgradeStore,
+	}
+
+	// Read header first
+	header := header.NewHeader(bp)
+	streamingReplay := &StreamingReplay{
+		Header: header,
+		Offset: 2, // Default offset, will be adjusted as we read body chunks
+	}
+
+	// Create channel for body events
+	bodyChan := make(chan *body.BodyChunk, options.BufferSize)
+
+	// Start streaming goroutine
+	go func() {
+		defer close(bodyChan)
+		defer file.Close()
+
+		// Create a new BitParser for body reading that can handle streaming
+		streamBp := &bitparse.BitParser{
+			Source:       file,
+			ObjectStore:  objectStore,
+			PowerStore:   powerStore,
+			UpgradeStore: upgradeStore,
+		}
+
+		// Track the lowest player ID for offset calculation
+		lowestPlayerID := 1000
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// Try to read a body chunk
+				chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
+				if err != nil {
+					if err == io.EOF {
+						// No more data available, wait a bit and try again
+						time.Sleep(options.PollInterval)
+						continue
+					}
+					// Other error, stop streaming
+					return
+				}
+
+				if chunk == nil {
+					// No chunk available yet, wait and try again
+					time.Sleep(options.PollInterval)
+					continue
+				}
+
+				// Check if this is the EndReplay command
+				if chunk.OrderCode == 27 {
+					// EndReplay command found, close the channel and return
+					return
+				}
+
+				// Update offset if we found a lower player ID
+				if chunk.PlayerID < lowestPlayerID {
+					lowestPlayerID = chunk.PlayerID
+					streamingReplay.Offset = lowestPlayerID
+				}
+
+				// Send chunk through channel
+				select {
+				case bodyChan <- chunk:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return bodyChan, streamingReplay, nil
+}
+
+// readStreamingBodyChunk attempts to read a single body chunk from the stream
+func readStreamingBodyChunk(bp *bitparse.BitParser, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) (*body.BodyChunk, error) {
+	// Read basic chunk data with error handling
+	timeCode, err := bp.ReadUInt32()
+	if err != nil {
+		return nil, err
+	}
+
+	orderCode, err := bp.ReadUInt32()
+	if err != nil {
+		return nil, err
+	}
+
+	playerID, err := bp.ReadUInt32()
+	if err != nil {
+		return nil, err
+	}
+
+	numberOfArguments, err := bp.ReadUInt8()
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate reasonable bounds for numberOfArguments
+	if !body.ValidateArgCount(int(numberOfArguments)) {
+		return nil, io.ErrUnexpectedEOF
+	}
+
+	chunk := &body.BodyChunk{
+		TimeCode:          timeCode,
+		OrderCode:         orderCode,
+		PlayerID:          playerID,
+		NumberOfArguments: numberOfArguments,
+		ArgMetadata:       []*body.ArgMetadata{},
+		Arguments:         []interface{}{},
+	}
+	chunk.OrderName = body.CommandType[chunk.OrderCode]
+
+	// Read argument metadata
+	for i := 0; i < chunk.NumberOfArguments; i++ {
+		argType, err1 := bp.ReadUInt8()
+		argCount, err2 := bp.ReadUInt8()
+		if err1 != nil || err2 != nil {
+			return nil, err1
+		}
+		// Validate argument type and count
+		if !body.ValidateArgType(int(argType)) || !body.ValidateArgCount(int(argCount)) {
+			return nil, io.ErrUnexpectedEOF
+		}
+		argCountData := &body.ArgMetadata{
+			Type:  argType,
+			Count: argCount,
+		}
+		chunk.ArgMetadata = append(chunk.ArgMetadata, argCountData)
+	}
+
+	// Read arguments
+	for _, argData := range chunk.ArgMetadata {
+		for i := 0; i < argData.Count; i++ {
+			chunk.Arguments = append(chunk.Arguments, body.ConvertArg(bp, argData.Type))
+		}
+	}
+
+	chunk.AddExtraData(objectStore, powerStore, upgradeStore)
+
+	// Check for end of data markers
+	if chunk.TimeCode == 0 && chunk.OrderCode == 0 && chunk.PlayerID == 0 {
+		return nil, io.EOF
+	}
+
+	return chunk, nil
 }
