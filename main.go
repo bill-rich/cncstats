@@ -65,11 +65,6 @@ func main() {
 		log.WithError(err).Fatal("could not migrate database")
 	}
 
-	// Run timestamp migration (convert timestamp_begin from time.Time to int64)
-	if err := database.MigrateTimestampBeginToInt64(); err != nil {
-		log.WithError(err).Fatal("could not migrate timestamp_begin field")
-	}
-
 	// Initialize stores for server mode
 	objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
 	if err != nil {

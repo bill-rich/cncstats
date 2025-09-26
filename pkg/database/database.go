@@ -13,21 +13,21 @@ import (
 // DB is the global database instance
 var DB *gorm.DB
 
-// PlayerMoneyData represents the money data for players at a specific timestamp
+// PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	ID             uint      `gorm:"primaryKey" json:"id"`
-	TimestampBegin int64     `gorm:"not null;uniqueIndex:idx_timestamp_timecode" json:"timestamp_begin"`
-	Timecode       int64     `gorm:"not null;uniqueIndex:idx_timestamp_timecode" json:"timecode"`
-	Player1Money   int64     `gorm:"default:0" json:"player_1_money"`
-	Player2Money   int64     `gorm:"default:0" json:"player_2_money"`
-	Player3Money   int64     `gorm:"default:0" json:"player_3_money"`
-	Player4Money   int64     `gorm:"default:0" json:"player_4_money"`
-	Player5Money   int64     `gorm:"default:0" json:"player_5_money"`
-	Player6Money   int64     `gorm:"default:0" json:"player_6_money"`
-	Player7Money   int64     `gorm:"default:0" json:"player_7_money"`
-	Player8Money   int64     `gorm:"default:0" json:"player_8_money"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	Seed         int       `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
+	Timecode     int       `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
+	Player1Money int       `gorm:"default:0" json:"player_1_money"`
+	Player2Money int       `gorm:"default:0" json:"player_2_money"`
+	Player3Money int       `gorm:"default:0" json:"player_3_money"`
+	Player4Money int       `gorm:"default:0" json:"player_4_money"`
+	Player5Money int       `gorm:"default:0" json:"player_5_money"`
+	Player6Money int       `gorm:"default:0" json:"player_6_money"`
+	Player7Money int       `gorm:"default:0" json:"player_7_money"`
+	Player8Money int       `gorm:"default:0" json:"player_8_money"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Connect initializes the database connection
@@ -83,43 +83,8 @@ func Migrate() error {
 		return fmt.Errorf("database not connected")
 	}
 
-	// Check if table exists and what the current schema looks like
-	var tableExists bool
-	err := DB.Raw(`
-		SELECT EXISTS (
-			SELECT FROM information_schema.tables 
-			WHERE table_name = 'player_money_data'
-		)
-	`).Scan(&tableExists).Error
-
-	if err != nil {
-		return fmt.Errorf("failed to check if table exists: %w", err)
-	}
-
-	if tableExists {
-		// Table exists, check if we need to migrate the timestamp_begin column
-		var columnType string
-		err = DB.Raw(`
-			SELECT data_type 
-			FROM information_schema.columns 
-			WHERE table_name = 'player_money_data' 
-			AND column_name = 'timestamp_begin'
-		`).Scan(&columnType).Error
-
-		if err != nil {
-			return fmt.Errorf("failed to check column type: %w", err)
-		}
-
-		if columnType != "bigint" {
-			// Table exists with old schema, we need to handle this carefully
-			// Don't use AutoMigrate as it will fail with incompatible types
-			// The timestamp migration will handle this
-			return nil
-		}
-	}
-
-	// Either table doesn't exist or has correct schema, safe to use AutoMigrate
-	err = DB.AutoMigrate(&PlayerMoneyData{})
+	// Auto-migrate the schema
+	err := DB.AutoMigrate(&PlayerMoneyData{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}

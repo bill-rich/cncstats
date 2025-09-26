@@ -20,16 +20,16 @@ func NewPlayerMoneyService() *PlayerMoneyService {
 
 // CreatePlayerMoneyDataRequest represents the request payload for creating player money data
 type CreatePlayerMoneyDataRequest struct {
-	TimestampBegin int64 `json:"timestamp_begin" binding:"required"`
-	Timecode       int64 `json:"timecode" binding:"required"`
-	Player1Money   int64 `json:"player_1_money"`
-	Player2Money   int64 `json:"player_2_money"`
-	Player3Money   int64 `json:"player_3_money"`
-	Player4Money   int64 `json:"player_4_money"`
-	Player5Money   int64 `json:"player_5_money"`
-	Player6Money   int64 `json:"player_6_money"`
-	Player7Money   int64 `json:"player_7_money"`
-	Player8Money   int64 `json:"player_8_money"`
+	Seed         int `json:"seed" binding:"required"`
+	Timecode     int `json:"timecode" binding:"required"`
+	Player1Money int `json:"player_1_money"`
+	Player2Money int `json:"player_2_money"`
+	Player3Money int `json:"player_3_money"`
+	Player4Money int `json:"player_4_money"`
+	Player5Money int `json:"player_5_money"`
+	Player6Money int `json:"player_6_money"`
+	Player7Money int `json:"player_7_money"`
+	Player8Money int `json:"player_8_money"`
 }
 
 // CreatePlayerMoneyData creates a new player money data record or returns existing one
@@ -38,9 +38,9 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 		return nil, fmt.Errorf("database not connected")
 	}
 
-	// First, try to find existing record with the same timestamp_begin and timecode
+	// First, try to find existing record with the same seed and timecode
 	var existingData PlayerMoneyData
-	err := s.db.Where("timestamp_begin = ? AND timecode = ?", req.TimestampBegin, req.Timecode).First(&existingData).Error
+	err := s.db.Where("seed = ? AND timecode = ?", req.Seed, req.Timecode).First(&existingData).Error
 
 	if err == nil {
 		// Record already exists, return it without error
@@ -54,16 +54,16 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 
 	// Record doesn't exist, create new one
 	playerMoneyData := &PlayerMoneyData{
-		TimestampBegin: req.TimestampBegin,
-		Timecode:       req.Timecode,
-		Player1Money:   req.Player1Money,
-		Player2Money:   req.Player2Money,
-		Player3Money:   req.Player3Money,
-		Player4Money:   req.Player4Money,
-		Player5Money:   req.Player5Money,
-		Player6Money:   req.Player6Money,
-		Player7Money:   req.Player7Money,
-		Player8Money:   req.Player8Money,
+		Seed:         req.Seed,
+		Timecode:     req.Timecode,
+		Player1Money: req.Player1Money,
+		Player2Money: req.Player2Money,
+		Player3Money: req.Player3Money,
+		Player4Money: req.Player4Money,
+		Player5Money: req.Player5Money,
+		Player6Money: req.Player6Money,
+		Player7Money: req.Player7Money,
+		Player8Money: req.Player8Money,
 	}
 
 	if err := s.db.Create(playerMoneyData).Error; err != nil {
@@ -73,22 +73,22 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 	return playerMoneyData, nil
 }
 
-// GetPlayerMoneyDataByTimestamp retrieves player money data by timestamp
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimestamp(timestamp int64) ([]*PlayerMoneyData, error) {
+// GetPlayerMoneyDataBySeed retrieves player money data by seed
+func (s *PlayerMoneyService) GetPlayerMoneyDataBySeed(seed int) ([]*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
 
 	var results []*PlayerMoneyData
-	if err := s.db.Where("timestamp_begin = ?", timestamp).Find(&results).Error; err != nil {
-		return nil, fmt.Errorf("failed to get player money data by timestamp: %w", err)
+	if err := s.db.Where("seed = ?", seed).Find(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to get player money data by seed: %w", err)
 	}
 
 	return results, nil
 }
 
 // GetPlayerMoneyDataByTimecode retrieves player money data by timecode
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int64) ([]*PlayerMoneyData, error) {
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int) ([]*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
@@ -101,18 +101,18 @@ func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int64) ([]*Pl
 	return results, nil
 }
 
-// GetPlayerMoneyDataByTimecodeAndTimestamp retrieves player money data by timecode and timestamp
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndTimestamp(timecode int64, timestamp int64) (*PlayerMoneyData, error) {
+// GetPlayerMoneyDataByTimecodeAndSeed retrieves player money data by timecode and seed
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndSeed(timecode int, seed int) (*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
 
 	var result PlayerMoneyData
-	if err := s.db.Where("timecode = ? AND timestamp_begin = ?", timecode, timestamp).First(&result).Error; err != nil {
+	if err := s.db.Where("timecode = ? AND seed = ?", timecode, seed).First(&result).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil // No matching record found
 		}
-		return nil, fmt.Errorf("failed to get player money data by timecode and timestamp: %w", err)
+		return nil, fmt.Errorf("failed to get player money data by timecode and seed: %w", err)
 	}
 
 	return &result, nil
@@ -125,7 +125,7 @@ func (s *PlayerMoneyService) GetAllPlayerMoneyData(limit, offset int) ([]*Player
 	}
 
 	var results []*PlayerMoneyData
-	query := s.db.Order("timestamp_begin DESC")
+	query := s.db.Order("seed DESC")
 
 	if limit > 0 {
 		query = query.Limit(limit)

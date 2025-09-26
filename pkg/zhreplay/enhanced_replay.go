@@ -1,6 +1,8 @@
 package zhreplay
 
 import (
+	"strconv"
+
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -13,16 +15,16 @@ type EnhancedBodyChunk struct {
 	PlayerMoney *PlayerMoneyData `json:"PlayerMoney,omitempty"`
 }
 
-// PlayerMoneyData represents the money data for players at a specific timestamp
+// PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	Player1Money int64 `json:"Player1Money",omitempty`
-	Player2Money int64 `json:"Player2Money",omitempty`
-	Player3Money int64 `json:"Player3Money",omitempty`
-	Player4Money int64 `json:"Player4Money",omitempty`
-	Player5Money int64 `json:"Player5Money",omitempty`
-	Player6Money int64 `json:"Player6Money",omitempty`
-	Player7Money int64 `json:"Player7Money",omitempty`
-	Player8Money int64 `json:"Player8Money",omitempty`
+	Player1Money int `json:"player_1_money,omitempty"`
+	Player2Money int `json:"player_2_money,omitempty"`
+	Player3Money int `json:"player_3_money,omitempty"`
+	Player4Money int `json:"player_4_money,omitempty"`
+	Player5Money int `json:"player_5_money,omitempty"`
+	Player6Money int `json:"player_6_money,omitempty"`
+	Player7Money int `json:"player_7_money,omitempty"`
+	Player8Money int `json:"player_8_money,omitempty"`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
@@ -60,7 +62,7 @@ func (er *EnhancedReplay) AddPlayerMoneyToChunk(chunkIndex int, moneyData *Playe
 
 // GetPlayerMoneyForPlayerID returns the money amount for a specific player ID
 // Note: PlayerID 2 = Player1, PlayerID 3 = Player2, etc.
-func (pmd *PlayerMoneyData) GetPlayerMoneyForPlayerID(playerID int) int64 {
+func (pmd *PlayerMoneyData) GetPlayerMoneyForPlayerID(playerID int) int {
 	// PlayerID 2 = Player1, PlayerID 3 = Player2, etc.
 	// So we need to subtract 1 from playerID to get the correct index
 	playerIndex := playerID - 1
@@ -92,7 +94,12 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 	// Get the player money service
 	playerMoneyService := database.NewPlayerMoneyService()
 
-	timestampBegin := int64(er.Header.TimeStampBegin)
+	// Get seed from metadata and convert to int
+	seed, err := strconv.Atoi(er.Header.Metadata.Seed)
+	if err != nil {
+		// If seed is not a valid int, skip processing
+		return
+	}
 
 	// Process each body chunk
 	for i, chunk := range er.Body {
@@ -101,10 +108,10 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 			continue
 		}
 
-		// Try to find matching player money data for this timecode and timestamp
-		moneyData, err := playerMoneyService.GetPlayerMoneyDataByTimecodeAndTimestamp(
-			int64(chunk.TimeCode),
-			timestampBegin,
+		// Try to find matching player money data for this timecode and seed
+		moneyData, err := playerMoneyService.GetPlayerMoneyDataByTimecodeAndSeed(
+			chunk.TimeCode,
+			seed,
 		)
 
 		if err != nil {
