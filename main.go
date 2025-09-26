@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -33,6 +36,17 @@ func main() {
 
 	// Determine objData path
 	objDataPath := getObjDataPath(*objData)
+
+	// Initialize database
+	if err := database.Connect(); err != nil {
+		log.WithError(err).Fatal("could not connect to database")
+	}
+	defer database.Close()
+
+	// Run database migrations
+	if err := database.Migrate(); err != nil {
+		log.WithError(err).Fatal("could not migrate database")
+	}
 
 	// Initialize stores
 	objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
@@ -153,9 +167,35 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 
 func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
 	router := gin.Default()
+
+	// Existing replay endpoint
 	router.POST("/replay", func(c *gin.Context) {
 		saveFileHandler(c, objectStore, powerStore, upgradeStore)
 	})
+
+	// New player money data endpoints
+	playerMoneyService := database.NewPlayerMoneyService()
+
+	// POST /player-money - Create new player money data
+	router.POST("/player-money", func(c *gin.Context) {
+		createPlayerMoneyHandler(c, playerMoneyService)
+	})
+
+	// GET /player-money - Get player money data with optional query parameters
+	router.GET("/player-money", func(c *gin.Context) {
+		getPlayerMoneyHandler(c, playerMoneyService)
+	})
+
+	// GET /player-money/:id - Get specific player money data by ID
+	router.GET("/player-money/:id", func(c *gin.Context) {
+		getPlayerMoneyByIDHandler(c, playerMoneyService)
+	})
+
+	// DELETE /player-money/:id - Delete player money data by ID
+	router.DELETE("/player-money/:id", func(c *gin.Context) {
+		deletePlayerMoneyHandler(c, playerMoneyService)
+	})
+
 	port := "8080"
 	if len(os.Getenv("PORT")) > 0 {
 		port = os.Getenv("PORT")
@@ -190,4 +230,113 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 	c.JSON(http.StatusOK, replay)
+}
+
+// Player money data handlers
+
+func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
+	var req database.CreatePlayerMoneyDataRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	playerMoneyData, err := service.CreatePlayerMoneyData(&req)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create player money data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, playerMoneyData)
+}
+
+func getPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
+	// Parse query parameters
+	limit := 0
+	offset := 0
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	// Get player money data
+	results, err := service.GetAllPlayerMoneyData(limit, offset)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve player money data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  results,
+		"count": len(results),
+	})
+}
+
+func getPlayerMoneyByIDHandler(c *gin.Context, service *database.PlayerMoneyService) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid ID format",
+		})
+		return
+	}
+
+	// Get single record by ID
+	var result database.PlayerMoneyData
+	if err := database.DB.First(&result, uint(id)).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "Player money data not found",
+			})
+		} else {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to retrieve player money data",
+				"details": err.Error(),
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func deletePlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid ID format",
+		})
+		return
+	}
+
+	if err := service.DeletePlayerMoneyData(uint(id)); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete player money data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Player money data deleted successfully",
+	})
 }
