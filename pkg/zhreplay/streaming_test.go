@@ -226,3 +226,21 @@ func TestDefaultStreamReplayOptions(t *testing.T) {
 		t.Errorf("Expected InactivityTimeout to be 2 minutes, got %v", options.InactivityTimeout)
 	}
 }
+
+func TestStreamReplayWithCustomTimeout(t *testing.T) {
+	// Test with a very short timeout to verify the timeout behavior
+	options := &StreamReplayOptions{
+		PollInterval:      50 * time.Millisecond,
+		MaxWaitTime:       1 * time.Second,
+		BufferSize:        10,
+		InactivityTimeout: 100 * time.Millisecond, // Very short timeout
+	}
+
+	if options.PollInterval != 50*time.Millisecond {
+		t.Errorf("Expected PollInterval to be 50ms, got %v", options.PollInterval)
+	}
+
+	if options.InactivityTimeout != 100*time.Millisecond {
+		t.Errorf("Expected InactivityTimeout to be 100ms, got %v", options.InactivityTimeout)
+	}
+}

@@ -12,7 +12,6 @@ import (
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
-	"github.com/fsnotify/fsnotify"
 )
 
 type Replay struct {
@@ -278,91 +277,59 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 		defer close(bodyChan)
 		defer file.Close()
 
-		// Create file watcher
-		watcher, err := fsnotify.NewWatcher()
-		if err != nil {
-			// If file watching fails, fall back to polling
-			streamWithPolling(ctx, file, bodyChan, streamingReplay, objectStore, powerStore, upgradeStore, options)
+		// For now, use the polling approach which is more reliable
+		// TODO: Implement proper file watching once we confirm polling works
+		streamWithPolling(ctx, file, bodyChan, streamingReplay, objectStore, powerStore, upgradeStore, options)
+	}()
+
+	return bodyChan, streamingReplay, nil
+}
+
+// streamWithPolling is a fallback implementation that uses polling instead of file watching
+func streamWithPolling(ctx context.Context, file *os.File, bodyChan chan<- *body.BodyChunk, streamingReplay *StreamingReplay, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) {
+	// Track the lowest player ID for offset calculation
+	lowestPlayerID := 1000
+
+	// Track last activity time for inactivity timeout
+	lastActivity := time.Now()
+
+	// Track the last processed timestamp to filter out old chunks
+	var lastProcessedTimestamp int = 0
+
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		}
-		defer watcher.Close()
+		default:
+			// Get current file size
+			fileInfo, err := file.Stat()
+			if err != nil {
+				// File error, stop streaming
+				return
+			}
 
-		// Add the file to the watcher
-		err = watcher.Add(filePath)
-		if err != nil {
-			// If we can't watch the file, fall back to polling
-			streamWithPolling(ctx, file, bodyChan, streamingReplay, objectStore, powerStore, upgradeStore, options)
-			return
-		}
+			// Get current file position
+			currentPos, err := file.Seek(0, io.SeekCurrent)
+			if err != nil {
+				// Seek error, stop streaming
+				return
+			}
 
-		// Track the lowest player ID for offset calculation
-		lowestPlayerID := 1000
-
-		// Track last activity time for inactivity timeout
-		lastActivity := time.Now()
-
-		// Create a new BitParser for body reading that can handle streaming
-		streamBp := &bitparse.BitParser{
-			Source:       file,
-			ObjectStore:  objectStore,
-			PowerStore:   powerStore,
-			UpgradeStore: upgradeStore,
-		}
-
-		// Channel to signal when new data is available
-		dataAvailable := make(chan struct{}, 1)
-
-		// Start a goroutine to monitor file changes
-		go func() {
-			for {
-				select {
-				case event, ok := <-watcher.Events:
-					if !ok {
-						return
-					}
-					if event.Op&fsnotify.Write == fsnotify.Write {
-						// File was written to, signal that data is available
-						select {
-						case dataAvailable <- struct{}{}:
-						default:
-							// Channel already has a signal, don't block
-						}
-					}
-				case _, ok := <-watcher.Errors:
-					if !ok {
-						return
-					}
-					// Log error but continue
-					continue
-				case <-ctx.Done():
+			// If file has grown, read the new data
+			if fileInfo.Size() > currentPos {
+				// Read new data from current position to end of file
+				newData := make([]byte, fileInfo.Size()-currentPos)
+				_, err := file.Read(newData)
+				if err != nil && err != io.EOF {
+					// Read error, stop streaming
 					return
 				}
-			}
-		}()
 
-		// Main processing loop
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-dataAvailable:
-				// New data is available, try to read chunks
-				for {
-					chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
-					if err != nil {
-						if err == io.EOF {
-							// No more data available at current position, wait for next write
-							break
-						}
-						// Other error, stop streaming
-						return
-					}
+				// Parse the new data
+				chunks := parseNewData(newData, objectStore, powerStore, upgradeStore, &lastProcessedTimestamp)
 
-					if chunk == nil {
-						// No chunk available yet, wait for next write
-						break
-					}
-
+				// Process each new chunk
+				for _, chunk := range chunks {
 					// Update activity time when we get a chunk
 					lastActivity = time.Now()
 
@@ -385,87 +352,16 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 						return
 					}
 				}
-			case <-time.After(options.PollInterval):
-				// Check for inactivity timeout
+			} else {
+				// No new data, check for inactivity timeout
 				if time.Since(lastActivity) > options.InactivityTimeout {
 					// No activity for the specified timeout period, stop streaming
 					return
 				}
 			}
-		}
-	}()
 
-	return bodyChan, streamingReplay, nil
-}
-
-// streamWithPolling is a fallback implementation that uses polling instead of file watching
-func streamWithPolling(ctx context.Context, file *os.File, bodyChan chan<- *body.BodyChunk, streamingReplay *StreamingReplay, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, options *StreamReplayOptions) {
-	// Create a new BitParser for body reading that can handle streaming
-	streamBp := &bitparse.BitParser{
-		Source:       file,
-		ObjectStore:  objectStore,
-		PowerStore:   powerStore,
-		UpgradeStore: upgradeStore,
-	}
-
-	// Track the lowest player ID for offset calculation
-	lowestPlayerID := 1000
-
-	// Track last activity time for inactivity timeout
-	lastActivity := time.Now()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			// Try to read a body chunk
-			chunk, err := readStreamingBodyChunk(streamBp, objectStore, powerStore, upgradeStore)
-			if err != nil {
-				if err == io.EOF {
-					// No more data available at current position
-
-					// Check if we've been inactive for too long
-					if time.Since(lastActivity) > options.InactivityTimeout {
-						// No activity for the specified timeout period, stop streaming
-						return
-					}
-
-					// Wait a bit and try again
-					time.Sleep(options.PollInterval)
-					continue
-				}
-				// Other error, stop streaming
-				return
-			}
-
-			if chunk == nil {
-				// No chunk available yet, wait and try again
-				time.Sleep(options.PollInterval)
-				continue
-			}
-
-			// Update activity time when we get a chunk
-			lastActivity = time.Now()
-
-			// Check if this is the EndReplay command
-			if chunk.OrderCode == 27 {
-				// EndReplay command found, close the channel and return
-				return
-			}
-
-			// Update offset if we found a lower player ID
-			if chunk.PlayerID < lowestPlayerID {
-				lowestPlayerID = chunk.PlayerID
-				streamingReplay.Offset = lowestPlayerID
-			}
-
-			// Send chunk through channel
-			select {
-			case bodyChan <- chunk:
-			case <-ctx.Done():
-				return
-			}
+			// Wait before next poll
+			time.Sleep(options.PollInterval)
 		}
 	}
 }
@@ -541,4 +437,59 @@ func readStreamingBodyChunk(bp *bitparse.BitParser, objectStore *iniparse.Object
 	}
 
 	return chunk, nil
+}
+
+// parseNewData parses raw bytes and returns only chunks with timestamps after the last processed timestamp
+func parseNewData(data []byte, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, lastProcessedTimestamp *int) []*body.BodyChunk {
+	if len(data) == 0 {
+		return nil
+	}
+
+	// Create a BitParser from the raw data
+	bp := &bitparse.BitParser{
+		Source:       &bytesReader{data: data},
+		ObjectStore:  objectStore,
+		PowerStore:   powerStore,
+		UpgradeStore: upgradeStore,
+	}
+
+	var chunks []*body.BodyChunk
+
+	// Parse chunks from the data
+	for {
+		chunk, err := readStreamingBodyChunk(bp, objectStore, powerStore, upgradeStore)
+		if err != nil {
+			// EOF or other error, we're done with this batch
+			break
+		}
+
+		if chunk == nil {
+			// No more chunks available
+			break
+		}
+
+		// Only include chunks with timestamps after the last processed timestamp
+		if chunk.TimeCode > *lastProcessedTimestamp {
+			chunks = append(chunks, chunk)
+			// Update the last processed timestamp
+			*lastProcessedTimestamp = chunk.TimeCode
+		}
+	}
+
+	return chunks
+}
+
+// bytesReader implements io.Reader for a byte slice
+type bytesReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *bytesReader) Read(p []byte) (n int, err error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	n = copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
 }
