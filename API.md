@@ -6,7 +6,7 @@ The API provides endpoints for storing and retrieving player money data at speci
 
 ### POST /player-money
 
-Creates a new player money data record.
+Creates a new player money data record or returns existing record if the combination of `timestamp_begin` and `timecode` already exists.
 
 **Request Body:**
 ```json
@@ -24,7 +24,7 @@ Creates a new player money data record.
 }
 ```
 
-**Response (201 Created):**
+**Response (201 Created for new record, 200 OK for existing record):**
 ```json
 {
   "id": 1,
@@ -42,6 +42,8 @@ Creates a new player money data record.
   "updated_at": "2024-01-01T12:00:00Z"
 }
 ```
+
+**Note:** If a record with the same `timestamp_begin` and `timecode` combination already exists, the API will return the existing record without creating a duplicate. No error is returned in this case.
 
 ### GET /player-money
 
@@ -135,11 +137,13 @@ All endpoints return appropriate HTTP status codes and error messages:
 The `player_money_data` table has the following structure:
 
 - `id`: Primary key (auto-increment)
-- `timestamp_begin`: Timestamp when the data was recorded (indexed)
-- `timecode`: Game timecode at the moment of recording
+- `timestamp_begin`: Timestamp when the data was recorded (part of unique constraint with timecode)
+- `timecode`: Game timecode at the moment of recording (part of unique constraint with timestamp_begin)
 - `player_1_money` through `player_8_money`: Money amounts for players 1-8
 - `created_at`: Record creation timestamp
 - `updated_at`: Record last update timestamp
+
+**Unique Constraint:** The combination of `timestamp_begin` and `timecode` must be unique. This prevents duplicate entries for the same game moment and ensures data integrity.
 
 ## Environment Variables
 

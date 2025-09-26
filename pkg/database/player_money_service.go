@@ -33,12 +33,27 @@ type CreatePlayerMoneyDataRequest struct {
 	Player8Money   int64     `json:"player_8_money"`
 }
 
-// CreatePlayerMoneyData creates a new player money data record
+// CreatePlayerMoneyData creates a new player money data record or returns existing one
 func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataRequest) (*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
 
+	// First, try to find existing record with the same timestamp_begin and timecode
+	var existingData PlayerMoneyData
+	err := s.db.Where("timestamp_begin = ? AND timecode = ?", req.TimestampBegin, req.Timecode).First(&existingData).Error
+
+	if err == nil {
+		// Record already exists, return it without error
+		return &existingData, nil
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		// Some other database error occurred
+		return nil, fmt.Errorf("failed to check for existing player money data: %w", err)
+	}
+
+	// Record doesn't exist, create new one
 	playerMoneyData := &PlayerMoneyData{
 		TimestampBegin: req.TimestampBegin,
 		Timecode:       req.Timecode,
@@ -85,6 +100,23 @@ func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int64) ([]*Pl
 	}
 
 	return results, nil
+}
+
+// GetPlayerMoneyDataByTimecodeAndTimestamp retrieves player money data by timecode and timestamp
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndTimestamp(timecode int64, timestamp time.Time) (*PlayerMoneyData, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var result PlayerMoneyData
+	if err := s.db.Where("timecode = ? AND timestamp_begin = ?", timecode, timestamp).First(&result).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // No matching record found
+		}
+		return nil, fmt.Errorf("failed to get player money data by timecode and timestamp: %w", err)
+	}
+
+	return &result, nil
 }
 
 // GetAllPlayerMoneyData retrieves all player money data with pagination

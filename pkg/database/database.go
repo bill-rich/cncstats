@@ -16,8 +16,8 @@ var DB *gorm.DB
 // PlayerMoneyData represents the money data for players at a specific timestamp
 type PlayerMoneyData struct {
 	ID             uint      `gorm:"primaryKey" json:"id"`
-	TimestampBegin time.Time `gorm:"not null;index" json:"timestamp_begin"`
-	Timecode       int64     `gorm:"not null" json:"timecode"`
+	TimestampBegin time.Time `gorm:"not null;uniqueIndex:idx_timestamp_timecode" json:"timestamp_begin"`
+	Timecode       int64     `gorm:"not null;uniqueIndex:idx_timestamp_timecode" json:"timecode"`
 	Player1Money   int64     `gorm:"default:0" json:"player_1_money"`
 	Player2Money   int64     `gorm:"default:0" json:"player_2_money"`
 	Player3Money   int64     `gorm:"default:0" json:"player_3_money"`
