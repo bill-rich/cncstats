@@ -37,7 +37,24 @@ func main() {
 	// Determine objData path
 	objDataPath := getObjDataPath(*objData)
 
-	// Initialize database
+	// Set log level
+	if *trace || len(os.Getenv("TRACE")) > 0 {
+		log.SetLevel(log.TraceLevel)
+	}
+
+	// Handle local mode - skip database operations
+	if *local || len(os.Getenv("LOCAL")) > 0 {
+		// Initialize stores for local mode
+		objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
+		if err != nil {
+			log.WithError(err).Fatal("could not initialize stores")
+		}
+
+		handleLocalMode(*replayFile, objectStore, powerStore, upgradeStore)
+		return
+	}
+
+	// Initialize database (only for server mode)
 	if err := database.Connect(); err != nil {
 		log.WithError(err).Fatal("could not connect to database")
 	}
@@ -48,21 +65,15 @@ func main() {
 		log.WithError(err).Fatal("could not migrate database")
 	}
 
-	// Initialize stores
+	// Run timestamp migration (convert timestamp_begin from time.Time to int64)
+	if err := database.MigrateTimestampBeginToInt64(); err != nil {
+		log.WithError(err).Fatal("could not migrate timestamp_begin field")
+	}
+
+	// Initialize stores for server mode
 	objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
 	if err != nil {
 		log.WithError(err).Fatal("could not initialize stores")
-	}
-
-	// Set log level
-	if *trace || len(os.Getenv("TRACE")) > 0 {
-		log.SetLevel(log.TraceLevel)
-	}
-
-	// Handle local mode
-	if *local || len(os.Getenv("LOCAL")) > 0 {
-		handleLocalMode(*replayFile, objectStore, powerStore, upgradeStore)
-		return
 	}
 
 	// Start web server

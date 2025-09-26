@@ -1,8 +1,6 @@
 package zhreplay
 
 import (
-	"time"
-
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -12,27 +10,27 @@ import (
 // EnhancedBodyChunk represents a body chunk with player money data
 type EnhancedBodyChunk struct {
 	*body.BodyChunk
-	PlayerMoney *PlayerMoneyData `json:"player_money,omitempty"`
+	PlayerMoney *PlayerMoneyData `json:"PlayerMoney,omitempty"`
 }
 
 // PlayerMoneyData represents the money data for players at a specific timestamp
 type PlayerMoneyData struct {
-	Player1Money int64 `json:"player_1_money"`
-	Player2Money int64 `json:"player_2_money"`
-	Player3Money int64 `json:"player_3_money"`
-	Player4Money int64 `json:"player_4_money"`
-	Player5Money int64 `json:"player_5_money"`
-	Player6Money int64 `json:"player_6_money"`
-	Player7Money int64 `json:"player_7_money"`
-	Player8Money int64 `json:"player_8_money"`
+	Player1Money int64 `json:"Player1Money",omitempty`
+	Player2Money int64 `json:"Player2Money",omitempty`
+	Player3Money int64 `json:"Player3Money",omitempty`
+	Player4Money int64 `json:"Player4Money",omitempty`
+	Player5Money int64 `json:"Player5Money",omitempty`
+	Player6Money int64 `json:"Player6Money",omitempty`
+	Player7Money int64 `json:"Player7Money",omitempty`
+	Player8Money int64 `json:"Player8Money",omitempty`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
 type EnhancedReplay struct {
-	Header  *header.GeneralsHeader  `json:"header"`
-	Body    []*EnhancedBodyChunk    `json:"body"`
-	Summary []*object.PlayerSummary `json:"summary"`
-	Offset  int                     `json:"offset"`
+	Header  *header.GeneralsHeader  `json:"Header"`
+	Body    []*EnhancedBodyChunk    `json:"Body"`
+	Summary []*object.PlayerSummary `json:"Summary"`
+	Offset  int                     `json:"Offset"`
 }
 
 // ConvertToEnhancedReplay converts a regular replay to an enhanced replay
@@ -94,8 +92,7 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 	// Get the player money service
 	playerMoneyService := database.NewPlayerMoneyService()
 
-	// Get the timestamp begin from the header
-	timestampBegin := time.Unix(int64(er.Header.TimeStampBegin), 0)
+	timestampBegin := int64(er.Header.TimeStampBegin)
 
 	// Process each body chunk
 	for i, chunk := range er.Body {

@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -21,16 +20,16 @@ func NewPlayerMoneyService() *PlayerMoneyService {
 
 // CreatePlayerMoneyDataRequest represents the request payload for creating player money data
 type CreatePlayerMoneyDataRequest struct {
-	TimestampBegin time.Time `json:"timestamp_begin" binding:"required"`
-	Timecode       int64     `json:"timecode" binding:"required"`
-	Player1Money   int64     `json:"player_1_money"`
-	Player2Money   int64     `json:"player_2_money"`
-	Player3Money   int64     `json:"player_3_money"`
-	Player4Money   int64     `json:"player_4_money"`
-	Player5Money   int64     `json:"player_5_money"`
-	Player6Money   int64     `json:"player_6_money"`
-	Player7Money   int64     `json:"player_7_money"`
-	Player8Money   int64     `json:"player_8_money"`
+	TimestampBegin int64 `json:"timestamp_begin" binding:"required"`
+	Timecode       int64 `json:"timecode" binding:"required"`
+	Player1Money   int64 `json:"player_1_money"`
+	Player2Money   int64 `json:"player_2_money"`
+	Player3Money   int64 `json:"player_3_money"`
+	Player4Money   int64 `json:"player_4_money"`
+	Player5Money   int64 `json:"player_5_money"`
+	Player6Money   int64 `json:"player_6_money"`
+	Player7Money   int64 `json:"player_7_money"`
+	Player8Money   int64 `json:"player_8_money"`
 }
 
 // CreatePlayerMoneyData creates a new player money data record or returns existing one
@@ -75,7 +74,7 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 }
 
 // GetPlayerMoneyDataByTimestamp retrieves player money data by timestamp
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimestamp(timestamp time.Time) ([]*PlayerMoneyData, error) {
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimestamp(timestamp int64) ([]*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
@@ -103,7 +102,7 @@ func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int64) ([]*Pl
 }
 
 // GetPlayerMoneyDataByTimecodeAndTimestamp retrieves player money data by timecode and timestamp
-func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndTimestamp(timecode int64, timestamp time.Time) (*PlayerMoneyData, error) {
+func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecodeAndTimestamp(timecode int64, timestamp int64) (*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
