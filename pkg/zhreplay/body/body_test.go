@@ -120,7 +120,7 @@ func TestConvertArg(t *testing.T) {
 			parser := &bitparse.BitParser{
 				Source: bytes.NewReader(tc.input),
 			}
-			result := convertArg(parser, tc.argType)
+			result := ConvertArg(parser, tc.argType)
 
 			// Handle different comparison types
 			switch expected := tc.expected.(type) {
@@ -565,7 +565,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{2}, // Object ID 2
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -590,7 +590,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{2}, // Object ID 2
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -615,7 +615,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{2}, // Power ID 2
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -637,7 +637,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{2}, // Power ID 2
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -659,7 +659,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{2}, // Power ID 2
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -681,7 +681,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{1, 2270}, // Player ID 1, Upgrade ID 2270 (offset)
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -711,7 +711,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{1, 999}, // Player ID 1, Upgrade ID 999 (non-existent)
 		}
 
-		chunk.addExtraData(objectStore, powerStore, emptyUpgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, emptyUpgradeStore)
 
 		if chunk.Details == nil {
 			t.Error("expected Details to be set")
@@ -733,7 +733,7 @@ func TestAddExtraData(t *testing.T) {
 			Arguments: []interface{}{},
 		}
 
-		chunk.addExtraData(objectStore, powerStore, upgradeStore)
+		chunk.AddExtraData(objectStore, powerStore, upgradeStore)
 
 		if chunk.Details != nil {
 			t.Errorf("expected Details to be nil for unknown order code, got %T", chunk.Details)
@@ -763,7 +763,7 @@ func TestEdgeCases(t *testing.T) {
 			Source: bytes.NewReader([]byte{1}), // Only 1 byte, but ArgInt needs 4
 		}
 
-		result := convertArg(parser, ArgInt)
+		result := ConvertArg(parser, ArgInt)
 		// Should return 0 or handle gracefully
 		_ = result
 	})
@@ -773,7 +773,7 @@ func TestEdgeCases(t *testing.T) {
 			Source: bytes.NewReader([]byte{}), // Empty input
 		}
 
-		result := convertArg(parser, ArgInt)
+		result := ConvertArg(parser, ArgInt)
 		// Should return 0 or handle gracefully
 		_ = result
 	})
