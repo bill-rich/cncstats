@@ -204,6 +204,20 @@ func (r *Replay) determineWinnersByMoney() {
 		}
 	}
 
+	// Check if more than one team would win - if so, fall back to original logic
+	winningTeams := 0
+	for _, teamWon := range teamWins {
+		if teamWon {
+			winningTeams++
+		}
+	}
+
+	if winningTeams > 1 {
+		// More than one team would win, fall back to original logic
+		r.fallbackWinnerDetection()
+		return
+	}
+
 	// Apply team win logic - any player on a winning team also wins
 	for _, player := range r.Summary {
 		if teamWins[player.Team] {
