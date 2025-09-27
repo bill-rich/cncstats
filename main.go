@@ -272,7 +272,7 @@ func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyServi
 		return
 	}
 
-	playerMoneyData, err := service.CreatePlayerMoneyData(&req)
+	_, err := service.CreatePlayerMoneyData(&req)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to create player money data",
@@ -281,7 +281,7 @@ func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyServi
 		return
 	}
 
-	c.JSON(http.StatusCreated, playerMoneyData)
+	c.Status(http.StatusCreated)
 }
 
 func getPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
