@@ -350,6 +350,9 @@ func (c *BodyChunk) AddExtraData(objectStore *iniparse.ObjectStore, powerStore *
 
 // setUnitDetails safely sets unit details from object store
 func (c *BodyChunk) setUnitDetails(objectStore *iniparse.ObjectStore) {
+	if objectStore == nil {
+		return
+	}
 	if arg, ok := c.Arguments[0].(int); ok {
 		if newObject, err := objectStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Unit{
@@ -362,6 +365,9 @@ func (c *BodyChunk) setUnitDetails(objectStore *iniparse.ObjectStore) {
 
 // setBuildingDetails safely sets building details from object store
 func (c *BodyChunk) setBuildingDetails(objectStore *iniparse.ObjectStore) {
+	if objectStore == nil {
+		return
+	}
 	if arg, ok := c.Arguments[0].(int); ok {
 		if newObject, err := objectStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Building{
@@ -374,6 +380,9 @@ func (c *BodyChunk) setBuildingDetails(objectStore *iniparse.ObjectStore) {
 
 // setPowerDetails safely sets power details from power store
 func (c *BodyChunk) setPowerDetails(powerStore *iniparse.PowerStore) {
+	if powerStore == nil {
+		return
+	}
 	if arg, ok := c.Arguments[0].(int); ok {
 		if newObject, err := powerStore.GetObject(arg); err == nil && newObject != nil {
 			c.Details = &object.Power{
@@ -385,6 +394,9 @@ func (c *BodyChunk) setPowerDetails(powerStore *iniparse.PowerStore) {
 
 // setUpgradeDetails safely sets upgrade details from upgrade store
 func (c *BodyChunk) setUpgradeDetails(upgradeStore *iniparse.UpgradeStore) {
+	if upgradeStore == nil {
+		return
+	}
 	if len(c.Arguments) < 2 {
 		c.Details = &object.Upgrade{Name: "dummy"}
 		return

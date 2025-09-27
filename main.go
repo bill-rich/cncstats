@@ -25,6 +25,7 @@ func main() {
 		trace      = flag.Bool("trace", false, "Enable trace logging")
 		help       = flag.Bool("help", false, "Show help information")
 		replayFile = flag.String("file", "", "Replay file to process (required in local mode)")
+		noStores   = flag.Bool("no-stores", false, "Run without INI stores (fields will be blank)")
 	)
 	flag.Parse()
 
@@ -44,10 +45,17 @@ func main() {
 
 	// Handle local mode - skip database operations
 	if *local || len(os.Getenv("LOCAL")) > 0 {
-		// Initialize stores for local mode
-		objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
-		if err != nil {
-			log.WithError(err).Fatal("could not initialize stores")
+		var objectStore *iniparse.ObjectStore
+		var powerStore *iniparse.PowerStore
+		var upgradeStore *iniparse.UpgradeStore
+		var err error
+
+		// Initialize stores for local mode unless no-stores flag is set
+		if !*noStores {
+			objectStore, powerStore, upgradeStore, err = initializeStores(objDataPath)
+			if err != nil {
+				log.WithError(err).Fatal("could not initialize stores")
+			}
 		}
 
 		handleLocalMode(*replayFile, objectStore, powerStore, upgradeStore)
@@ -65,10 +73,17 @@ func main() {
 		log.WithError(err).Fatal("could not migrate database")
 	}
 
-	// Initialize stores for server mode
-	objectStore, powerStore, upgradeStore, err := initializeStores(objDataPath)
-	if err != nil {
-		log.WithError(err).Fatal("could not initialize stores")
+	// Initialize stores for server mode unless no-stores flag is set
+	var objectStore *iniparse.ObjectStore
+	var powerStore *iniparse.PowerStore
+	var upgradeStore *iniparse.UpgradeStore
+
+	if !*noStores {
+		var err error
+		objectStore, powerStore, upgradeStore, err = initializeStores(objDataPath)
+		if err != nil {
+			log.WithError(err).Fatal("could not initialize stores")
+		}
 	}
 
 	// Start web server
@@ -92,6 +107,8 @@ func showHelp() {
 	fmt.Println("        Replay file to process (required in local mode)")
 	fmt.Println("  -trace")
 	fmt.Println("        Enable trace logging")
+	fmt.Println("  -no-stores")
+	fmt.Println("        Run without INI stores (fields will be blank)")
 	fmt.Println("  -help")
 	fmt.Println("        Show this help information")
 	fmt.Println()
