@@ -253,9 +253,9 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 
-	// Convert to enhanced replay and add player money data
+	// Convert to enhanced replay and add money change events
 	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
-	enhancedReplay.AddPlayerMoneyData()
+	enhancedReplay.AddMoneyChangeEvents()
 
 	c.JSON(http.StatusOK, enhancedReplay)
 }

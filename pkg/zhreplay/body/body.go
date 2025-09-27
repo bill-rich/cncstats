@@ -254,7 +254,8 @@ var CommandType map[int]string = map[int]string{
 	1092: "SetCameraPosition",
 	1093: "Surrender",
 	1095: "Checksum",
-	1097: "DeclareUserId", // Seems to be the case.
+	1097: "DeclareUserId",    // Seems to be the case.
+	2000: "MoneyValueChange", // Money change events sent by client
 }
 
 func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {
