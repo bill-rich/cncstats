@@ -257,6 +257,9 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
 	enhancedReplay.AddMoneyChangeEvents()
 
+	// Use money-based winner detection after money events are merged
+	enhancedReplay.DetermineWinnersByMoney()
+
 	c.JSON(http.StatusOK, enhancedReplay)
 }
 

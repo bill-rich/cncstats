@@ -62,25 +62,25 @@ func (er *EnhancedReplay) AddPlayerMoneyToChunk(chunkIndex int, moneyData *Playe
 // Note: PlayerID 2 = Player1, PlayerID 3 = Player2, etc.
 func (pmd *PlayerMoneyData) GetPlayerMoneyForPlayerID(playerID int) int {
 	// PlayerID 2 = Player1, PlayerID 3 = Player2, etc.
-	// So we need to subtract 1 from playerID to get the correct index
-	playerIndex := playerID - 1
+	// So we need to subtract 2 from playerID to get the correct index (0-based)
+	playerIndex := playerID - 2
 
 	switch playerIndex {
-	case 1:
+	case 0:
 		return pmd.Player1Money
-	case 2:
+	case 1:
 		return pmd.Player2Money
-	case 3:
+	case 2:
 		return pmd.Player3Money
-	case 4:
+	case 3:
 		return pmd.Player4Money
-	case 5:
+	case 4:
 		return pmd.Player5Money
-	case 6:
+	case 5:
 		return pmd.Player6Money
-	case 7:
+	case 6:
 		return pmd.Player7Money
-	case 8:
+	case 7:
 		return pmd.Player8Money
 	default:
 		return 0
@@ -212,4 +212,122 @@ func (er *EnhancedReplay) MergeMoneyChangeEvents(moneyChangeEvents []*EnhancedBo
 
 	// Update the body with the merged and sorted events
 	er.Body = allEvents
+}
+
+// DetermineWinnersByMoney determines winners based on money information from the last money event
+func (er *EnhancedReplay) DetermineWinnersByMoney() {
+	// Find the last money event (order code 2000)
+	var lastMoneyEvent *EnhancedBodyChunk
+	for i := len(er.Body) - 1; i >= 0; i-- {
+		if er.Body[i].OrderCode == 2000 { // MoneyValueChange
+			lastMoneyEvent = er.Body[i]
+			break
+		}
+	}
+
+	// If no money event found, fall back to original logic
+	if lastMoneyEvent == nil || lastMoneyEvent.PlayerMoney == nil {
+		er.fallbackWinnerDetection()
+		return
+	}
+
+	// Reset all players to not winning initially
+	for _, player := range er.Summary {
+		player.Win = false
+	}
+
+	// Create a map to track which teams have players with money
+	teamWins := make(map[int]bool)
+
+	// Check each player's money at the last money event
+	for _, player := range er.Summary {
+		// Get player ID (PlayerID starts at 2, so we need to map to the correct player index)
+		playerID := er.getPlayerIDFromName(player.Name)
+		if playerID == 0 {
+			continue // Skip if we can't find the player ID
+		}
+
+		// Get money data for this player from the last money event
+		playerMoney := lastMoneyEvent.PlayerMoney.GetPlayerMoneyForPlayerID(playerID)
+
+		// Player wins if they still have money (money > 0)
+		if playerMoney > 0 {
+			teamWins[player.Team] = true
+		}
+	}
+
+	// Apply team win logic - any player on a winning team also wins
+	for _, player := range er.Summary {
+		if teamWins[player.Team] {
+			player.Win = true
+		}
+	}
+}
+
+// getPlayerIDFromName returns the player ID for a given player name
+func (er *EnhancedReplay) getPlayerIDFromName(playerName string) int {
+	for _, chunk := range er.Body {
+		if chunk.PlayerName == playerName {
+			return chunk.PlayerID
+		}
+	}
+	return 0
+}
+
+// fallbackWinnerDetection provides the original winner detection logic as a fallback
+func (er *EnhancedReplay) fallbackWinnerDetection() {
+	// Original hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
+	teamWins := map[int]bool{}
+	for _, player := range er.Summary {
+		teamWins[player.Team] = true
+	}
+	for player := range er.Summary {
+		if !er.Summary[player].Win {
+			teamWins[er.Summary[player].Team] = false
+		}
+	}
+	for player := range er.Summary {
+		if !teamWins[er.Summary[player].Team] {
+			er.Summary[player].Win = false
+		}
+	}
+	winners := 0
+	for _, teamWon := range teamWins {
+		if teamWon {
+			winners++
+		}
+	}
+
+	if winners > 1 {
+		// Uh oh. Hack it up real bad
+		for teamID := range teamWins {
+			teamWins[teamID] = false
+		}
+
+		for player := range er.Summary {
+			er.Summary[player].Win = false
+		}
+
+		for i := len(er.Body) - 1; i >= 0; i-- {
+			chunk := er.Body[i]
+			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
+				teamID := 0
+				for _, player := range er.Summary {
+					if player.Name == chunk.PlayerName {
+						teamID = player.Team
+					}
+				}
+				if teamID != 0 {
+					teamWins[teamID] = true
+					break
+				}
+			}
+		}
+
+		for player := range er.Summary {
+			if teamWins[er.Summary[player].Team] {
+				er.Summary[player].Win = true
+			}
+		}
+	}
 }

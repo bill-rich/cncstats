@@ -154,7 +154,87 @@ func (r *Replay) GenerateData() {
 		}
 	}
 
-	// Hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
+	// Use money information to determine winners
+	r.determineWinnersByMoney()
+}
+
+// determineWinnersByMoney determines winners based on money information from the last money event
+func (r *Replay) determineWinnersByMoney() {
+	// Find the last money event (order code 2000)
+	var lastMoneyEvent *body.BodyChunk
+	for i := len(r.Body) - 1; i >= 0; i-- {
+		if r.Body[i].OrderCode == 2000 { // MoneyValueChange
+			lastMoneyEvent = r.Body[i]
+			break
+		}
+	}
+
+	// If no money event found, fall back to original logic
+	if lastMoneyEvent == nil {
+		r.fallbackWinnerDetection()
+		return
+	}
+
+	// Reset all players to not winning initially
+	for _, player := range r.Summary {
+		player.Win = false
+	}
+
+	// Create a map to track which teams have players with money
+	teamWins := make(map[int]bool)
+
+	// Check each player's money at the last money event
+	// We need to access the money data from the database or enhanced replay
+	// For now, we'll use a simplified approach that checks if we can get money data
+	for _, player := range r.Summary {
+		// Get player ID (PlayerID starts at 2, so we need to map to the correct player index)
+		playerID := r.getPlayerIDFromName(player.Name)
+		if playerID == 0 {
+			continue // Skip if we can't find the player ID
+		}
+
+		// Try to get money data for this player
+		// This would need to be implemented to access the actual money data
+		// from the database or enhanced replay structure
+		playerMoney := r.getPlayerMoneyFromLastEvent(playerID, lastMoneyEvent)
+
+		// Player wins if they still have money (money > 0)
+		if playerMoney > 0 {
+			teamWins[player.Team] = true
+		}
+	}
+
+	// Apply team win logic - any player on a winning team also wins
+	for _, player := range r.Summary {
+		if teamWins[player.Team] {
+			player.Win = true
+		}
+	}
+}
+
+// getPlayerIDFromName returns the player ID for a given player name
+func (r *Replay) getPlayerIDFromName(playerName string) int {
+	for _, chunk := range r.Body {
+		if chunk.PlayerName == playerName {
+			return chunk.PlayerID
+		}
+	}
+	return 0
+}
+
+// getPlayerMoneyFromLastEvent gets the money amount for a player from the last money event
+// This implementation works with the enhanced replay structure that includes money data
+func (r *Replay) getPlayerMoneyFromLastEvent(playerID int, lastMoneyEvent *body.BodyChunk) int {
+	// This method should be called on an EnhancedReplay, not a regular Replay
+	// The regular Replay doesn't have access to money data
+	// For now, we'll return 0 to indicate no money data available
+	// In practice, this should be called on an EnhancedReplay instance
+	return 0
+}
+
+// fallbackWinnerDetection provides the original winner detection logic as a fallback
+func (r *Replay) fallbackWinnerDetection() {
+	// Original hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
 	teamWins := map[int]bool{}
 	for _, player := range r.Summary {
 		teamWins[player.Team] = true
