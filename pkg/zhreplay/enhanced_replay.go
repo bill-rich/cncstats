@@ -135,3 +135,81 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 		}
 	}
 }
+
+// AddMoneyChangeEvents creates separate money change events from database records and inserts them at appropriate timecode positions
+func (er *EnhancedReplay) AddMoneyChangeEvents() {
+	// Get the player money service
+	playerMoneyService := database.NewPlayerMoneyService()
+
+	// Get seed from metadata
+	seed := er.Header.Metadata.Seed
+	if seed == "" {
+		// If seed is empty, skip processing
+		return
+	}
+
+	// Get all money change records for this seed
+	moneyChanges, err := playerMoneyService.GetAllPlayerMoneyDataBySeed(seed)
+	if err != nil {
+		// Log error but continue processing
+		return
+	}
+
+	// Create money change events for each database record
+	var moneyChangeEvents []*EnhancedBodyChunk
+	for _, moneyData := range moneyChanges {
+		// Create a money change event for each timecode
+		moneyChangeEvent := &EnhancedBodyChunk{
+			BodyChunk: &body.BodyChunk{
+				TimeCode:          moneyData.Timecode,
+				OrderCode:         2000, // MoneyValueChange code
+				OrderName:         "MoneyValueChange",
+				PlayerID:          0, // Money changes affect all players
+				PlayerName:        "",
+				NumberOfArguments: 0,
+				Details:           nil,
+				ArgMetadata:       []*body.ArgMetadata{},
+				Arguments:         []interface{}{},
+			},
+			PlayerMoney: &PlayerMoneyData{
+				Player1Money: moneyData.Player1Money,
+				Player2Money: moneyData.Player2Money,
+				Player3Money: moneyData.Player3Money,
+				Player4Money: moneyData.Player4Money,
+				Player5Money: moneyData.Player5Money,
+				Player6Money: moneyData.Player6Money,
+				Player7Money: moneyData.Player7Money,
+				Player8Money: moneyData.Player8Money,
+			},
+		}
+		moneyChangeEvents = append(moneyChangeEvents, moneyChangeEvent)
+	}
+
+	// Merge the money change events with existing body chunks, sorted by timecode
+	er.MergeMoneyChangeEvents(moneyChangeEvents)
+}
+
+// MergeMoneyChangeEvents merges money change events with existing body chunks, maintaining chronological order
+func (er *EnhancedReplay) MergeMoneyChangeEvents(moneyChangeEvents []*EnhancedBodyChunk) {
+	// Create a new slice to hold all events (original + money changes)
+	var allEvents []*EnhancedBodyChunk
+
+	// Add all existing body chunks
+	allEvents = append(allEvents, er.Body...)
+
+	// Add all money change events
+	allEvents = append(allEvents, moneyChangeEvents...)
+
+	// Sort all events by timecode
+	// Simple bubble sort for now - could be optimized with a more efficient sort
+	for i := 0; i < len(allEvents)-1; i++ {
+		for j := 0; j < len(allEvents)-i-1; j++ {
+			if allEvents[j].TimeCode > allEvents[j+1].TimeCode {
+				allEvents[j], allEvents[j+1] = allEvents[j+1], allEvents[j]
+			}
+		}
+	}
+
+	// Update the body with the merged and sorted events
+	er.Body = allEvents
+}

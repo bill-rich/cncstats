@@ -87,6 +87,20 @@ func (s *PlayerMoneyService) GetPlayerMoneyDataBySeed(seed string) ([]*PlayerMon
 	return results, nil
 }
 
+// GetAllPlayerMoneyDataBySeed retrieves all player money data for a specific seed, ordered by timecode
+func (s *PlayerMoneyService) GetAllPlayerMoneyDataBySeed(seed string) ([]*PlayerMoneyData, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not connected")
+	}
+
+	var results []*PlayerMoneyData
+	if err := s.db.Where("seed = ?", seed).Order("timecode ASC").Find(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to get all player money data by seed: %w", err)
+	}
+
+	return results, nil
+}
+
 // GetPlayerMoneyDataByTimecode retrieves player money data by timecode
 func (s *PlayerMoneyService) GetPlayerMoneyDataByTimecode(timecode int) ([]*PlayerMoneyData, error) {
 	if s.db == nil {
