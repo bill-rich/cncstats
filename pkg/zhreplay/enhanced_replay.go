@@ -15,14 +15,14 @@ type EnhancedBodyChunk struct {
 
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	Player1Money int `json:"Player1Money,omitempty"`
-	Player2Money int `json:"Player2Money,omitempty"`
-	Player3Money int `json:"Player3Money,omitempty"`
-	Player4Money int `json:"Player4Money,omitempty"`
-	Player5Money int `json:"Player5Money,omitempty"`
-	Player6Money int `json:"Player6Money,omitempty"`
-	Player7Money int `json:"Player7Money,omitempty"`
-	Player8Money int `json:"Player8Money,omitempty"`
+	Player1Money int `json:"Player1Money"`
+	Player2Money int `json:"Player2Money"`
+	Player3Money int `json:"Player3Money"`
+	Player4Money int `json:"Player4Money"`
+	Player5Money int `json:"Player5Money"`
+	Player6Money int `json:"Player6Money"`
+	Player7Money int `json:"Player7Money"`
+	Player8Money int `json:"Player8Money"`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
