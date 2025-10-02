@@ -359,6 +359,65 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected player name 'Player_With_Underscores', got '%s'", players[0].Name)
 		}
 	})
+
+	t.Run("ComputerPlayer", func(t *testing.T) {
+		input := "CE,0,3,-1,-1"
+		players := parsePlayers(input)
+
+		if len(players) != 1 {
+			t.Errorf("expected 1 player, got %d", len(players))
+		}
+
+		player := players[0]
+		if player.Type != "C" {
+			t.Errorf("expected Type 'C', got '%s'", player.Type)
+		}
+
+		if player.FT != "E" {
+			t.Errorf("expected difficulty 'E', got '%s'", player.FT)
+		}
+
+		if player.Color != "0" {
+			t.Errorf("expected Color '0', got '%s'", player.Color)
+		}
+
+		if player.Faction != "3" {
+			t.Errorf("expected Faction '3', got '%s'", player.Faction)
+		}
+
+		if player.StartingPosition != "-1" {
+			t.Errorf("expected StartingPosition '-1', got '%s'", player.StartingPosition)
+		}
+
+		if player.Team != "-1" {
+			t.Errorf("expected Team '-1', got '%s'", player.Team)
+		}
+	})
+
+	t.Run("MixedHumanAndComputerPlayers", func(t *testing.T) {
+		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1:CE,0,3,-1,-1"
+		players := parsePlayers(input)
+
+		if len(players) != 2 {
+			t.Errorf("expected 2 players, got %d", len(players))
+		}
+
+		// Check human player
+		if players[0].Type != "H" {
+			t.Errorf("expected first player type 'H', got '%s'", players[0].Type)
+		}
+		if players[0].Name != "Player1" {
+			t.Errorf("expected first player name 'Player1', got '%s'", players[0].Name)
+		}
+
+		// Check computer player
+		if players[1].Type != "C" {
+			t.Errorf("expected second player type 'C', got '%s'", players[1].Type)
+		}
+		if players[1].FT != "E" {
+			t.Errorf("expected second player difficulty 'E', got '%s'", players[1].FT)
+		}
+	})
 }
 
 func TestDataStructures(t *testing.T) {

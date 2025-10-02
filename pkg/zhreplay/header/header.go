@@ -257,10 +257,6 @@ func parsePlayers(raw string) []Player {
 		}
 
 		fields := strings.Split(playerRaw, ",")
-		if len(fields) != PlayerFieldsCount {
-			log.Debugf("invalid player format: expected %d fields, got %d", PlayerFieldsCount, len(fields))
-			continue
-		}
 
 		// Validate that the first field has at least one character for type
 		if len(fields[PlayerTypeIndex]) == 0 {
@@ -269,23 +265,64 @@ func parsePlayers(raw string) []Player {
 		}
 
 		playerType := fields[PlayerTypeIndex][0:1]
-		playerName := ""
-		if len(fields[PlayerTypeIndex]) > PlayerNameStartIndex {
-			playerName = fields[PlayerTypeIndex][PlayerNameStartIndex:]
+
+		var player Player
+
+		if playerType == "H" {
+			// Human player - use original format
+			if len(fields) != PlayerFieldsCount {
+				log.Debugf("invalid human player format: expected %d fields, got %d", PlayerFieldsCount, len(fields))
+				continue
+			}
+
+			playerName := ""
+			if len(fields[PlayerTypeIndex]) > PlayerNameStartIndex {
+				playerName = fields[PlayerTypeIndex][PlayerNameStartIndex:]
+			}
+
+			player = Player{
+				Type:             playerType,
+				Name:             playerName,
+				IP:               fields[1],
+				Port:             fields[2],
+				FT:               fields[3],
+				Color:            fields[4],
+				Faction:          fields[5],
+				StartingPosition: fields[6],
+				Team:             fields[7],
+				Unknown:          fields[8],
+			}
+		} else if playerType == "C" {
+			// Computer player - use new format: "C<difficulty>,<color>,<faction>,<startPos>,<teamNumber>"
+			if len(fields) != 5 {
+				log.Debugf("invalid computer player format: expected 5 fields, got %d", len(fields))
+				continue
+			}
+
+			// Extract difficulty from the first field (after "C")
+			difficulty := ""
+			if len(fields[PlayerTypeIndex]) > 1 {
+				difficulty = fields[PlayerTypeIndex][1:]
+			}
+
+			player = Player{
+				Type:             playerType,
+				Name:             "",         // Computer players don't have names
+				IP:               "",         // Computer players don't have IPs
+				Port:             "",         // Computer players don't have ports
+				FT:               difficulty, // Store difficulty in FT field
+				Color:            fields[1],
+				Faction:          fields[2],
+				StartingPosition: fields[3],
+				Team:             fields[4],
+				Unknown:          "", // Computer players don't have unknown field
+			}
+		} else {
+			// Unknown player type, skip
+			log.Debugf("unknown player type: %s", playerType)
+			continue
 		}
 
-		player := Player{
-			Type:             playerType,
-			Name:             playerName,
-			IP:               fields[1],
-			Port:             fields[2],
-			FT:               fields[3],
-			Color:            fields[4],
-			Faction:          fields[5],
-			StartingPosition: fields[6],
-			Team:             fields[7],
-			Unknown:          fields[8],
-		}
 		players = append(players, player)
 	}
 
