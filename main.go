@@ -51,14 +51,15 @@ func main() {
 		var err error
 
 		// Initialize stores for local mode unless no-stores flag is set
+		var colorStore *iniparse.ColorStore
 		if !*noStores {
-			objectStore, powerStore, upgradeStore, err = initializeStores(objDataPath)
+			objectStore, powerStore, upgradeStore, colorStore, err = initializeStores(objDataPath)
 			if err != nil {
 				log.WithError(err).Fatal("could not initialize stores")
 			}
 		}
 
-		handleLocalMode(*replayFile, objectStore, powerStore, upgradeStore)
+		handleLocalMode(*replayFile, objectStore, powerStore, upgradeStore, colorStore)
 		return
 	}
 
@@ -77,17 +78,18 @@ func main() {
 	var objectStore *iniparse.ObjectStore
 	var powerStore *iniparse.PowerStore
 	var upgradeStore *iniparse.UpgradeStore
+	var colorStore *iniparse.ColorStore
 
 	if !*noStores {
 		var err error
-		objectStore, powerStore, upgradeStore, err = initializeStores(objDataPath)
+		objectStore, powerStore, upgradeStore, colorStore, err = initializeStores(objDataPath)
 		if err != nil {
 			log.WithError(err).Fatal("could not initialize stores")
 		}
 	}
 
 	// Start web server
-	startWebServer(objectStore, powerStore, upgradeStore)
+	startWebServer(objectStore, powerStore, upgradeStore, colorStore)
 }
 
 // Helper functions
@@ -137,26 +139,31 @@ func getObjDataPath(cliObjData string) string {
 	return "/var/Data/INI"
 }
 
-func initializeStores(objDataPath string) (*iniparse.ObjectStore, *iniparse.PowerStore, *iniparse.UpgradeStore, error) {
+func initializeStores(objDataPath string) (*iniparse.ObjectStore, *iniparse.PowerStore, *iniparse.UpgradeStore, *iniparse.ColorStore, error) {
 	objectStore, err := iniparse.NewObjectStore(objDataPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not load object store: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("could not load object store: %w", err)
 	}
 
 	powerStore, err := iniparse.NewPowerStore(objDataPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not load power store: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("could not load power store: %w", err)
 	}
 
 	upgradeStore, err := iniparse.NewUpgradeStore(objDataPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not load upgrade store: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("could not load upgrade store: %w", err)
 	}
 
-	return objectStore, powerStore, upgradeStore, nil
+	colorStore, err := iniparse.NewColorStore(objDataPath)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("could not load color store: %w", err)
+	}
+
+	return objectStore, powerStore, upgradeStore, colorStore, nil
 }
 
-func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
+func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	// Use command line argument or fall back to os.Args[1] for backward compatibility
 	if replayFile == "" && len(os.Args) > 1 {
 		replayFile = os.Args[1]
@@ -177,6 +184,7 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 		ObjectStore:  objectStore,
 		PowerStore:   powerStore,
 		UpgradeStore: upgradeStore,
+		ColorStore:   colorStore,
 	}
 
 	replay := zhreplay.NewReplay(bp)
@@ -188,12 +196,12 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	fmt.Printf("%+v\n", string(um))
 }
 
-func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
+func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	router := gin.Default()
 
 	// Existing replay endpoint
 	router.POST("/replay", func(c *gin.Context) {
-		saveFileHandler(c, objectStore, powerStore, upgradeStore)
+		saveFileHandler(c, objectStore, powerStore, upgradeStore, colorStore)
 	})
 
 	// New player money data endpoints
@@ -226,7 +234,7 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	router.Run(":" + port)
 }
 
-func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) {
+func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -249,6 +257,7 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 		ObjectStore:  objectStore,
 		PowerStore:   powerStore,
 		UpgradeStore: upgradeStore,
+		ColorStore:   colorStore,
 	}
 
 	replay := zhreplay.NewReplay(bp)

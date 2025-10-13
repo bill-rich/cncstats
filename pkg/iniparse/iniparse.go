@@ -35,6 +35,23 @@ type Power struct {
 	Name string
 }
 
+type ColorStore struct {
+	Color []MultiplayerColor
+}
+
+type MultiplayerColor struct {
+	Name          string
+	RGBColor      RGBColor
+	RGBNightColor RGBColor
+	TooltipName   string
+}
+
+type RGBColor struct {
+	R int
+	G int
+	B int
+}
+
 const (
 	nilString         = ""
 	ObjectStart       = "Object"
@@ -52,6 +69,10 @@ var IniKey = []string{
 	"  BuildCost",
 	"Upgrade",
 	"SpecialPower",
+	"MultiplayerColor",
+	"  RGBColor",
+	"  RGBNightColor",
+	"  TooltipName",
 	/*
 		"OkToChangeModelColor",
 		"ConditionState",
@@ -315,4 +336,164 @@ func (o *ObjectStore) parseFile(file io.Reader) error {
 		o.Object = append(o.Object, *object)
 	}
 	return nil
+}
+
+func NewColorStore(dir string) (*ColorStore, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("directory path cannot be empty")
+	}
+	colorStore := &ColorStore{
+		Color: []MultiplayerColor{},
+	}
+	err := colorStore.loadColors(dir)
+	return colorStore, err
+}
+
+func (c *ColorStore) GetColor(i int) (*MultiplayerColor, error) {
+	if i < 0 {
+		return nil, fmt.Errorf("color ID %d is below minimum 0", i)
+	}
+	if i >= len(c.Color) {
+		return nil, fmt.Errorf("color ID %d is out of range (max: %d)", i, len(c.Color)-1)
+	}
+	return &c.Color[i], nil
+}
+
+// GetColorName returns the color name by ID, or an error if the ID is invalid
+func (c *ColorStore) GetColorName(i int) (string, error) {
+	color, err := c.GetColor(i)
+	if err != nil {
+		return "", err
+	}
+	return color.Name, nil
+}
+
+func (c *ColorStore) loadColors(dir string) error {
+	file, err := os.Open(dir + "/multiplayer.ini")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	err = c.parseFile(file)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ColorStore) parseFile(file io.Reader) error {
+	scanner := bufio.NewScanner(file)
+	var color *MultiplayerColor
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch matchKey(line) {
+		case "MultiplayerColor":
+			if color != nil {
+				c.Color = append(c.Color, *color)
+			}
+			name, err := parseNameFromLine(line)
+			if err != nil {
+				return err
+			}
+			color = &MultiplayerColor{
+				Name: name,
+			}
+		case "RGBColor":
+			if color == nil {
+				return fmt.Errorf("need a color to store RGBColor")
+			}
+			rgbColor, err := parseRGBFromLine(line)
+			if err != nil {
+				return err
+			}
+			color.RGBColor = rgbColor
+		case "RGBNightColor":
+			if color == nil {
+				return fmt.Errorf("need a color to store RGBNightColor")
+			}
+			rgbColor, err := parseRGBFromLine(line)
+			if err != nil {
+				return err
+			}
+			color.RGBNightColor = rgbColor
+		case "TooltipName":
+			if color == nil {
+				return fmt.Errorf("need a color to store TooltipName")
+			}
+			tooltipName, err := parseTooltipNameFromLine(line)
+			if err != nil {
+				return err
+			}
+			color.TooltipName = tooltipName
+		case "End":
+		default:
+		}
+	}
+	if color != nil {
+		c.Color = append(c.Color, *color)
+	}
+	return nil
+}
+
+// parseRGBFromLine extracts RGB values from a line like "RGBColor = R:221 G:226 B:13"
+func parseRGBFromLine(line string) (RGBColor, error) {
+	fields := strings.Split(line, "=")
+	if len(fields) < 2 {
+		return RGBColor{}, fmt.Errorf("cannot find RGB value")
+	}
+
+	// Remove spaces and split by R:, G:, B:
+	rgbString := strings.TrimSpace(fields[1])
+
+	// Parse R value
+	rStart := strings.Index(rgbString, "R:")
+	if rStart == -1 {
+		return RGBColor{}, fmt.Errorf("cannot find R value")
+	}
+	rEnd := strings.Index(rgbString[rStart+2:], " ")
+	if rEnd == -1 {
+		return RGBColor{}, fmt.Errorf("cannot find end of R value")
+	}
+	rStr := rgbString[rStart+2 : rStart+2+rEnd]
+	r, err := strconv.Atoi(rStr)
+	if err != nil {
+		return RGBColor{}, fmt.Errorf("invalid R value: %w", err)
+	}
+
+	// Parse G value
+	gStart := strings.Index(rgbString, "G:")
+	if gStart == -1 {
+		return RGBColor{}, fmt.Errorf("cannot find G value")
+	}
+	gEnd := strings.Index(rgbString[gStart+2:], " ")
+	if gEnd == -1 {
+		return RGBColor{}, fmt.Errorf("cannot find end of G value")
+	}
+	gStr := rgbString[gStart+2 : gStart+2+gEnd]
+	g, err := strconv.Atoi(gStr)
+	if err != nil {
+		return RGBColor{}, fmt.Errorf("invalid G value: %w", err)
+	}
+
+	// Parse B value
+	bStart := strings.Index(rgbString, "B:")
+	if bStart == -1 {
+		return RGBColor{}, fmt.Errorf("cannot find B value")
+	}
+	bStr := rgbString[bStart+2:]
+	b, err := strconv.Atoi(bStr)
+	if err != nil {
+		return RGBColor{}, fmt.Errorf("invalid B value: %w", err)
+	}
+
+	return RGBColor{R: r, G: g, B: b}, nil
+}
+
+// parseTooltipNameFromLine extracts the tooltip name from a line like "TooltipName = Color:Gold"
+func parseTooltipNameFromLine(line string) (string, error) {
+	fields := strings.Split(line, "=")
+	if len(fields) < 2 {
+		return "", fmt.Errorf("cannot find tooltip name value")
+	}
+	return strings.TrimSpace(fields[1]), nil
 }
