@@ -15,14 +15,7 @@ type EnhancedBodyChunk struct {
 
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	Player1Money int `json:"Player1Money"`
-	Player2Money int `json:"Player2Money"`
-	Player3Money int `json:"Player3Money"`
-	Player4Money int `json:"Player4Money"`
-	Player5Money int `json:"Player5Money"`
-	Player6Money int `json:"Player6Money"`
-	Player7Money int `json:"Player7Money"`
-	Player8Money int `json:"Player8Money"`
+	PlayerMoney [8]int `json:"PlayerMoney"`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
@@ -65,26 +58,10 @@ func (pmd *PlayerMoneyData) GetPlayerMoneyForPlayerID(playerID int) int {
 	// So we need to subtract 2 from playerID to get the correct index (0-based)
 	playerIndex := playerID - 2
 
-	switch playerIndex {
-	case 0:
-		return pmd.Player1Money
-	case 1:
-		return pmd.Player2Money
-	case 2:
-		return pmd.Player3Money
-	case 3:
-		return pmd.Player4Money
-	case 4:
-		return pmd.Player5Money
-	case 5:
-		return pmd.Player6Money
-	case 6:
-		return pmd.Player7Money
-	case 7:
-		return pmd.Player8Money
-	default:
-		return 0
+	if playerIndex >= 0 && playerIndex < 8 {
+		return pmd.PlayerMoney[playerIndex]
 	}
+	return 0
 }
 
 // AddPlayerMoneyData matches replay chunks with database records and adds player money data
@@ -120,14 +97,16 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 		if moneyData != nil {
 			// Convert database money data to our PlayerMoneyData format
 			playerMoney := &PlayerMoneyData{
-				Player1Money: moneyData.Player1Money,
-				Player2Money: moneyData.Player2Money,
-				Player3Money: moneyData.Player3Money,
-				Player4Money: moneyData.Player4Money,
-				Player5Money: moneyData.Player5Money,
-				Player6Money: moneyData.Player6Money,
-				Player7Money: moneyData.Player7Money,
-				Player8Money: moneyData.Player8Money,
+				PlayerMoney: [8]int{
+					moneyData.Player1Money,
+					moneyData.Player2Money,
+					moneyData.Player3Money,
+					moneyData.Player4Money,
+					moneyData.Player5Money,
+					moneyData.Player6Money,
+					moneyData.Player7Money,
+					moneyData.Player8Money,
+				},
 			}
 
 			// Add the money data to this chunk
@@ -172,14 +151,16 @@ func (er *EnhancedReplay) AddMoneyChangeEvents() {
 				Arguments:         []interface{}{},
 			},
 			PlayerMoney: &PlayerMoneyData{
-				Player1Money: moneyData.Player1Money,
-				Player2Money: moneyData.Player2Money,
-				Player3Money: moneyData.Player3Money,
-				Player4Money: moneyData.Player4Money,
-				Player5Money: moneyData.Player5Money,
-				Player6Money: moneyData.Player6Money,
-				Player7Money: moneyData.Player7Money,
-				Player8Money: moneyData.Player8Money,
+				PlayerMoney: [8]int{
+					moneyData.Player1Money,
+					moneyData.Player2Money,
+					moneyData.Player3Money,
+					moneyData.Player4Money,
+					moneyData.Player5Money,
+					moneyData.Player6Money,
+					moneyData.Player7Money,
+					moneyData.Player8Money,
+				},
 			},
 		}
 		moneyChangeEvents = append(moneyChangeEvents, moneyChangeEvent)
