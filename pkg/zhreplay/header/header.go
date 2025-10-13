@@ -1,9 +1,11 @@
 package header
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/iniparse"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,6 +42,30 @@ type Player struct {
 	StartingPosition string
 	Team             string
 	Unknown          string
+}
+
+// GetColorName converts the Player.Color string (which should be an int) to the actual color name
+// using the provided ColorStore. Returns the color name or the original string if conversion fails.
+func (p *Player) GetColorName(colorStore *iniparse.ColorStore) string {
+	if colorStore == nil {
+		return p.Color
+	}
+
+	// Convert the color string to an integer
+	colorID, err := strconv.Atoi(p.Color)
+	if err != nil {
+		log.Debugf("failed to convert color string '%s' to int: %v", p.Color, err)
+		return p.Color
+	}
+
+	// Get the color name from the ColorStore
+	colorName, err := colorStore.GetColorName(colorID)
+	if err != nil {
+		log.Debugf("failed to get color name for ID %d: %v", colorID, err)
+		return p.Color
+	}
+
+	return colorName
 }
 
 // GeneralsHeader represents the header structure of a Command & Conquer Generals replay file.
@@ -179,7 +205,7 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 		VersionMinor:    versionMinor,
 		VersionMajor:    versionMajor,
 		Hash:            hash,
-		Metadata:        parseMetadata(metadataStr),
+		Metadata:        parseMetadata(metadataStr, bp.ColorStore),
 		ReplayOwnerSlot: replayOwnerSlot, // 3000 = slot 0, 3100 = slot 1, etc
 		Unknown1:        unknown1,
 		Unknown2:        unknown2, // Changes when playing solo or maybe against computers
@@ -191,7 +217,7 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 // parseMetadata parses the metadata string from the replay file header.
 // The metadata contains game configuration information including map details,
 // player information, and game settings.
-func parseMetadata(raw string) Metadata {
+func parseMetadata(raw string, colorStore *iniparse.ColorStore) Metadata {
 	metadata := &Metadata{}
 	if raw == "" {
 		return *metadata
@@ -232,7 +258,7 @@ func parseMetadata(raw string) Metadata {
 		case "O":
 			metadata.O = value
 		case "S":
-			metadata.Players = parsePlayers(value)
+			metadata.Players = parsePlayers(value, colorStore)
 		default:
 			log.Debugf("unknown metadata key: %s", key)
 		}
@@ -240,9 +266,32 @@ func parseMetadata(raw string) Metadata {
 	return *metadata
 }
 
+// convertColorString converts a color string (int as string) to a color name using ColorStore
+func convertColorString(colorStr string, colorStore *iniparse.ColorStore) string {
+	if colorStore == nil {
+		return colorStr
+	}
+
+	// Convert the color string to an integer
+	colorID, err := strconv.Atoi(colorStr)
+	if err != nil {
+		log.Debugf("failed to convert color string '%s' to int: %v", colorStr, err)
+		return colorStr
+	}
+
+	// Get the color name from the ColorStore
+	colorName, err := colorStore.GetColorName(colorID)
+	if err != nil {
+		log.Debugf("failed to get color name for ID %d: %v", colorID, err)
+		return colorStr
+	}
+
+	return colorName
+}
+
 // parsePlayers parses the player information from the metadata string.
 // Each player entry contains type, name, network information, and game settings.
-func parsePlayers(raw string) []Player {
+func parsePlayers(raw string, colorStore *iniparse.ColorStore) []Player {
 	if raw == "" {
 		return []Player{}
 	}
@@ -286,7 +335,7 @@ func parsePlayers(raw string) []Player {
 				IP:               fields[1],
 				Port:             fields[2],
 				FT:               fields[3],
-				Color:            fields[4],
+				Color:            convertColorString(fields[4], colorStore),
 				Faction:          fields[5],
 				StartingPosition: fields[6],
 				Team:             fields[7],
@@ -311,7 +360,7 @@ func parsePlayers(raw string) []Player {
 				IP:               "",         // Computer players don't have IPs
 				Port:             "",         // Computer players don't have ports
 				FT:               difficulty, // Store difficulty in FT field
-				Color:            fields[1],
+				Color:            convertColorString(fields[1], colorStore),
 				Faction:          fields[2],
 				StartingPosition: fields[3],
 				Team:             fields[4],

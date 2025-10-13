@@ -27,6 +27,7 @@ type BitParser struct {
 	ObjectStore  *iniparse.ObjectStore
 	PowerStore   *iniparse.PowerStore
 	UpgradeStore *iniparse.UpgradeStore
+	ColorStore   *iniparse.ColorStore
 }
 
 // ReadBytes reads the specified number of bytes from the source.
