@@ -72,31 +72,36 @@ func (p *Player) GetColorName(colorStore *iniparse.ColorStore) string {
 // It contains metadata about the game session, including timestamps, version information,
 // and player details.
 type GeneralsHeader struct {
-	GameType        string
-	TimeStampBegin  int
-	TimeStampEnd    int
-	NumTimeStamps   int
-	Filler          [12]byte
-	FileName        string
-	Year            int
-	Month           int
-	DOW             int
-	Day             int
-	Hour            int
-	Minute          int
-	Second          int
-	Millisecond     int
-	Version         string
-	BuildDate       string
-	VersionMinor    int
-	VersionMajor    int
-	Hash            [8]byte
-	Metadata        Metadata
-	ReplayOwnerSlot [2]byte
-	Unknown1        [4]byte
-	Unknown2        [4]byte
-	Unknown3        [4]byte
-	GameSpeed       int
+	GameType         string
+	TimeStampBegin   int
+	TimeStampEnd     int
+	NumTimeStamps    int
+	UnusedDesync     [2]byte
+	Desync           [1]byte
+	MoreUnusedDesync [1]byte
+	QuitEarly        [1]byte
+	Disconnect       [1]byte
+	Filler           [6]byte
+	FileName         string
+	Year             int
+	Month            int
+	DOW              int
+	Day              int
+	Hour             int
+	Minute           int
+	Second           int
+	Millisecond      int
+	Version          string
+	BuildDate        string
+	VersionMinor     int
+	VersionMajor     int
+	Hash             [8]byte
+	Metadata         Metadata
+	ReplayOwnerSlot  [2]byte
+	Unknown1         [4]byte
+	Unknown2         [4]byte
+	Unknown3         [4]byte
+	GameSpeed        int
 }
 
 // Helper functions for reading values with fallback error handling
@@ -137,10 +142,12 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 	timeStampEnd := readIntWithFallback(bp, bp.ReadUInt32, 0, "TimeStampEnd")
 	numTimeStamps := readIntWithFallback(bp, bp.ReadUInt16, 0, "NumTimeStamps")
 
-	fillerBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(12) }, make([]byte, 12), "Filler")
-	var filler [12]byte
-	copy(filler[:], fillerBytes)
-
+	unusedDesync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(2) }, make([]byte, 2), "UnusedDesync")
+	desync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Desync")
+	MoreUnusedDesync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "MoreUnusedDesync")
+	quitEarly := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "QuitEarly")
+	disconnect := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Disconnect")
+	FillerBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(6) }, make([]byte, 6), "Filler")
 	fileName := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "FileName")
 	year := readIntWithFallback(bp, bp.ReadUInt16, 0, "Year")
 	month := readIntWithFallback(bp, bp.ReadUInt16, 0, "Month")
@@ -186,31 +193,36 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 	}
 
 	return &GeneralsHeader{
-		GameType:        gameType,
-		TimeStampBegin:  timeStampBegin,
-		TimeStampEnd:    timeStampEnd,
-		NumTimeStamps:   numTimeStamps,
-		Filler:          filler,
-		FileName:        fileName,
-		Year:            year,
-		Month:           month,
-		DOW:             dow,
-		Day:             day,
-		Hour:            hour,
-		Minute:          minute,
-		Second:          second,
-		Millisecond:     millisecond,
-		Version:         version,
-		BuildDate:       buildDate,
-		VersionMinor:    versionMinor,
-		VersionMajor:    versionMajor,
-		Hash:            hash,
-		Metadata:        parseMetadata(metadataStr, bp.ColorStore),
-		ReplayOwnerSlot: replayOwnerSlot, // 3000 = slot 0, 3100 = slot 1, etc
-		Unknown1:        unknown1,
-		Unknown2:        unknown2, // Changes when playing solo or maybe against computers
-		Unknown3:        unknown3,
-		GameSpeed:       gameSpeed,
+		GameType:         gameType,
+		TimeStampBegin:   timeStampBegin,
+		TimeStampEnd:     timeStampEnd,
+		NumTimeStamps:    numTimeStamps,
+		UnusedDesync:     [2]byte{unusedDesync[0], unusedDesync[1]},
+		Desync:           [1]byte{desync[0]},
+		MoreUnusedDesync: [1]byte{MoreUnusedDesync[0]},
+		QuitEarly:        [1]byte{quitEarly[0]},
+		Disconnect:       [1]byte{disconnect[0]},
+		Filler:           [6]byte{FillerBytes[0], FillerBytes[1], FillerBytes[2], FillerBytes[3], FillerBytes[4], FillerBytes[5]},
+		FileName:         fileName,
+		Year:             year,
+		Month:            month,
+		DOW:              dow,
+		Day:              day,
+		Hour:             hour,
+		Minute:           minute,
+		Second:           second,
+		Millisecond:      millisecond,
+		Version:          version,
+		BuildDate:        buildDate,
+		VersionMinor:     versionMinor,
+		VersionMajor:     versionMajor,
+		Hash:             hash,
+		Metadata:         parseMetadata(metadataStr, bp.ColorStore),
+		ReplayOwnerSlot:  replayOwnerSlot, // 3000 = slot 0, 3100 = slot 1, etc
+		Unknown1:         unknown1,
+		Unknown2:         unknown2, // Changes when playing solo or maybe against computers
+		Unknown3:         unknown3,
+		GameSpeed:        gameSpeed,
 	}
 }
 
