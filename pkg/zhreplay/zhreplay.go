@@ -71,6 +71,10 @@ func (r *Replay) CreatePlayerList() {
 			UpgradesBuilt:  map[string]*object.ObjectSummary{},
 			PowersUsed:     map[string]int{},
 		}
+		if playerMd.Faction == "-2" {
+			player.Side = "Observer"
+			player.Team = -1
+		}
 		r.Summary = append(r.Summary, player)
 	}
 }
