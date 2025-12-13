@@ -222,6 +222,11 @@ func (er *EnhancedReplay) DetermineWinnersByMoney() {
 
 	// Check each player's money at the last money event
 	for _, player := range er.Summary {
+		// Skip observers (faction -2, identified by Side == "Observer")
+		if player.Side == "Observer" {
+			continue
+		}
+
 		// Get player ID (PlayerID starts at 2, so we need to map to the correct player index)
 		playerID := er.getPlayerIDFromName(player.Name)
 		if playerID == 0 {
@@ -251,8 +256,12 @@ func (er *EnhancedReplay) DetermineWinnersByMoney() {
 		return
 	}
 
-	// Apply team win logic - any player on a winning team also wins
+	// Apply team win logic - any player on a winning team also wins (excluding observers)
 	for _, player := range er.Summary {
+		// Skip observers (faction -2, identified by Side == "Observer")
+		if player.Side == "Observer" {
+			continue
+		}
 		if teamWins[player.Team] {
 			player.Win = true
 		}
