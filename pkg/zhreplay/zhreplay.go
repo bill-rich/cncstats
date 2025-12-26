@@ -254,19 +254,28 @@ func (r *Replay) getPlayerMoneyFromLastEvent(playerID int, lastMoneyEvent *body.
 func (r *Replay) fallbackWinnerDetection() {
 	// Original hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
 	teamWins := map[int]bool{}
+
+	// All of this first part is based off if one of the players quit. If someone quits, there is a good chance the team lost.
+	// Set all teams to winning initially
 	for _, player := range r.Summary {
 		teamWins[player.Team] = true
 	}
+
+	// If any player on a team lost, the whole team loses
 	for player := range r.Summary {
 		if !r.Summary[player].Win {
 			teamWins[r.Summary[player].Team] = false
 		}
 	}
+
+	// Apply team win status to players
 	for player := range r.Summary {
 		if !teamWins[r.Summary[player].Team] {
 			r.Summary[player].Win = false
 		}
 	}
+
+	// Check if more than one team is winning
 	winners := 0
 	for _, teamWon := range teamWins {
 		if teamWon {
@@ -280,13 +289,15 @@ func (r *Replay) fallbackWinnerDetection() {
 			teamWins[teamID] = false
 		}
 
+		// Reset all players to not winning initially
 		for player := range r.Summary {
 			r.Summary[player].Win = false
 		}
 
+		// Look for the last non-quit, non-passive command to determine the winner
 		for i := len(r.Body) - 1; i >= 0; i-- {
 			chunk := r.Body[i]
-			if chunk.OrderCode != 1095 && chunk.OrderCode != 1003 && chunk.OrderCode != 1092 && chunk.OrderCode != 27 && chunk.OrderCode != 1052 {
+			if body.PassiveCommands[chunk.OrderCode] == false {
 				teamID := 0
 				for _, player := range r.Summary {
 					if player.Name == chunk.PlayerName {

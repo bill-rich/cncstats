@@ -192,6 +192,30 @@ type GeneralDetail struct {
 	Name string
 }
 
+var PassiveCommands = map[int]bool{
+	27:   true, // EndReplay
+	1001: true, // SetSelection
+	1002: true, // SelectAll
+	1003: true, // ClearSelection
+	1016: true, // SelectGroup0
+	1017: true, // SelectGroup1
+	1018: true, // SelectGroup2
+	1019: true, // SelectGroup3
+	1020: true, // SelectGroup4
+	1021: true, // SelectGroup5
+	1022: true, // SelectGroup6
+	1023: true, // SelectGroup7
+	1024: true, // SelectGroup8
+	1025: true, // SelectGroup9
+	1048: true, // CancelUnit
+	1051: true, // CancelBuild
+	1052: true, // Sell; Not really passive, but doesn't imply winning
+	1058: true, // SelectBox
+	1092: true, // SetCameraPosition
+	1095: true, // Checksum
+	2000: true, // MoneyValueChange
+}
+
 var CommandType map[int]string = map[int]string{
 	27:   "EndReplay",
 	1001: "SetSelection",
