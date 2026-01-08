@@ -1,6 +1,8 @@
 package database
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -13,21 +15,82 @@ import (
 // DB is the global database instance
 var DB *gorm.DB
 
+// Int32Array8 represents an array of 8 int32 values for JSON storage
+type Int32Array8 [8]int32
+
+// Value implements the driver.Valuer interface
+func (a Int32Array8) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
+// Scan implements the sql.Scanner interface
+func (a *Int32Array8) Scan(value interface{}) error {
+	if value == nil {
+		*a = Int32Array8{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to unmarshal Int32Array8 value: %v", value)
+	}
+	return json.Unmarshal(bytes, a)
+}
+
+// Int32Array8x8 represents a 2D array of 8x8 int32 values for JSON storage
+type Int32Array8x8 [8][8]int32
+
+// Value implements the driver.Valuer interface
+func (a Int32Array8x8) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
+// Scan implements the sql.Scanner interface
+func (a *Int32Array8x8) Scan(value interface{}) error {
+	if value == nil {
+		*a = Int32Array8x8{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to unmarshal Int32Array8x8 value: %v", value)
+	}
+	return json.Unmarshal(bytes, a)
+}
+
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	Seed         string    `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
-	Timecode     int       `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
-	Player1Money int       `gorm:"default:0" json:"player_1_money"`
-	Player2Money int       `gorm:"default:0" json:"player_2_money"`
-	Player3Money int       `gorm:"default:0" json:"player_3_money"`
-	Player4Money int       `gorm:"default:0" json:"player_4_money"`
-	Player5Money int       `gorm:"default:0" json:"player_5_money"`
-	Player6Money int       `gorm:"default:0" json:"player_6_money"`
-	Player7Money int       `gorm:"default:0" json:"player_7_money"`
-	Player8Money int       `gorm:"default:0" json:"player_8_money"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                      uint            `gorm:"primaryKey" json:"id"`
+	Seed                    string          `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
+	Timecode                int             `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
+	Player1Money            int             `gorm:"default:0" json:"player_1_money"`
+	Player2Money            int             `gorm:"default:0" json:"player_2_money"`
+	Player3Money            int             `gorm:"default:0" json:"player_3_money"`
+	Player4Money            int             `gorm:"default:0" json:"player_4_money"`
+	Player5Money            int             `gorm:"default:0" json:"player_5_money"`
+	Player6Money            int             `gorm:"default:0" json:"player_6_money"`
+	Player7Money            int             `gorm:"default:0" json:"player_7_money"`
+	Player8Money            int             `gorm:"default:0" json:"player_8_money"`
+	MoneyEarned              Int32Array8    `gorm:"type:jsonb" json:"money_earned"`
+	UnitsBuilt               Int32Array8    `gorm:"type:jsonb" json:"units_built"`
+	UnitsLost                Int32Array8    `gorm:"type:jsonb" json:"units_lost"`
+	BuildingsBuilt           Int32Array8    `gorm:"type:jsonb" json:"buildings_built"`
+	BuildingsLost            Int32Array8    `gorm:"type:jsonb" json:"buildings_lost"`
+	BuildingsKilled          Int32Array8x8  `gorm:"type:jsonb" json:"buildings_killed"`
+	UnitsKilled              Int32Array8x8  `gorm:"type:jsonb" json:"units_killed"`
+	GeneralsPointsTotal      Int32Array8    `gorm:"type:jsonb" json:"generals_points_total"`
+	GeneralsPointsUsed       Int32Array8    `gorm:"type:jsonb" json:"generals_points_used"`
+	RadarsBuilt              Int32Array8    `gorm:"type:jsonb" json:"radars_built"`
+	SearchAndDestroy         Int32Array8    `gorm:"type:jsonb" json:"search_and_destroy"`
+	HoldTheLine              Int32Array8    `gorm:"type:jsonb" json:"hold_the_line"`
+	Bombardment              Int32Array8    `gorm:"type:jsonb" json:"bombardment"`
+	XP                       Int32Array8    `gorm:"type:jsonb" json:"xp"`
+	XPLevel                  Int32Array8    `gorm:"type:jsonb" json:"xp_level"`
+	TechBuildingsCaptured    Int32Array8    `gorm:"type:jsonb" json:"tech_buildings_captured"`
+	FactionBuildingsCaptured Int32Array8    `gorm:"type:jsonb" json:"faction_buildings_captured"`
+	PowerTotal               Int32Array8    `gorm:"type:jsonb" json:"power_total"`
+	PowerUsed                Int32Array8    `gorm:"type:jsonb" json:"power_used"`
+	CreatedAt                time.Time      `json:"created_at"`
+	UpdatedAt                time.Time      `json:"updated_at"`
 }
 
 // Connect initializes the database connection

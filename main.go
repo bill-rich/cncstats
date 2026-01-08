@@ -262,9 +262,10 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 
-	// Convert to enhanced replay and add money change events
+	// Convert to enhanced replay and add money and stats change events
 	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
 	enhancedReplay.AddMoneyChangeEvents()
+	enhancedReplay.AddStatsChangeEvents()
 
 	// Use money-based winner detection after money events are merged
 	enhancedReplay.DetermineWinnersByMoney()
@@ -275,7 +276,7 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 // Player money data handlers
 
 func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	var req database.CreatePlayerMoneyDataRequest
+	var req database.MoneyDataRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",

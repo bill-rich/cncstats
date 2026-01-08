@@ -214,6 +214,25 @@ var PassiveCommands = map[int]bool{
 	1092: true, // SetCameraPosition
 	1095: true, // Checksum
 	2000: true, // MoneyValueChange
+	2001: true, // MoneyEarnedChange
+	2002: true, // UnitsBuiltChange
+	2003: true, // UnitsLostChange
+	2004: true, // BuildingsBuiltChange
+	2005: true, // BuildingsLostChange
+	2006: true, // BuildingsKilledChange
+	2007: true, // UnitsKilledChange
+	2008: true, // GeneralsPointsTotalChange
+	2009: true, // GeneralsPointsUsedChange
+	2010: true, // RadarsBuiltChange
+	2011: true, // SearchAndDestroyChange
+	2012: true, // HoldTheLineChange
+	2013: true, // BombardmentChange
+	2014: true, // XPChange
+	2015: true, // XPLevelChange
+	2016: true, // TechBuildingsCapturedChange
+	2017: true, // FactionBuildingsCapturedChange
+	2018: true, // PowerTotalChange
+	2019: true, // PowerUsedChange
 }
 
 var CommandType map[int]string = map[int]string{
@@ -280,6 +299,25 @@ var CommandType map[int]string = map[int]string{
 	1095: "Checksum",
 	1097: "DeclareUserId",    // Seems to be the case.
 	2000: "MoneyValueChange", // Money change events sent by client
+	2001: "MoneyEarnedChange",
+	2002: "UnitsBuiltChange",
+	2003: "UnitsLostChange",
+	2004: "BuildingsBuiltChange",
+	2005: "BuildingsLostChange",
+	2006: "BuildingsKilledChange",
+	2007: "UnitsKilledChange",
+	2008: "GeneralsPointsTotalChange",
+	2009: "GeneralsPointsUsedChange",
+	2010: "RadarsBuiltChange",
+	2011: "SearchAndDestroyChange",
+	2012: "HoldTheLineChange",
+	2013: "BombardmentChange",
+	2014: "XPChange",
+	2015: "XPLevelChange",
+	2016: "TechBuildingsCapturedChange",
+	2017: "FactionBuildingsCapturedChange",
+	2018: "PowerTotalChange",
+	2019: "PowerUsedChange",
 }
 
 func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {

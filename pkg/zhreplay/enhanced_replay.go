@@ -7,15 +7,39 @@ import (
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
 )
 
-// EnhancedBodyChunk represents a body chunk with player money data
+// EnhancedBodyChunk represents a body chunk with player money and stats data
 type EnhancedBodyChunk struct {
 	*body.BodyChunk
 	PlayerMoney *PlayerMoneyData `json:"PlayerMoney,omitempty"`
+	PlayerStats *PlayerStatsData `json:"PlayerStats,omitempty"`
 }
 
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
 	PlayerMoney [8]int `json:"PlayerMoney"`
+}
+
+// PlayerStatsData represents all the stats data for players at a specific seed
+type PlayerStatsData struct {
+	MoneyEarned              [8]int    `json:"money_earned"`
+	UnitsBuilt               [8]int    `json:"units_built"`
+	UnitsLost                [8]int    `json:"units_lost"`
+	BuildingsBuilt           [8]int    `json:"buildings_built"`
+	BuildingsLost            [8]int    `json:"buildings_lost"`
+	BuildingsKilled          [8][8]int `json:"buildings_killed"`
+	UnitsKilled              [8][8]int `json:"units_killed"`
+	GeneralsPointsTotal      [8]int    `json:"generals_points_total"`
+	GeneralsPointsUsed       [8]int    `json:"generals_points_used"`
+	RadarsBuilt              [8]int    `json:"radars_built"`
+	SearchAndDestroy         [8]int    `json:"search_and_destroy"`
+	HoldTheLine              [8]int    `json:"hold_the_line"`
+	Bombardment              [8]int    `json:"bombardment"`
+	XP                       [8]int    `json:"xp"`
+	XPLevel                  [8]int    `json:"xp_level"`
+	TechBuildingsCaptured    [8]int    `json:"tech_buildings_captured"`
+	FactionBuildingsCaptured [8]int    `json:"faction_buildings_captured"`
+	PowerTotal               [8]int    `json:"power_total"`
+	PowerUsed                [8]int    `json:"power_used"`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
@@ -167,19 +191,126 @@ func (er *EnhancedReplay) AddMoneyChangeEvents() {
 	}
 
 	// Merge the money change events with existing body chunks, sorted by timecode
-	er.MergeMoneyChangeEvents(moneyChangeEvents)
+	er.MergeChangeEvents(moneyChangeEvents)
 }
 
-// MergeMoneyChangeEvents merges money change events with existing body chunks, maintaining chronological order
-func (er *EnhancedReplay) MergeMoneyChangeEvents(moneyChangeEvents []*EnhancedBodyChunk) {
-	// Create a new slice to hold all events (original + money changes)
+// AddStatsChangeEvents creates separate stats change events from database records and inserts them at appropriate timecode positions
+func (er *EnhancedReplay) AddStatsChangeEvents() {
+	// Get the player money service
+	playerMoneyService := database.NewPlayerMoneyService()
+
+	// Get seed from metadata
+	seed := er.Header.Metadata.Seed
+	if seed == "" {
+		// If seed is empty, skip processing
+		return
+	}
+
+	// Get all stats change records for this seed
+	statsChanges, err := playerMoneyService.GetAllPlayerMoneyDataBySeed(seed)
+	if err != nil {
+		// Log error but continue processing
+		return
+	}
+
+	// Create stats change events for each database record
+	var statsChangeEvents []*EnhancedBodyChunk
+	for _, statsData := range statsChanges {
+		// Convert database arrays to Go arrays
+		moneyEarned := convertInt32Array8ToIntArray8(statsData.MoneyEarned)
+		unitsBuilt := convertInt32Array8ToIntArray8(statsData.UnitsBuilt)
+		unitsLost := convertInt32Array8ToIntArray8(statsData.UnitsLost)
+		buildingsBuilt := convertInt32Array8ToIntArray8(statsData.BuildingsBuilt)
+		buildingsLost := convertInt32Array8ToIntArray8(statsData.BuildingsLost)
+		buildingsKilled := convertInt32Array8x8ToIntArray8x8(statsData.BuildingsKilled)
+		unitsKilled := convertInt32Array8x8ToIntArray8x8(statsData.UnitsKilled)
+		generalsPointsTotal := convertInt32Array8ToIntArray8(statsData.GeneralsPointsTotal)
+		generalsPointsUsed := convertInt32Array8ToIntArray8(statsData.GeneralsPointsUsed)
+		radarsBuilt := convertInt32Array8ToIntArray8(statsData.RadarsBuilt)
+		searchAndDestroy := convertInt32Array8ToIntArray8(statsData.SearchAndDestroy)
+		holdTheLine := convertInt32Array8ToIntArray8(statsData.HoldTheLine)
+		bombardment := convertInt32Array8ToIntArray8(statsData.Bombardment)
+		xp := convertInt32Array8ToIntArray8(statsData.XP)
+		xpLevel := convertInt32Array8ToIntArray8(statsData.XPLevel)
+		techBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.TechBuildingsCaptured)
+		factionBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.FactionBuildingsCaptured)
+		powerTotal := convertInt32Array8ToIntArray8(statsData.PowerTotal)
+		powerUsed := convertInt32Array8ToIntArray8(statsData.PowerUsed)
+
+		// Helper function to create a stat change event
+		createStatEvent := func(orderCode int, orderName string, stats *PlayerStatsData) *EnhancedBodyChunk {
+			return &EnhancedBodyChunk{
+				BodyChunk: &body.BodyChunk{
+					TimeCode:          statsData.Timecode,
+					OrderCode:         orderCode,
+					OrderName:         orderName,
+					PlayerID:          0, // Stats changes affect all players
+					PlayerName:        "",
+					NumberOfArguments: 0,
+					Details:           nil,
+					ArgMetadata:       []*body.ArgMetadata{},
+					Arguments:         []interface{}{},
+				},
+				PlayerStats: stats,
+			}
+		}
+
+		// Create separate events for each stat type
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2001, "MoneyEarnedChange", &PlayerStatsData{MoneyEarned: moneyEarned}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2002, "UnitsBuiltChange", &PlayerStatsData{UnitsBuilt: unitsBuilt}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2003, "UnitsLostChange", &PlayerStatsData{UnitsLost: unitsLost}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2004, "BuildingsBuiltChange", &PlayerStatsData{BuildingsBuilt: buildingsBuilt}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2005, "BuildingsLostChange", &PlayerStatsData{BuildingsLost: buildingsLost}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2006, "BuildingsKilledChange", &PlayerStatsData{BuildingsKilled: buildingsKilled}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2007, "UnitsKilledChange", &PlayerStatsData{UnitsKilled: unitsKilled}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2008, "GeneralsPointsTotalChange", &PlayerStatsData{GeneralsPointsTotal: generalsPointsTotal}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2009, "GeneralsPointsUsedChange", &PlayerStatsData{GeneralsPointsUsed: generalsPointsUsed}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2010, "RadarsBuiltChange", &PlayerStatsData{RadarsBuilt: radarsBuilt}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2011, "SearchAndDestroyChange", &PlayerStatsData{SearchAndDestroy: searchAndDestroy}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2012, "HoldTheLineChange", &PlayerStatsData{HoldTheLine: holdTheLine}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2013, "BombardmentChange", &PlayerStatsData{Bombardment: bombardment}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2014, "XPChange", &PlayerStatsData{XP: xp}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2015, "XPLevelChange", &PlayerStatsData{XPLevel: xpLevel}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2016, "TechBuildingsCapturedChange", &PlayerStatsData{TechBuildingsCaptured: techBuildingsCaptured}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2017, "FactionBuildingsCapturedChange", &PlayerStatsData{FactionBuildingsCaptured: factionBuildingsCaptured}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2018, "PowerTotalChange", &PlayerStatsData{PowerTotal: powerTotal}))
+		statsChangeEvents = append(statsChangeEvents, createStatEvent(2019, "PowerUsedChange", &PlayerStatsData{PowerUsed: powerUsed}))
+	}
+
+	// Merge the stats change events with existing body chunks, sorted by timecode
+	er.MergeChangeEvents(statsChangeEvents)
+}
+
+// convertInt32Array8ToIntArray8 converts database Int32Array8 to Go [8]int
+func convertInt32Array8ToIntArray8(arr database.Int32Array8) [8]int {
+	result := [8]int{}
+	for i := 0; i < 8; i++ {
+		result[i] = int(arr[i])
+	}
+	return result
+}
+
+// convertInt32Array8x8ToIntArray8x8 converts database Int32Array8x8 to Go [8][8]int
+func convertInt32Array8x8ToIntArray8x8(arr database.Int32Array8x8) [8][8]int {
+	result := [8][8]int{}
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			result[i][j] = int(arr[i][j])
+		}
+	}
+	return result
+}
+
+// MergeChangeEvents merges change events (money, stats, etc.) with existing body chunks, maintaining chronological order
+func (er *EnhancedReplay) MergeChangeEvents(changeEvents []*EnhancedBodyChunk) {
+	// Create a new slice to hold all events (original + change events)
 	var allEvents []*EnhancedBodyChunk
 
 	// Add all existing body chunks
 	allEvents = append(allEvents, er.Body...)
 
-	// Add all money change events
-	allEvents = append(allEvents, moneyChangeEvents...)
+	// Add all change events
+	allEvents = append(allEvents, changeEvents...)
 
 	// Sort all events by timecode
 	// Simple bubble sort for now - could be optimized with a more efficient sort
@@ -193,6 +324,11 @@ func (er *EnhancedReplay) MergeMoneyChangeEvents(moneyChangeEvents []*EnhancedBo
 
 	// Update the body with the merged and sorted events
 	er.Body = allEvents
+}
+
+// MergeMoneyChangeEvents is a convenience wrapper for backward compatibility
+func (er *EnhancedReplay) MergeMoneyChangeEvents(moneyChangeEvents []*EnhancedBodyChunk) {
+	er.MergeChangeEvents(moneyChangeEvents)
 }
 
 // DetermineWinnersByMoney determines winners based on money information from the last money event
