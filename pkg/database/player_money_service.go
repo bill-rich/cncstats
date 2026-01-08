@@ -70,61 +70,61 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 
 	// Handle all other optional fields - only update if provided
 	if req.MoneyEarned != nil {
-		updateMap["MoneyEarned"] = Int32Array8(*req.MoneyEarned)
+		updateMap["MoneyEarned"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.MoneyEarned), Valid: true}
 	}
 	if req.UnitsBuilt != nil {
-		updateMap["UnitsBuilt"] = Int32Array8(*req.UnitsBuilt)
+		updateMap["UnitsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsBuilt), Valid: true}
 	}
 	if req.UnitsLost != nil {
-		updateMap["UnitsLost"] = Int32Array8(*req.UnitsLost)
+		updateMap["UnitsLost"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsLost), Valid: true}
 	}
 	if req.BuildingsBuilt != nil {
-		updateMap["BuildingsBuilt"] = Int32Array8(*req.BuildingsBuilt)
+		updateMap["BuildingsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsBuilt), Valid: true}
 	}
 	if req.BuildingsLost != nil {
-		updateMap["BuildingsLost"] = Int32Array8(*req.BuildingsLost)
+		updateMap["BuildingsLost"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsLost), Valid: true}
 	}
 	if req.BuildingsKilled != nil {
-		updateMap["BuildingsKilled"] = Int32Array8x8(*req.BuildingsKilled)
+		updateMap["BuildingsKilled"] = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.BuildingsKilled), Valid: true}
 	}
 	if req.UnitsKilled != nil {
-		updateMap["UnitsKilled"] = Int32Array8x8(*req.UnitsKilled)
+		updateMap["UnitsKilled"] = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.UnitsKilled), Valid: true}
 	}
 	if req.GeneralsPointsTotal != nil {
-		updateMap["GeneralsPointsTotal"] = Int32Array8(*req.GeneralsPointsTotal)
+		updateMap["GeneralsPointsTotal"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsTotal), Valid: true}
 	}
 	if req.GeneralsPointsUsed != nil {
-		updateMap["GeneralsPointsUsed"] = Int32Array8(*req.GeneralsPointsUsed)
+		updateMap["GeneralsPointsUsed"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsUsed), Valid: true}
 	}
 	if req.RadarsBuilt != nil {
-		updateMap["RadarsBuilt"] = Int32Array8(*req.RadarsBuilt)
+		updateMap["RadarsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.RadarsBuilt), Valid: true}
 	}
 	if req.SearchAndDestroy != nil {
-		updateMap["SearchAndDestroy"] = Int32Array8(*req.SearchAndDestroy)
+		updateMap["SearchAndDestroy"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.SearchAndDestroy), Valid: true}
 	}
 	if req.HoldTheLine != nil {
-		updateMap["HoldTheLine"] = Int32Array8(*req.HoldTheLine)
+		updateMap["HoldTheLine"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.HoldTheLine), Valid: true}
 	}
 	if req.Bombardment != nil {
-		updateMap["Bombardment"] = Int32Array8(*req.Bombardment)
+		updateMap["Bombardment"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.Bombardment), Valid: true}
 	}
 	if req.XP != nil {
-		updateMap["XP"] = Int32Array8(*req.XP)
+		updateMap["XP"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.XP), Valid: true}
 	}
 	if req.XPLevel != nil {
-		updateMap["XPLevel"] = Int32Array8(*req.XPLevel)
+		updateMap["XPLevel"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.XPLevel), Valid: true}
 	}
 	if req.TechBuildingsCaptured != nil {
-		updateMap["TechBuildingsCaptured"] = Int32Array8(*req.TechBuildingsCaptured)
+		updateMap["TechBuildingsCaptured"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.TechBuildingsCaptured), Valid: true}
 	}
 	if req.FactionBuildingsCaptured != nil {
-		updateMap["FactionBuildingsCaptured"] = Int32Array8(*req.FactionBuildingsCaptured)
+		updateMap["FactionBuildingsCaptured"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.FactionBuildingsCaptured), Valid: true}
 	}
 	if req.PowerTotal != nil {
-		updateMap["PowerTotal"] = Int32Array8(*req.PowerTotal)
+		updateMap["PowerTotal"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerTotal), Valid: true}
 	}
 	if req.PowerUsed != nil {
-		updateMap["PowerUsed"] = Int32Array8(*req.PowerUsed)
+		updateMap["PowerUsed"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerUsed), Valid: true}
 	}
 
 	if err == nil {
@@ -166,61 +166,61 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 
 	// Set other fields if provided
 	if req.MoneyEarned != nil {
-		playerMoneyData.MoneyEarned = Int32Array8(*req.MoneyEarned)
+		playerMoneyData.MoneyEarned = NullableInt32Array8{Int32Array8: Int32Array8(*req.MoneyEarned), Valid: true}
 	}
 	if req.UnitsBuilt != nil {
-		playerMoneyData.UnitsBuilt = Int32Array8(*req.UnitsBuilt)
+		playerMoneyData.UnitsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsBuilt), Valid: true}
 	}
 	if req.UnitsLost != nil {
-		playerMoneyData.UnitsLost = Int32Array8(*req.UnitsLost)
+		playerMoneyData.UnitsLost = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsLost), Valid: true}
 	}
 	if req.BuildingsBuilt != nil {
-		playerMoneyData.BuildingsBuilt = Int32Array8(*req.BuildingsBuilt)
+		playerMoneyData.BuildingsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsBuilt), Valid: true}
 	}
 	if req.BuildingsLost != nil {
-		playerMoneyData.BuildingsLost = Int32Array8(*req.BuildingsLost)
+		playerMoneyData.BuildingsLost = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsLost), Valid: true}
 	}
 	if req.BuildingsKilled != nil {
-		playerMoneyData.BuildingsKilled = Int32Array8x8(*req.BuildingsKilled)
+		playerMoneyData.BuildingsKilled = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.BuildingsKilled), Valid: true}
 	}
 	if req.UnitsKilled != nil {
-		playerMoneyData.UnitsKilled = Int32Array8x8(*req.UnitsKilled)
+		playerMoneyData.UnitsKilled = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.UnitsKilled), Valid: true}
 	}
 	if req.GeneralsPointsTotal != nil {
-		playerMoneyData.GeneralsPointsTotal = Int32Array8(*req.GeneralsPointsTotal)
+		playerMoneyData.GeneralsPointsTotal = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsTotal), Valid: true}
 	}
 	if req.GeneralsPointsUsed != nil {
-		playerMoneyData.GeneralsPointsUsed = Int32Array8(*req.GeneralsPointsUsed)
+		playerMoneyData.GeneralsPointsUsed = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsUsed), Valid: true}
 	}
 	if req.RadarsBuilt != nil {
-		playerMoneyData.RadarsBuilt = Int32Array8(*req.RadarsBuilt)
+		playerMoneyData.RadarsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.RadarsBuilt), Valid: true}
 	}
 	if req.SearchAndDestroy != nil {
-		playerMoneyData.SearchAndDestroy = Int32Array8(*req.SearchAndDestroy)
+		playerMoneyData.SearchAndDestroy = NullableInt32Array8{Int32Array8: Int32Array8(*req.SearchAndDestroy), Valid: true}
 	}
 	if req.HoldTheLine != nil {
-		playerMoneyData.HoldTheLine = Int32Array8(*req.HoldTheLine)
+		playerMoneyData.HoldTheLine = NullableInt32Array8{Int32Array8: Int32Array8(*req.HoldTheLine), Valid: true}
 	}
 	if req.Bombardment != nil {
-		playerMoneyData.Bombardment = Int32Array8(*req.Bombardment)
+		playerMoneyData.Bombardment = NullableInt32Array8{Int32Array8: Int32Array8(*req.Bombardment), Valid: true}
 	}
 	if req.XP != nil {
-		playerMoneyData.XP = Int32Array8(*req.XP)
+		playerMoneyData.XP = NullableInt32Array8{Int32Array8: Int32Array8(*req.XP), Valid: true}
 	}
 	if req.XPLevel != nil {
-		playerMoneyData.XPLevel = Int32Array8(*req.XPLevel)
+		playerMoneyData.XPLevel = NullableInt32Array8{Int32Array8: Int32Array8(*req.XPLevel), Valid: true}
 	}
 	if req.TechBuildingsCaptured != nil {
-		playerMoneyData.TechBuildingsCaptured = Int32Array8(*req.TechBuildingsCaptured)
+		playerMoneyData.TechBuildingsCaptured = NullableInt32Array8{Int32Array8: Int32Array8(*req.TechBuildingsCaptured), Valid: true}
 	}
 	if req.FactionBuildingsCaptured != nil {
-		playerMoneyData.FactionBuildingsCaptured = Int32Array8(*req.FactionBuildingsCaptured)
+		playerMoneyData.FactionBuildingsCaptured = NullableInt32Array8{Int32Array8: Int32Array8(*req.FactionBuildingsCaptured), Valid: true}
 	}
 	if req.PowerTotal != nil {
-		playerMoneyData.PowerTotal = Int32Array8(*req.PowerTotal)
+		playerMoneyData.PowerTotal = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerTotal), Valid: true}
 	}
 	if req.PowerUsed != nil {
-		playerMoneyData.PowerUsed = Int32Array8(*req.PowerUsed)
+		playerMoneyData.PowerUsed = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerUsed), Valid: true}
 	}
 
 	if err := s.db.Create(playerMoneyData).Error; err != nil {

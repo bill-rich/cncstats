@@ -216,27 +216,6 @@ func (er *EnhancedReplay) AddStatsChangeEvents() {
 	// Create stats change events for each database record
 	var statsChangeEvents []*EnhancedBodyChunk
 	for _, statsData := range statsChanges {
-		// Convert database arrays to Go arrays
-		moneyEarned := convertInt32Array8ToIntArray8(statsData.MoneyEarned)
-		unitsBuilt := convertInt32Array8ToIntArray8(statsData.UnitsBuilt)
-		unitsLost := convertInt32Array8ToIntArray8(statsData.UnitsLost)
-		buildingsBuilt := convertInt32Array8ToIntArray8(statsData.BuildingsBuilt)
-		buildingsLost := convertInt32Array8ToIntArray8(statsData.BuildingsLost)
-		buildingsKilled := convertInt32Array8x8ToIntArray8x8(statsData.BuildingsKilled)
-		unitsKilled := convertInt32Array8x8ToIntArray8x8(statsData.UnitsKilled)
-		generalsPointsTotal := convertInt32Array8ToIntArray8(statsData.GeneralsPointsTotal)
-		generalsPointsUsed := convertInt32Array8ToIntArray8(statsData.GeneralsPointsUsed)
-		radarsBuilt := convertInt32Array8ToIntArray8(statsData.RadarsBuilt)
-		searchAndDestroy := convertInt32Array8ToIntArray8(statsData.SearchAndDestroy)
-		holdTheLine := convertInt32Array8ToIntArray8(statsData.HoldTheLine)
-		bombardment := convertInt32Array8ToIntArray8(statsData.Bombardment)
-		xp := convertInt32Array8ToIntArray8(statsData.XP)
-		xpLevel := convertInt32Array8ToIntArray8(statsData.XPLevel)
-		techBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.TechBuildingsCaptured)
-		factionBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.FactionBuildingsCaptured)
-		powerTotal := convertInt32Array8ToIntArray8(statsData.PowerTotal)
-		powerUsed := convertInt32Array8ToIntArray8(statsData.PowerUsed)
-
 		// Helper function to create a stat change event
 		createStatEvent := func(orderCode int, orderName string, stats *PlayerStatsData) *EnhancedBodyChunk {
 			return &EnhancedBodyChunk{
@@ -255,47 +234,105 @@ func (er *EnhancedReplay) AddStatsChangeEvents() {
 			}
 		}
 
-		// Create separate events for each stat type
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2001, "MoneyEarnedChange", &PlayerStatsData{MoneyEarned: moneyEarned}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2002, "UnitsBuiltChange", &PlayerStatsData{UnitsBuilt: unitsBuilt}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2003, "UnitsLostChange", &PlayerStatsData{UnitsLost: unitsLost}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2004, "BuildingsBuiltChange", &PlayerStatsData{BuildingsBuilt: buildingsBuilt}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2005, "BuildingsLostChange", &PlayerStatsData{BuildingsLost: buildingsLost}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2006, "BuildingsKilledChange", &PlayerStatsData{BuildingsKilled: buildingsKilled}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2007, "UnitsKilledChange", &PlayerStatsData{UnitsKilled: unitsKilled}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2008, "GeneralsPointsTotalChange", &PlayerStatsData{GeneralsPointsTotal: generalsPointsTotal}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2009, "GeneralsPointsUsedChange", &PlayerStatsData{GeneralsPointsUsed: generalsPointsUsed}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2010, "RadarsBuiltChange", &PlayerStatsData{RadarsBuilt: radarsBuilt}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2011, "SearchAndDestroyChange", &PlayerStatsData{SearchAndDestroy: searchAndDestroy}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2012, "HoldTheLineChange", &PlayerStatsData{HoldTheLine: holdTheLine}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2013, "BombardmentChange", &PlayerStatsData{Bombardment: bombardment}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2014, "XPChange", &PlayerStatsData{XP: xp}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2015, "XPLevelChange", &PlayerStatsData{XPLevel: xpLevel}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2016, "TechBuildingsCapturedChange", &PlayerStatsData{TechBuildingsCaptured: techBuildingsCaptured}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2017, "FactionBuildingsCapturedChange", &PlayerStatsData{FactionBuildingsCaptured: factionBuildingsCaptured}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2018, "PowerTotalChange", &PlayerStatsData{PowerTotal: powerTotal}))
-		statsChangeEvents = append(statsChangeEvents, createStatEvent(2019, "PowerUsedChange", &PlayerStatsData{PowerUsed: powerUsed}))
+		// Only create events for fields that are valid (non-null)
+		if statsData.MoneyEarned.Valid {
+			moneyEarned := convertInt32Array8ToIntArray8(statsData.MoneyEarned)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2001, "MoneyEarnedChange", &PlayerStatsData{MoneyEarned: moneyEarned}))
+		}
+		if statsData.UnitsBuilt.Valid {
+			unitsBuilt := convertInt32Array8ToIntArray8(statsData.UnitsBuilt)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2002, "UnitsBuiltChange", &PlayerStatsData{UnitsBuilt: unitsBuilt}))
+		}
+		if statsData.UnitsLost.Valid {
+			unitsLost := convertInt32Array8ToIntArray8(statsData.UnitsLost)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2003, "UnitsLostChange", &PlayerStatsData{UnitsLost: unitsLost}))
+		}
+		if statsData.BuildingsBuilt.Valid {
+			buildingsBuilt := convertInt32Array8ToIntArray8(statsData.BuildingsBuilt)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2004, "BuildingsBuiltChange", &PlayerStatsData{BuildingsBuilt: buildingsBuilt}))
+		}
+		if statsData.BuildingsLost.Valid {
+			buildingsLost := convertInt32Array8ToIntArray8(statsData.BuildingsLost)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2005, "BuildingsLostChange", &PlayerStatsData{BuildingsLost: buildingsLost}))
+		}
+		if statsData.BuildingsKilled.Valid {
+			buildingsKilled := convertInt32Array8x8ToIntArray8x8(statsData.BuildingsKilled)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2006, "BuildingsKilledChange", &PlayerStatsData{BuildingsKilled: buildingsKilled}))
+		}
+		if statsData.UnitsKilled.Valid {
+			unitsKilled := convertInt32Array8x8ToIntArray8x8(statsData.UnitsKilled)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2007, "UnitsKilledChange", &PlayerStatsData{UnitsKilled: unitsKilled}))
+		}
+		if statsData.GeneralsPointsTotal.Valid {
+			generalsPointsTotal := convertInt32Array8ToIntArray8(statsData.GeneralsPointsTotal)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2008, "GeneralsPointsTotalChange", &PlayerStatsData{GeneralsPointsTotal: generalsPointsTotal}))
+		}
+		if statsData.GeneralsPointsUsed.Valid {
+			generalsPointsUsed := convertInt32Array8ToIntArray8(statsData.GeneralsPointsUsed)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2009, "GeneralsPointsUsedChange", &PlayerStatsData{GeneralsPointsUsed: generalsPointsUsed}))
+		}
+		if statsData.RadarsBuilt.Valid {
+			radarsBuilt := convertInt32Array8ToIntArray8(statsData.RadarsBuilt)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2010, "RadarsBuiltChange", &PlayerStatsData{RadarsBuilt: radarsBuilt}))
+		}
+		if statsData.SearchAndDestroy.Valid {
+			searchAndDestroy := convertInt32Array8ToIntArray8(statsData.SearchAndDestroy)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2011, "SearchAndDestroyChange", &PlayerStatsData{SearchAndDestroy: searchAndDestroy}))
+		}
+		if statsData.HoldTheLine.Valid {
+			holdTheLine := convertInt32Array8ToIntArray8(statsData.HoldTheLine)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2012, "HoldTheLineChange", &PlayerStatsData{HoldTheLine: holdTheLine}))
+		}
+		if statsData.Bombardment.Valid {
+			bombardment := convertInt32Array8ToIntArray8(statsData.Bombardment)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2013, "BombardmentChange", &PlayerStatsData{Bombardment: bombardment}))
+		}
+		if statsData.XP.Valid {
+			xp := convertInt32Array8ToIntArray8(statsData.XP)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2014, "XPChange", &PlayerStatsData{XP: xp}))
+		}
+		if statsData.XPLevel.Valid {
+			xpLevel := convertInt32Array8ToIntArray8(statsData.XPLevel)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2015, "XPLevelChange", &PlayerStatsData{XPLevel: xpLevel}))
+		}
+		if statsData.TechBuildingsCaptured.Valid {
+			techBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.TechBuildingsCaptured)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2016, "TechBuildingsCapturedChange", &PlayerStatsData{TechBuildingsCaptured: techBuildingsCaptured}))
+		}
+		if statsData.FactionBuildingsCaptured.Valid {
+			factionBuildingsCaptured := convertInt32Array8ToIntArray8(statsData.FactionBuildingsCaptured)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2017, "FactionBuildingsCapturedChange", &PlayerStatsData{FactionBuildingsCaptured: factionBuildingsCaptured}))
+		}
+		if statsData.PowerTotal.Valid {
+			powerTotal := convertInt32Array8ToIntArray8(statsData.PowerTotal)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2018, "PowerTotalChange", &PlayerStatsData{PowerTotal: powerTotal}))
+		}
+		if statsData.PowerUsed.Valid {
+			powerUsed := convertInt32Array8ToIntArray8(statsData.PowerUsed)
+			statsChangeEvents = append(statsChangeEvents, createStatEvent(2019, "PowerUsedChange", &PlayerStatsData{PowerUsed: powerUsed}))
+		}
+
 	}
 
 	// Merge the stats change events with existing body chunks, sorted by timecode
 	er.MergeChangeEvents(statsChangeEvents)
 }
 
-// convertInt32Array8ToIntArray8 converts database Int32Array8 to Go [8]int
-func convertInt32Array8ToIntArray8(arr database.Int32Array8) [8]int {
+// convertInt32Array8ToIntArray8 converts database NullableInt32Array8 to Go [8]int
+func convertInt32Array8ToIntArray8(arr database.NullableInt32Array8) [8]int {
 	result := [8]int{}
 	for i := 0; i < 8; i++ {
-		result[i] = int(arr[i])
+		result[i] = int(arr.Int32Array8[i])
 	}
 	return result
 }
 
-// convertInt32Array8x8ToIntArray8x8 converts database Int32Array8x8 to Go [8][8]int
-func convertInt32Array8x8ToIntArray8x8(arr database.Int32Array8x8) [8][8]int {
+// convertInt32Array8x8ToIntArray8x8 converts database NullableInt32Array8x8 to Go [8][8]int
+func convertInt32Array8x8ToIntArray8x8(arr database.NullableInt32Array8x8) [8][8]int {
 	result := [8][8]int{}
 	for i := 0; i < 8; i++ {
 		for j := 0; j < 8; j++ {
-			result[i][j] = int(arr[i][j])
+			result[i][j] = int(arr.Int32Array8x8[i][j])
 		}
 	}
 	return result
