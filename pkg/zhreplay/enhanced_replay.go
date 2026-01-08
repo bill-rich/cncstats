@@ -21,25 +21,25 @@ type PlayerMoneyData struct {
 
 // PlayerStatsData represents all the stats data for players at a specific seed
 type PlayerStatsData struct {
-	MoneyEarned              [8]int    `json:"money_earned"`
-	UnitsBuilt               [8]int    `json:"units_built"`
-	UnitsLost                [8]int    `json:"units_lost"`
-	BuildingsBuilt           [8]int    `json:"buildings_built"`
-	BuildingsLost            [8]int    `json:"buildings_lost"`
-	BuildingsKilled          [8][8]int `json:"buildings_killed"`
-	UnitsKilled              [8][8]int `json:"units_killed"`
-	GeneralsPointsTotal      [8]int    `json:"generals_points_total"`
-	GeneralsPointsUsed       [8]int    `json:"generals_points_used"`
-	RadarsBuilt              [8]int    `json:"radars_built"`
-	SearchAndDestroy         [8]int    `json:"search_and_destroy"`
-	HoldTheLine              [8]int    `json:"hold_the_line"`
-	Bombardment              [8]int    `json:"bombardment"`
-	XP                       [8]int    `json:"xp"`
-	XPLevel                  [8]int    `json:"xp_level"`
-	TechBuildingsCaptured    [8]int    `json:"tech_buildings_captured"`
-	FactionBuildingsCaptured [8]int    `json:"faction_buildings_captured"`
-	PowerTotal               [8]int    `json:"power_total"`
-	PowerUsed                [8]int    `json:"power_used"`
+	MoneyEarned              [8]int    `json:"money_earned,omitempty"`
+	UnitsBuilt               [8]int    `json:"units_built,omitempty"`
+	UnitsLost                [8]int    `json:"units_lost,omitempty"`
+	BuildingsBuilt           [8]int    `json:"buildings_built,omitempty"`
+	BuildingsLost            [8]int    `json:"buildings_lost,omitempty"`
+	BuildingsKilled          [8][8]int `json:"buildings_killed,omitempty"`
+	UnitsKilled              [8][8]int `json:"units_killed,omitempty"`
+	GeneralsPointsTotal      [8]int    `json:"generals_points_total,omitempty"`
+	GeneralsPointsUsed       [8]int    `json:"generals_points_used,omitempty"`
+	RadarsBuilt              [8]int    `json:"radars_built,omitempty"`
+	SearchAndDestroy         [8]int    `json:"search_and_destroy,omitempty"`
+	HoldTheLine              [8]int    `json:"hold_the_line,omitempty"`
+	Bombardment              [8]int    `json:"bombardment,omitempty"`
+	XP                       [8]int    `json:"xp,omitempty"`
+	XPLevel                  [8]int    `json:"xp_level,omitempty"`
+	TechBuildingsCaptured    [8]int    `json:"tech_buildings_captured,omitempty"`
+	FactionBuildingsCaptured [8]int    `json:"faction_buildings_captured,omitempty"`
+	PowerTotal               [8]int    `json:"power_total,omitempty"`
+	PowerUsed                [8]int    `json:"power_used,omitempty"`
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
