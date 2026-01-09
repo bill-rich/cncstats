@@ -1,6 +1,8 @@
 package zhreplay
 
 import (
+	"encoding/json"
+
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/header"
@@ -40,6 +42,116 @@ type PlayerStatsData struct {
 	FactionBuildingsCaptured [8]int    `json:"faction_buildings_captured,omitempty"`
 	PowerTotal               [8]int    `json:"power_total,omitempty"`
 	PowerUsed                [8]int    `json:"power_used,omitempty"`
+}
+
+// MarshalJSON implements custom JSON marshaling to omit fields with all zero values
+func (psd *PlayerStatsData) MarshalJSON() ([]byte, error) {
+	type Alias PlayerStatsData
+	aux := &struct {
+		*Alias
+		MoneyEarned              *[8]int    `json:"money_earned,omitempty"`
+		UnitsBuilt               *[8]int    `json:"units_built,omitempty"`
+		UnitsLost                *[8]int    `json:"units_lost,omitempty"`
+		BuildingsBuilt           *[8]int    `json:"buildings_built,omitempty"`
+		BuildingsLost            *[8]int    `json:"buildings_lost,omitempty"`
+		BuildingsKilled          *[8][8]int `json:"buildings_killed,omitempty"`
+		UnitsKilled              *[8][8]int `json:"units_killed,omitempty"`
+		GeneralsPointsTotal      *[8]int    `json:"generals_points_total,omitempty"`
+		GeneralsPointsUsed       *[8]int    `json:"generals_points_used,omitempty"`
+		RadarsBuilt              *[8]int    `json:"radars_built,omitempty"`
+		SearchAndDestroy         *[8]int    `json:"search_and_destroy,omitempty"`
+		HoldTheLine              *[8]int    `json:"hold_the_line,omitempty"`
+		Bombardment              *[8]int    `json:"bombardment,omitempty"`
+		XP                       *[8]int    `json:"xp,omitempty"`
+		XPLevel                  *[8]int    `json:"xp_level,omitempty"`
+		TechBuildingsCaptured    *[8]int    `json:"tech_buildings_captured,omitempty"`
+		FactionBuildingsCaptured *[8]int    `json:"faction_buildings_captured,omitempty"`
+		PowerTotal               *[8]int    `json:"power_total,omitempty"`
+		PowerUsed                *[8]int    `json:"power_used,omitempty"`
+	}{
+		Alias: (*Alias)(psd),
+	}
+
+	// Only include fields that have at least one non-zero value
+	if !isAllZeros8(psd.MoneyEarned) {
+		aux.MoneyEarned = &psd.MoneyEarned
+	}
+	if !isAllZeros8(psd.UnitsBuilt) {
+		aux.UnitsBuilt = &psd.UnitsBuilt
+	}
+	if !isAllZeros8(psd.UnitsLost) {
+		aux.UnitsLost = &psd.UnitsLost
+	}
+	if !isAllZeros8(psd.BuildingsBuilt) {
+		aux.BuildingsBuilt = &psd.BuildingsBuilt
+	}
+	if !isAllZeros8(psd.BuildingsLost) {
+		aux.BuildingsLost = &psd.BuildingsLost
+	}
+	if !isAllZeros8x8(psd.BuildingsKilled) {
+		aux.BuildingsKilled = &psd.BuildingsKilled
+	}
+	if !isAllZeros8x8(psd.UnitsKilled) {
+		aux.UnitsKilled = &psd.UnitsKilled
+	}
+	if !isAllZeros8(psd.GeneralsPointsTotal) {
+		aux.GeneralsPointsTotal = &psd.GeneralsPointsTotal
+	}
+	if !isAllZeros8(psd.GeneralsPointsUsed) {
+		aux.GeneralsPointsUsed = &psd.GeneralsPointsUsed
+	}
+	if !isAllZeros8(psd.RadarsBuilt) {
+		aux.RadarsBuilt = &psd.RadarsBuilt
+	}
+	if !isAllZeros8(psd.SearchAndDestroy) {
+		aux.SearchAndDestroy = &psd.SearchAndDestroy
+	}
+	if !isAllZeros8(psd.HoldTheLine) {
+		aux.HoldTheLine = &psd.HoldTheLine
+	}
+	if !isAllZeros8(psd.Bombardment) {
+		aux.Bombardment = &psd.Bombardment
+	}
+	if !isAllZeros8(psd.XP) {
+		aux.XP = &psd.XP
+	}
+	if !isAllZeros8(psd.XPLevel) {
+		aux.XPLevel = &psd.XPLevel
+	}
+	if !isAllZeros8(psd.TechBuildingsCaptured) {
+		aux.TechBuildingsCaptured = &psd.TechBuildingsCaptured
+	}
+	if !isAllZeros8(psd.FactionBuildingsCaptured) {
+		aux.FactionBuildingsCaptured = &psd.FactionBuildingsCaptured
+	}
+	if !isAllZeros8(psd.PowerTotal) {
+		aux.PowerTotal = &psd.PowerTotal
+	}
+	if !isAllZeros8(psd.PowerUsed) {
+		aux.PowerUsed = &psd.PowerUsed
+	}
+
+	return json.Marshal(aux)
+}
+
+// isAllZeros8 checks if all values in an [8]int array are zero
+func isAllZeros8(arr [8]int) bool {
+	for _, v := range arr {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// isAllZeros8x8 checks if all values in an [8][8]int array are zero
+func isAllZeros8x8(arr [8][8]int) bool {
+	for i := range arr {
+		if !isAllZeros8(arr[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // EnhancedReplay represents a replay with enhanced data including player money
