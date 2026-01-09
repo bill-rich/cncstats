@@ -9,6 +9,10 @@ import (
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
 )
 
+const (
+	EnhancedReplayVersion = 1
+)
+
 // EnhancedBodyChunk represents a body chunk with player money and stats data
 type EnhancedBodyChunk struct {
 	*body.BodyChunk
@@ -157,6 +161,7 @@ func isAllZeros8x8(arr [8][8]int) bool {
 // EnhancedReplay represents a replay with enhanced data including player money
 type EnhancedReplay struct {
 	Header  *header.GeneralsHeader  `json:"Header"`
+	Version int                     `json:"Version"`
 	Body    []*EnhancedBodyChunk    `json:"Body"`
 	Summary []*object.PlayerSummary `json:"Summary"`
 	Offset  int                     `json:"Offset"`
@@ -166,6 +171,7 @@ type EnhancedReplay struct {
 func ConvertToEnhancedReplay(replay *Replay) *EnhancedReplay {
 	enhanced := &EnhancedReplay{
 		Header:  replay.Header,
+		Version: EnhancedReplayVersion,
 		Summary: replay.Summary,
 		Offset:  replay.Offset,
 		Body:    make([]*EnhancedBodyChunk, len(replay.Body)),
