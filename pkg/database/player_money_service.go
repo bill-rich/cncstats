@@ -18,32 +18,126 @@ func NewPlayerMoneyService() *PlayerMoneyService {
 	}
 }
 
-// CreatePlayerMoneyDataRequest represents the request payload for creating player money data
-type CreatePlayerMoneyDataRequest struct {
-	Seed         string `json:"seed" binding:"required"`
-	Timecode     int    `json:"timecode" binding:"required"`
-	Player1Money int    `json:"player_1_money"`
-	Player2Money int    `json:"player_2_money"`
-	Player3Money int    `json:"player_3_money"`
-	Player4Money int    `json:"player_4_money"`
-	Player5Money int    `json:"player_5_money"`
-	Player6Money int    `json:"player_6_money"`
-	Player7Money int    `json:"player_7_money"`
-	Player8Money int    `json:"player_8_money"`
+// MoneyDataRequest represents the request payload for creating player money data
+type MoneyDataRequest struct {
+	Seed                     string       `json:"seed"`
+	Timecode                 int64        `json:"timecode"`
+	Money                    *[8]int32    `json:"money,omitempty"`
+	MoneyEarned              *[8]int32    `json:"money_earned,omitempty"`
+	UnitsBuilt               *[8]int32    `json:"units_built,omitempty"`
+	UnitsLost                *[8]int32    `json:"units_lost,omitempty"`
+	BuildingsBuilt           *[8]int32    `json:"buildings_built,omitempty"`
+	BuildingsLost            *[8]int32    `json:"buildings_lost,omitempty"`
+	BuildingsKilled          *[8][8]int32 `json:"buildings_killed,omitempty"`
+	UnitsKilled              *[8][8]int32 `json:"units_killed,omitempty"`
+	GeneralsPointsTotal      *[8]int32    `json:"generals_points_total,omitempty"`
+	GeneralsPointsUsed       *[8]int32    `json:"generals_points_used,omitempty"`
+	RadarsBuilt              *[8]int32    `json:"radars_built,omitempty"`
+	SearchAndDestroy         *[8]int32    `json:"search_and_destroy,omitempty"`
+	HoldTheLine              *[8]int32    `json:"hold_the_line,omitempty"`
+	Bombardment              *[8]int32    `json:"bombardment,omitempty"`
+	XP                       *[8]int32    `json:"xp,omitempty"`
+	XPLevel                  *[8]int32    `json:"xp_level,omitempty"`
+	TechBuildingsCaptured    *[8]int32    `json:"tech_buildings_captured,omitempty"`
+	FactionBuildingsCaptured *[8]int32    `json:"faction_buildings_captured,omitempty"`
+	PowerTotal               *[8]int32    `json:"power_total,omitempty"`
+	PowerUsed                *[8]int32    `json:"power_used,omitempty"`
 }
 
-// CreatePlayerMoneyData creates a new player money data record or returns existing one
-func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataRequest) (*PlayerMoneyData, error) {
+// CreatePlayerMoneyData creates a new player money data record or updates existing one with partial data
+func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*PlayerMoneyData, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("database not connected")
 	}
 
 	// First, try to find existing record with the same seed and timecode
 	var existingData PlayerMoneyData
-	err := s.db.Where("seed = ? AND timecode = ?", req.Seed, req.Timecode).First(&existingData).Error
+	err := s.db.Where("seed = ? AND timecode = ?", req.Seed, int(req.Timecode)).First(&existingData).Error
+
+	updateMap := make(map[string]interface{})
+
+	// Handle Money array - update individual player money fields
+	if req.Money != nil {
+		updateMap["Player1Money"] = int(req.Money[0])
+		updateMap["Player2Money"] = int(req.Money[1])
+		updateMap["Player3Money"] = int(req.Money[2])
+		updateMap["Player4Money"] = int(req.Money[3])
+		updateMap["Player5Money"] = int(req.Money[4])
+		updateMap["Player6Money"] = int(req.Money[5])
+		updateMap["Player7Money"] = int(req.Money[6])
+		updateMap["Player8Money"] = int(req.Money[7])
+	}
+
+	// Handle all other optional fields - only update if provided
+	if req.MoneyEarned != nil {
+		updateMap["MoneyEarned"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.MoneyEarned), Valid: true}
+	}
+	if req.UnitsBuilt != nil {
+		updateMap["UnitsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsBuilt), Valid: true}
+	}
+	if req.UnitsLost != nil {
+		updateMap["UnitsLost"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsLost), Valid: true}
+	}
+	if req.BuildingsBuilt != nil {
+		updateMap["BuildingsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsBuilt), Valid: true}
+	}
+	if req.BuildingsLost != nil {
+		updateMap["BuildingsLost"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsLost), Valid: true}
+	}
+	if req.BuildingsKilled != nil {
+		updateMap["BuildingsKilled"] = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.BuildingsKilled), Valid: true}
+	}
+	if req.UnitsKilled != nil {
+		updateMap["UnitsKilled"] = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.UnitsKilled), Valid: true}
+	}
+	if req.GeneralsPointsTotal != nil {
+		updateMap["GeneralsPointsTotal"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsTotal), Valid: true}
+	}
+	if req.GeneralsPointsUsed != nil {
+		updateMap["GeneralsPointsUsed"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsUsed), Valid: true}
+	}
+	if req.RadarsBuilt != nil {
+		updateMap["RadarsBuilt"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.RadarsBuilt), Valid: true}
+	}
+	if req.SearchAndDestroy != nil {
+		updateMap["SearchAndDestroy"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.SearchAndDestroy), Valid: true}
+	}
+	if req.HoldTheLine != nil {
+		updateMap["HoldTheLine"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.HoldTheLine), Valid: true}
+	}
+	if req.Bombardment != nil {
+		updateMap["Bombardment"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.Bombardment), Valid: true}
+	}
+	if req.XP != nil {
+		updateMap["XP"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.XP), Valid: true}
+	}
+	if req.XPLevel != nil {
+		updateMap["XPLevel"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.XPLevel), Valid: true}
+	}
+	if req.TechBuildingsCaptured != nil {
+		updateMap["TechBuildingsCaptured"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.TechBuildingsCaptured), Valid: true}
+	}
+	if req.FactionBuildingsCaptured != nil {
+		updateMap["FactionBuildingsCaptured"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.FactionBuildingsCaptured), Valid: true}
+	}
+	if req.PowerTotal != nil {
+		updateMap["PowerTotal"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerTotal), Valid: true}
+	}
+	if req.PowerUsed != nil {
+		updateMap["PowerUsed"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerUsed), Valid: true}
+	}
 
 	if err == nil {
-		// Record already exists, return it without error
+		// Record already exists, update only the provided fields
+		if len(updateMap) > 0 {
+			if err := s.db.Model(&existingData).Updates(updateMap).Error; err != nil {
+				return nil, fmt.Errorf("failed to update player money data: %w", err)
+			}
+			// Reload the record to get updated values
+			if err := s.db.Where("seed = ? AND timecode = ?", req.Seed, int(req.Timecode)).First(&existingData).Error; err != nil {
+				return nil, fmt.Errorf("failed to reload updated player money data: %w", err)
+			}
+		}
 		return &existingData, nil
 	}
 
@@ -52,18 +146,81 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *CreatePlayerMoneyDataReq
 		return nil, fmt.Errorf("failed to check for existing player money data: %w", err)
 	}
 
-	// Record doesn't exist, create new one
+	// Record doesn't exist, create new one with only provided fields
 	playerMoneyData := &PlayerMoneyData{
-		Seed:         req.Seed,
-		Timecode:     req.Timecode,
-		Player1Money: req.Player1Money,
-		Player2Money: req.Player2Money,
-		Player3Money: req.Player3Money,
-		Player4Money: req.Player4Money,
-		Player5Money: req.Player5Money,
-		Player6Money: req.Player6Money,
-		Player7Money: req.Player7Money,
-		Player8Money: req.Player8Money,
+		Seed:     req.Seed,
+		Timecode: int(req.Timecode),
+	}
+
+	// Set money fields if provided
+	if req.Money != nil {
+		playerMoneyData.Player1Money = int(req.Money[0])
+		playerMoneyData.Player2Money = int(req.Money[1])
+		playerMoneyData.Player3Money = int(req.Money[2])
+		playerMoneyData.Player4Money = int(req.Money[3])
+		playerMoneyData.Player5Money = int(req.Money[4])
+		playerMoneyData.Player6Money = int(req.Money[5])
+		playerMoneyData.Player7Money = int(req.Money[6])
+		playerMoneyData.Player8Money = int(req.Money[7])
+	}
+
+	// Set other fields if provided
+	if req.MoneyEarned != nil {
+		playerMoneyData.MoneyEarned = NullableInt32Array8{Int32Array8: Int32Array8(*req.MoneyEarned), Valid: true}
+	}
+	if req.UnitsBuilt != nil {
+		playerMoneyData.UnitsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsBuilt), Valid: true}
+	}
+	if req.UnitsLost != nil {
+		playerMoneyData.UnitsLost = NullableInt32Array8{Int32Array8: Int32Array8(*req.UnitsLost), Valid: true}
+	}
+	if req.BuildingsBuilt != nil {
+		playerMoneyData.BuildingsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsBuilt), Valid: true}
+	}
+	if req.BuildingsLost != nil {
+		playerMoneyData.BuildingsLost = NullableInt32Array8{Int32Array8: Int32Array8(*req.BuildingsLost), Valid: true}
+	}
+	if req.BuildingsKilled != nil {
+		playerMoneyData.BuildingsKilled = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.BuildingsKilled), Valid: true}
+	}
+	if req.UnitsKilled != nil {
+		playerMoneyData.UnitsKilled = NullableInt32Array8x8{Int32Array8x8: Int32Array8x8(*req.UnitsKilled), Valid: true}
+	}
+	if req.GeneralsPointsTotal != nil {
+		playerMoneyData.GeneralsPointsTotal = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsTotal), Valid: true}
+	}
+	if req.GeneralsPointsUsed != nil {
+		playerMoneyData.GeneralsPointsUsed = NullableInt32Array8{Int32Array8: Int32Array8(*req.GeneralsPointsUsed), Valid: true}
+	}
+	if req.RadarsBuilt != nil {
+		playerMoneyData.RadarsBuilt = NullableInt32Array8{Int32Array8: Int32Array8(*req.RadarsBuilt), Valid: true}
+	}
+	if req.SearchAndDestroy != nil {
+		playerMoneyData.SearchAndDestroy = NullableInt32Array8{Int32Array8: Int32Array8(*req.SearchAndDestroy), Valid: true}
+	}
+	if req.HoldTheLine != nil {
+		playerMoneyData.HoldTheLine = NullableInt32Array8{Int32Array8: Int32Array8(*req.HoldTheLine), Valid: true}
+	}
+	if req.Bombardment != nil {
+		playerMoneyData.Bombardment = NullableInt32Array8{Int32Array8: Int32Array8(*req.Bombardment), Valid: true}
+	}
+	if req.XP != nil {
+		playerMoneyData.XP = NullableInt32Array8{Int32Array8: Int32Array8(*req.XP), Valid: true}
+	}
+	if req.XPLevel != nil {
+		playerMoneyData.XPLevel = NullableInt32Array8{Int32Array8: Int32Array8(*req.XPLevel), Valid: true}
+	}
+	if req.TechBuildingsCaptured != nil {
+		playerMoneyData.TechBuildingsCaptured = NullableInt32Array8{Int32Array8: Int32Array8(*req.TechBuildingsCaptured), Valid: true}
+	}
+	if req.FactionBuildingsCaptured != nil {
+		playerMoneyData.FactionBuildingsCaptured = NullableInt32Array8{Int32Array8: Int32Array8(*req.FactionBuildingsCaptured), Valid: true}
+	}
+	if req.PowerTotal != nil {
+		playerMoneyData.PowerTotal = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerTotal), Valid: true}
+	}
+	if req.PowerUsed != nil {
+		playerMoneyData.PowerUsed = NullableInt32Array8{Int32Array8: Int32Array8(*req.PowerUsed), Valid: true}
 	}
 
 	if err := s.db.Create(playerMoneyData).Error; err != nil {

@@ -19,6 +19,7 @@ type Replay struct {
 	Body    []*body.BodyChunk
 	Summary []*object.PlayerSummary
 	Offset  int
+	Version int
 }
 
 type ReplayEasyUnmarshall struct {

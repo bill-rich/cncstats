@@ -38,10 +38,22 @@ func main() {
 	// Determine objData path
 	objDataPath := getObjDataPath(*objData)
 
+	// Configure logrus for Heroku (output to stderr, JSON format in production)
+	// Heroku captures stderr automatically
+	log.SetOutput(os.Stderr)
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+		DisableColors: os.Getenv("DYNO") != "", // Disable colors on Heroku
+	})
+
 	// Set log level
 	if *trace || len(os.Getenv("TRACE")) > 0 {
 		log.SetLevel(log.TraceLevel)
+	} else {
+		log.SetLevel(log.InfoLevel) // Ensure InfoLevel is set explicitly
 	}
+
+	log.Info("CNC Stats application starting...")
 
 	// Handle local mode - skip database operations
 	if *local || len(os.Getenv("LOCAL")) > 0 {
@@ -64,15 +76,19 @@ func main() {
 	}
 
 	// Initialize database (only for server mode)
+	log.Info("Connecting to database...")
 	if err := database.Connect(); err != nil {
 		log.WithError(err).Fatal("could not connect to database")
 	}
+	log.Info("Database connected successfully")
 	defer database.Close()
 
 	// Run database migrations
+	log.Info("Running database migrations...")
 	if err := database.Migrate(); err != nil {
 		log.WithError(err).Fatal("could not migrate database")
 	}
+	log.Info("Database migrations completed")
 
 	// Initialize stores for server mode unless no-stores flag is set
 	var objectStore *iniparse.ObjectStore
@@ -81,14 +97,19 @@ func main() {
 	var colorStore *iniparse.ColorStore
 
 	if !*noStores {
+		log.Info("Initializing INI stores...")
 		var err error
 		objectStore, powerStore, upgradeStore, colorStore, err = initializeStores(objDataPath)
 		if err != nil {
 			log.WithError(err).Fatal("could not initialize stores")
 		}
+		log.Info("INI stores initialized successfully")
+	} else {
+		log.Info("Running without INI stores")
 	}
 
 	// Start web server
+	log.Info("Starting web server...")
 	startWebServer(objectStore, powerStore, upgradeStore, colorStore)
 }
 
@@ -231,7 +252,11 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	if len(os.Getenv("PORT")) > 0 {
 		port = os.Getenv("PORT")
 	}
-	router.Run(":" + port)
+
+	log.WithField("port", port).Info("Server starting")
+	if err := router.Run(":" + port); err != nil {
+		log.WithError(err).Fatal("Failed to start server")
+	}
 }
 
 func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
@@ -262,9 +287,10 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 
-	// Convert to enhanced replay and add money change events
+	// Convert to enhanced replay and add money and stats change events
 	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
 	enhancedReplay.AddMoneyChangeEvents()
+	enhancedReplay.AddStatsChangeEvents()
 
 	// Use money-based winner detection after money events are merged
 	enhancedReplay.DetermineWinnersByMoney()
@@ -275,7 +301,7 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 // Player money data handlers
 
 func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	var req database.CreatePlayerMoneyDataRequest
+	var req database.MoneyDataRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",

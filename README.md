@@ -136,7 +136,7 @@ See `examples/example_streaming.go` for a complete example of streaming replay p
 
 ## Useful commands
 Filter by playerID, and remove checksum, deselects, and camera movements.
-`jq '.Body[] | select(.Number==2 and .OrderType != 1095 and .OrderType != 1092 and .OrderType != 1003)' | less`
+`jq '.Body[] | select(.OrderCode != 1095 and .OrderCode != 1092 and .OrderCode != 1003 and .OrderCode != 2000 and .OrderCode != 1001 and .OrderCode != 1058 and .OrderCode != 1068)' | less`
 
 ## Annotated outputs/thoghts
 ```
@@ -284,3 +284,5 @@ Filter by playerID, and remove checksum, deselects, and camera movements.
 }
 
 ```
+
+Jan 8, 2026
