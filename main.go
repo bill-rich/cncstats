@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,8 +13,10 @@ import (
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
+	"github.com/bill-rich/cncstats/proto/player_money"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
 
@@ -108,8 +111,9 @@ func main() {
 		log.Info("Running without INI stores")
 	}
 
-	// Start web server
-	log.Info("Starting web server...")
+	// Start web server and gRPC server
+	log.Info("Starting web server and gRPC server...")
+	go startGRPCServer()
 	startWebServer(objectStore, powerStore, upgradeStore, colorStore)
 }
 
@@ -215,6 +219,27 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	}
 
 	fmt.Printf("%+v\n", string(um))
+}
+
+func startGRPCServer() {
+	grpcPort := "9090"
+	if len(os.Getenv("GRPC_PORT")) > 0 {
+		grpcPort = os.Getenv("GRPC_PORT")
+	}
+
+	lis, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to listen for gRPC")
+	}
+
+	grpcServer := grpc.NewServer()
+	playerMoneyGRPCServer := database.NewPlayerMoneyGRPCServer()
+	player_money.RegisterPlayerMoneyServiceServer(grpcServer, playerMoneyGRPCServer)
+
+	log.WithField("port", grpcPort).Info("gRPC server starting")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.WithError(err).Fatal("Failed to start gRPC server")
+	}
 }
 
 func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {

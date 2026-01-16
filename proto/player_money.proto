@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package player_money;
+
+option go_package = "github.com/bill-rich/cncstats/proto/player_money";
+
+// PlayerMoneyService provides streaming operations for player money data
+service PlayerMoneyService {
+  // StreamCreatePlayerMoneyData streams multiple player money data records
+  // Client sends multiple requests, server responds with created records
+  rpc StreamCreatePlayerMoneyData(stream MoneyDataRequest) returns (stream MoneyDataResponse);
+
+  // StreamGetPlayerMoneyDataBySeed streams all player money data for a seed
+  // Client sends a seed request, server streams back all matching records
+  rpc StreamGetPlayerMoneyDataBySeed(GetBySeedRequest) returns (stream MoneyDataResponse);
+
+  // StreamGetAllPlayerMoneyData streams all player money data with pagination
+  // Client sends pagination request, server streams back records
+  rpc StreamGetAllPlayerMoneyData(GetAllRequest) returns (stream MoneyDataResponse);
+
+  // StreamGetPlayerMoneyDataByTimecode streams player money data by timecode
+  // Client sends timecode request, server streams back matching records
+  rpc StreamGetPlayerMoneyDataByTimecode(GetByTimecodeRequest) returns (stream MoneyDataResponse);
+}
+
+// MoneyDataRequest represents a request to create/update player money data
+message MoneyDataRequest {
+  string seed = 1;
+  int64 timecode = 2;
+  repeated int32 money = 3;  // 8 values
+  repeated int32 money_earned = 4;  // 8 values
+  repeated int32 units_built = 5;  // 8 values
+  repeated int32 units_lost = 6;  // 8 values
+  repeated int32 buildings_built = 7;  // 8 values
+  repeated int32 buildings_lost = 8;  // 8 values
+  repeated Int32Array8x8 buildings_killed = 9;  // 8x8 array
+  repeated Int32Array8x8 units_killed = 10;  // 8x8 array
+  repeated int32 generals_points_total = 11;  // 8 values
+  repeated int32 generals_points_used = 12;  // 8 values
+  repeated int32 radars_built = 13;  // 8 values
+  repeated int32 search_and_destroy = 14;  // 8 values
+  repeated int32 hold_the_line = 15;  // 8 values
+  repeated int32 bombardment = 16;  // 8 values
+  repeated int32 xp = 17;  // 8 values
+  repeated int32 xp_level = 18;  // 8 values
+  repeated int32 tech_buildings_captured = 19;  // 8 values
+  repeated int32 faction_buildings_captured = 20;  // 8 values
+  repeated int32 power_total = 21;  // 8 values
+  repeated int32 power_used = 22;  // 8 values
+}
+
+// Int32Array8x8 represents a 2D array of 8x8 int32 values
+message Int32Array8x8 {
+  repeated int32 values = 1;  // 64 values (8x8)
+}
+
+// MoneyDataResponse represents a player money data record
+message MoneyDataResponse {
+  uint32 id = 1;
+  string seed = 2;
+  int32 timecode = 3;
+  int32 player_1_money = 4;
+  int32 player_2_money = 5;
+  int32 player_3_money = 6;
+  int32 player_4_money = 7;
+  int32 player_5_money = 8;
+  int32 player_6_money = 9;
+  int32 player_7_money = 10;
+  int32 player_8_money = 11;
+  repeated int32 money_earned = 12;
+  repeated int32 units_built = 13;
+  repeated int32 units_lost = 14;
+  repeated int32 buildings_built = 15;
+  repeated int32 buildings_lost = 16;
+  repeated Int32Array8x8 buildings_killed = 17;
+  repeated Int32Array8x8 units_killed = 18;
+  repeated int32 generals_points_total = 19;
+  repeated int32 generals_points_used = 20;
+  repeated int32 radars_built = 21;
+  repeated int32 search_and_destroy = 22;
+  repeated int32 hold_the_line = 23;
+  repeated int32 bombardment = 24;
+  repeated int32 xp = 25;
+  repeated int32 xp_level = 26;
+  repeated int32 tech_buildings_captured = 27;
+  repeated int32 faction_buildings_captured = 28;
+  repeated int32 power_total = 29;
+  repeated int32 power_used = 30;
+  int64 created_at = 31;  // Unix timestamp
+  int64 updated_at = 32;  // Unix timestamp
+}
+
+// GetBySeedRequest requests player money data by seed
+message GetBySeedRequest {
+  string seed = 1;
+}
+
+// GetAllRequest requests all player money data with pagination
+message GetAllRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+// GetByTimecodeRequest requests player money data by timecode
+message GetByTimecodeRequest {
+  int32 timecode = 1;
+}
+
