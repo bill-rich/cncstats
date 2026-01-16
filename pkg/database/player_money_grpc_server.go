@@ -211,8 +211,8 @@ func protoToMoneyDataRequest(req *player_money.MoneyDataRequest) *MoneyDataReque
 	if len(req.BuildingsKilled) == 8 {
 		arr := [8][8]int32{}
 		for i, row := range req.BuildingsKilled {
-			if i < 8 && len(row.Values) == 8 {
-				copy(arr[i][:], row.Values)
+			if i < 8 && len(row.GetValues()) == 8 {
+				copy(arr[i][:], row.GetValues())
 			}
 		}
 		internalReq.BuildingsKilled = &arr
@@ -220,8 +220,8 @@ func protoToMoneyDataRequest(req *player_money.MoneyDataRequest) *MoneyDataReque
 	if len(req.UnitsKilled) == 8 {
 		arr := [8][8]int32{}
 		for i, row := range req.UnitsKilled {
-			if i < 8 && len(row.Values) == 8 {
-				copy(arr[i][:], row.Values)
+			if i < 8 && len(row.GetValues()) == 8 {
+				copy(arr[i][:], row.GetValues())
 			}
 		}
 		internalReq.UnitsKilled = &arr
@@ -236,19 +236,19 @@ func playerMoneyDataToProto(data *PlayerMoneyData) *player_money.MoneyDataRespon
 	}
 
 	response := &player_money.MoneyDataResponse{
-		Id:           uint32(data.ID),
-		Seed:         data.Seed,
-		Timecode:     int32(data.Timecode),
-		Player1Money: int32(data.Player1Money),
-		Player2Money: int32(data.Player2Money),
-		Player3Money: int32(data.Player3Money),
-		Player4Money: int32(data.Player4Money),
-		Player5Money: int32(data.Player5Money),
-		Player6Money: int32(data.Player6Money),
-		Player7Money: int32(data.Player7Money),
-		Player8Money: int32(data.Player8Money),
-		CreatedAt:    data.CreatedAt.Unix(),
-		UpdatedAt:    data.UpdatedAt.Unix(),
+		Id:            uint32(data.ID),
+		Seed:          data.Seed,
+		Timecode:      int32(data.Timecode),
+		Player_1Money:  int32(data.Player1Money),
+		Player_2Money:  int32(data.Player2Money),
+		Player_3Money:  int32(data.Player3Money),
+		Player_4Money:  int32(data.Player4Money),
+		Player_5Money:  int32(data.Player5Money),
+		Player_6Money:  int32(data.Player6Money),
+		Player_7Money:  int32(data.Player7Money),
+		Player_8Money:  int32(data.Player8Money),
+		CreatedAt:     data.CreatedAt.Unix(),
+		UpdatedAt:     data.UpdatedAt.Unix(),
 	}
 
 	// Convert nullable arrays
@@ -307,14 +307,14 @@ func playerMoneyDataToProto(data *PlayerMoneyData) *player_money.MoneyDataRespon
 	// Convert 2D arrays
 	if data.BuildingsKilled.Valid {
 		for i := 0; i < 8; i++ {
-			response.BuildingsKilled = append(response.BuildingsKilled, &player_money.Int32Array8x8{
+			response.BuildingsKilled = append(response.BuildingsKilled, &player_money.Int32Array8X8{
 				Values: data.BuildingsKilled.Int32Array8x8[i][:],
 			})
 		}
 	}
 	if data.UnitsKilled.Valid {
 		for i := 0; i < 8; i++ {
-			response.UnitsKilled = append(response.UnitsKilled, &player_money.Int32Array8x8{
+			response.UnitsKilled = append(response.UnitsKilled, &player_money.Int32Array8X8{
 				Values: data.UnitsKilled.Int32Array8x8[i][:],
 			})
 		}
