@@ -56,8 +56,8 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 
 	updateMap := make(map[string]interface{})
 
-	// Handle Money array - update player_money field
-	if req.Money != nil {
+	// Handle Money array - update player_money field only if not all zeros
+	if req.Money != nil && !isAllZerosInt32Array8(*req.Money) {
 		updateMap["PlayerMoney"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
@@ -145,8 +145,8 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 		Timecode: int(req.Timecode),
 	}
 
-	// Set money field if provided
-	if req.Money != nil {
+	// Set money field if provided and not all zeros
+	if req.Money != nil && !isAllZerosInt32Array8(*req.Money) {
 		playerMoneyData.PlayerMoney = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
@@ -309,4 +309,14 @@ func (s *PlayerMoneyService) DeletePlayerMoneyData(id uint) error {
 	}
 
 	return nil
+}
+
+// isAllZerosInt32Array8 checks if all values in an [8]int32 array are zero
+func isAllZerosInt32Array8(arr [8]int32) bool {
+	for _, v := range arr {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }

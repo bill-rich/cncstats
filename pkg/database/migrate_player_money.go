@@ -170,4 +170,3 @@ func getIntValue(n sql.NullInt64) int {
 	}
 	return 0
 }
-

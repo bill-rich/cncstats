@@ -1,22 +1,101 @@
 package database
 
 import (
+	"context"
+	"sync"
+
 	"github.com/bill-rich/cncstats/proto/player_money"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// RequestQueueSize is the size of the queue for incoming streaming requests
+	RequestQueueSize = 10000
+)
+
+// QueuedRequest represents a request queued for processing
+type QueuedRequest struct {
+	Request  *player_money.MoneyDataRequest
+	Response chan *player_money.MoneyDataResponse
+	Error    chan error
+}
+
 // PlayerMoneyGRPCServer implements the gRPC PlayerMoneyService server
 type PlayerMoneyGRPCServer struct {
 	player_money.UnimplementedPlayerMoneyServiceServer
-	service *PlayerMoneyService
+	service    *PlayerMoneyService
+	requestQueue chan *QueuedRequest
+	workers     sync.WaitGroup
+	ctx         context.Context
+	cancel      context.CancelFunc
+	once        sync.Once
 }
 
 // NewPlayerMoneyGRPCServer creates a new gRPC server for player money service
 func NewPlayerMoneyGRPCServer() *PlayerMoneyGRPCServer {
-	return &PlayerMoneyGRPCServer{
-		service: NewPlayerMoneyService(),
+	ctx, cancel := context.WithCancel(context.Background())
+	server := &PlayerMoneyGRPCServer{
+		service:      NewPlayerMoneyService(),
+		requestQueue: make(chan *QueuedRequest, RequestQueueSize),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
+	
+	// Start worker goroutines to process queued requests
+	// Use 10 workers for concurrent processing
+	numWorkers := 10
+	for i := 0; i < numWorkers; i++ {
+		server.workers.Add(1)
+		go server.worker()
+	}
+	
+	return server
+}
+
+// worker processes requests from the queue
+func (s *PlayerMoneyGRPCServer) worker() {
+	defer s.workers.Done()
+	
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case queuedReq := <-s.requestQueue:
+			if queuedReq == nil {
+				return
+			}
+			
+			// Convert proto request to internal request
+			internalReq := protoToMoneyDataRequest(queuedReq.Request)
+			
+			// Create the record
+			result, err := s.service.CreatePlayerMoneyData(internalReq)
+			if err != nil {
+				queuedReq.Error <- status.Errorf(codes.Internal, "failed to create player money data: %v", err)
+				close(queuedReq.Response)
+				close(queuedReq.Error)
+				continue
+			}
+			
+			// Convert result to proto response
+			response := playerMoneyDataToProto(result)
+			
+			// Send response back
+			queuedReq.Response <- response
+			close(queuedReq.Response)
+			close(queuedReq.Error)
+		}
+	}
+}
+
+// Shutdown gracefully shuts down the server and waits for workers to finish
+func (s *PlayerMoneyGRPCServer) Shutdown() {
+	s.once.Do(func() {
+		s.cancel()
+		close(s.requestQueue)
+		s.workers.Wait()
+	})
 }
 
 // StreamCreatePlayerMoneyData handles bidirectional streaming for creating player money data
@@ -28,21 +107,47 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 			return nil
 		}
 
-		// Convert proto request to internal request
-		internalReq := protoToMoneyDataRequest(req)
-
-		// Create the record
-		result, err := s.service.CreatePlayerMoneyData(internalReq)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to create player money data: %v", err)
+		// Create channels for response and error
+		responseChan := make(chan *player_money.MoneyDataResponse, 1)
+		errorChan := make(chan error, 1)
+		
+		// Create queued request
+		queuedReq := &QueuedRequest{
+			Request:  req,
+			Response: responseChan,
+			Error:    errorChan,
 		}
-
-		// Convert result to proto response
-		response := playerMoneyDataToProto(result)
-
-		// Send response back to client
-		if err := stream.Send(response); err != nil {
-			return status.Errorf(codes.Internal, "failed to send response: %v", err)
+		
+		// Try to enqueue the request
+		select {
+		case s.requestQueue <- queuedReq:
+			// Successfully queued, wait for response
+		case <-s.ctx.Done():
+			close(responseChan)
+			close(errorChan)
+			return status.Errorf(codes.Unavailable, "server is shutting down")
+		default:
+			// Queue is full, return error
+			close(responseChan)
+			close(errorChan)
+			return status.Errorf(codes.ResourceExhausted, "request queue is full, please retry later")
+		}
+		
+		// Wait for response or error
+		select {
+		case response := <-responseChan:
+			if response != nil {
+				// Send response back to client
+				if err := stream.Send(response); err != nil {
+					return status.Errorf(codes.Internal, "failed to send response: %v", err)
+				}
+			}
+		case err := <-errorChan:
+			if err != nil {
+				return err
+			}
+		case <-s.ctx.Done():
+			return status.Errorf(codes.Unavailable, "server is shutting down")
 		}
 	}
 }
@@ -113,11 +218,14 @@ func protoToMoneyDataRequest(req *player_money.MoneyDataRequest) *MoneyDataReque
 		Timecode: req.Timecode,
 	}
 
-	// Convert money array
+	// Convert money array - only set if not all zeros
 	if len(req.Money) == 8 {
 		money := [8]int32{}
 		copy(money[:], req.Money)
-		internalReq.Money = &money
+		// Only set if not all zeros
+		if !isAllZerosInt32Array8(money) {
+			internalReq.Money = &money
+		}
 	}
 
 	// Convert other arrays
