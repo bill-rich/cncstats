@@ -236,19 +236,16 @@ func playerMoneyDataToProto(data *PlayerMoneyData) *player_money.MoneyDataRespon
 	}
 
 	response := &player_money.MoneyDataResponse{
-		Id:            uint32(data.ID),
-		Seed:          data.Seed,
-		Timecode:      int32(data.Timecode),
-		Player_1Money:  int32(data.Player1Money),
-		Player_2Money:  int32(data.Player2Money),
-		Player_3Money:  int32(data.Player3Money),
-		Player_4Money:  int32(data.Player4Money),
-		Player_5Money:  int32(data.Player5Money),
-		Player_6Money:  int32(data.Player6Money),
-		Player_7Money:  int32(data.Player7Money),
-		Player_8Money:  int32(data.Player8Money),
-		CreatedAt:     data.CreatedAt.Unix(),
-		UpdatedAt:     data.UpdatedAt.Unix(),
+		Id:        uint32(data.ID),
+		Seed:      data.Seed,
+		Timecode:  int32(data.Timecode),
+		CreatedAt: data.CreatedAt.Unix(),
+		UpdatedAt: data.UpdatedAt.Unix(),
+	}
+
+	// Convert player_money array
+	if data.PlayerMoney.Valid {
+		response.PlayerMoney = data.PlayerMoney.Int32Array8[:]
 	}
 
 	// Convert nullable arrays
@@ -322,4 +319,3 @@ func playerMoneyDataToProto(data *PlayerMoneyData) *player_money.MoneyDataRespon
 
 	return response
 }
-

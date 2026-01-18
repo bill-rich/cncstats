@@ -56,16 +56,9 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 
 	updateMap := make(map[string]interface{})
 
-	// Handle Money array - update individual player money fields
+	// Handle Money array - update player_money field
 	if req.Money != nil {
-		updateMap["Player1Money"] = int(req.Money[0])
-		updateMap["Player2Money"] = int(req.Money[1])
-		updateMap["Player3Money"] = int(req.Money[2])
-		updateMap["Player4Money"] = int(req.Money[3])
-		updateMap["Player5Money"] = int(req.Money[4])
-		updateMap["Player6Money"] = int(req.Money[5])
-		updateMap["Player7Money"] = int(req.Money[6])
-		updateMap["Player8Money"] = int(req.Money[7])
+		updateMap["PlayerMoney"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
 	// Handle all other optional fields - only update if provided
@@ -152,16 +145,9 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 		Timecode: int(req.Timecode),
 	}
 
-	// Set money fields if provided
+	// Set money field if provided
 	if req.Money != nil {
-		playerMoneyData.Player1Money = int(req.Money[0])
-		playerMoneyData.Player2Money = int(req.Money[1])
-		playerMoneyData.Player3Money = int(req.Money[2])
-		playerMoneyData.Player4Money = int(req.Money[3])
-		playerMoneyData.Player5Money = int(req.Money[4])
-		playerMoneyData.Player6Money = int(req.Money[5])
-		playerMoneyData.Player7Money = int(req.Money[6])
-		playerMoneyData.Player8Money = int(req.Money[7])
+		playerMoneyData.PlayerMoney = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
 	// Set other fields if provided

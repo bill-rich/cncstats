@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: player_money.proto
+// source: proto/player_money.proto
 
 package player_money
 
@@ -52,7 +52,7 @@ type MoneyDataRequest struct {
 
 func (x *MoneyDataRequest) Reset() {
 	*x = MoneyDataRequest{}
-	mi := &file_player_money_proto_msgTypes[0]
+	mi := &file_proto_player_money_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64,7 +64,7 @@ func (x *MoneyDataRequest) String() string {
 func (*MoneyDataRequest) ProtoMessage() {}
 
 func (x *MoneyDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[0]
+	mi := &file_proto_player_money_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -77,7 +77,7 @@ func (x *MoneyDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoneyDataRequest.ProtoReflect.Descriptor instead.
 func (*MoneyDataRequest) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{0}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *MoneyDataRequest) GetSeed() string {
@@ -244,7 +244,7 @@ type Int32Array8X8 struct {
 
 func (x *Int32Array8X8) Reset() {
 	*x = Int32Array8X8{}
-	mi := &file_player_money_proto_msgTypes[1]
+	mi := &file_proto_player_money_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -256,7 +256,7 @@ func (x *Int32Array8X8) String() string {
 func (*Int32Array8X8) ProtoMessage() {}
 
 func (x *Int32Array8X8) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[1]
+	mi := &file_proto_player_money_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -269,7 +269,7 @@ func (x *Int32Array8X8) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Int32Array8X8.ProtoReflect.Descriptor instead.
 func (*Int32Array8X8) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{1}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Int32Array8X8) GetValues() []int32 {
@@ -285,42 +285,35 @@ type MoneyDataResponse struct {
 	Id                       uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Seed                     string                 `protobuf:"bytes,2,opt,name=seed,proto3" json:"seed,omitempty"`
 	Timecode                 int32                  `protobuf:"varint,3,opt,name=timecode,proto3" json:"timecode,omitempty"`
-	Player_1Money            int32                  `protobuf:"varint,4,opt,name=player_1_money,json=player1Money,proto3" json:"player_1_money,omitempty"`
-	Player_2Money            int32                  `protobuf:"varint,5,opt,name=player_2_money,json=player2Money,proto3" json:"player_2_money,omitempty"`
-	Player_3Money            int32                  `protobuf:"varint,6,opt,name=player_3_money,json=player3Money,proto3" json:"player_3_money,omitempty"`
-	Player_4Money            int32                  `protobuf:"varint,7,opt,name=player_4_money,json=player4Money,proto3" json:"player_4_money,omitempty"`
-	Player_5Money            int32                  `protobuf:"varint,8,opt,name=player_5_money,json=player5Money,proto3" json:"player_5_money,omitempty"`
-	Player_6Money            int32                  `protobuf:"varint,9,opt,name=player_6_money,json=player6Money,proto3" json:"player_6_money,omitempty"`
-	Player_7Money            int32                  `protobuf:"varint,10,opt,name=player_7_money,json=player7Money,proto3" json:"player_7_money,omitempty"`
-	Player_8Money            int32                  `protobuf:"varint,11,opt,name=player_8_money,json=player8Money,proto3" json:"player_8_money,omitempty"`
-	MoneyEarned              []int32                `protobuf:"varint,12,rep,packed,name=money_earned,json=moneyEarned,proto3" json:"money_earned,omitempty"`
-	UnitsBuilt               []int32                `protobuf:"varint,13,rep,packed,name=units_built,json=unitsBuilt,proto3" json:"units_built,omitempty"`
-	UnitsLost                []int32                `protobuf:"varint,14,rep,packed,name=units_lost,json=unitsLost,proto3" json:"units_lost,omitempty"`
-	BuildingsBuilt           []int32                `protobuf:"varint,15,rep,packed,name=buildings_built,json=buildingsBuilt,proto3" json:"buildings_built,omitempty"`
-	BuildingsLost            []int32                `protobuf:"varint,16,rep,packed,name=buildings_lost,json=buildingsLost,proto3" json:"buildings_lost,omitempty"`
-	BuildingsKilled          []*Int32Array8X8       `protobuf:"bytes,17,rep,name=buildings_killed,json=buildingsKilled,proto3" json:"buildings_killed,omitempty"`
-	UnitsKilled              []*Int32Array8X8       `protobuf:"bytes,18,rep,name=units_killed,json=unitsKilled,proto3" json:"units_killed,omitempty"`
-	GeneralsPointsTotal      []int32                `protobuf:"varint,19,rep,packed,name=generals_points_total,json=generalsPointsTotal,proto3" json:"generals_points_total,omitempty"`
-	GeneralsPointsUsed       []int32                `protobuf:"varint,20,rep,packed,name=generals_points_used,json=generalsPointsUsed,proto3" json:"generals_points_used,omitempty"`
-	RadarsBuilt              []int32                `protobuf:"varint,21,rep,packed,name=radars_built,json=radarsBuilt,proto3" json:"radars_built,omitempty"`
-	SearchAndDestroy         []int32                `protobuf:"varint,22,rep,packed,name=search_and_destroy,json=searchAndDestroy,proto3" json:"search_and_destroy,omitempty"`
-	HoldTheLine              []int32                `protobuf:"varint,23,rep,packed,name=hold_the_line,json=holdTheLine,proto3" json:"hold_the_line,omitempty"`
-	Bombardment              []int32                `protobuf:"varint,24,rep,packed,name=bombardment,proto3" json:"bombardment,omitempty"`
-	Xp                       []int32                `protobuf:"varint,25,rep,packed,name=xp,proto3" json:"xp,omitempty"`
-	XpLevel                  []int32                `protobuf:"varint,26,rep,packed,name=xp_level,json=xpLevel,proto3" json:"xp_level,omitempty"`
-	TechBuildingsCaptured    []int32                `protobuf:"varint,27,rep,packed,name=tech_buildings_captured,json=techBuildingsCaptured,proto3" json:"tech_buildings_captured,omitempty"`
-	FactionBuildingsCaptured []int32                `protobuf:"varint,28,rep,packed,name=faction_buildings_captured,json=factionBuildingsCaptured,proto3" json:"faction_buildings_captured,omitempty"`
-	PowerTotal               []int32                `protobuf:"varint,29,rep,packed,name=power_total,json=powerTotal,proto3" json:"power_total,omitempty"`
-	PowerUsed                []int32                `protobuf:"varint,30,rep,packed,name=power_used,json=powerUsed,proto3" json:"power_used,omitempty"`
-	CreatedAt                int64                  `protobuf:"varint,31,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp
-	UpdatedAt                int64                  `protobuf:"varint,32,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Unix timestamp
+	PlayerMoney              []int32                `protobuf:"varint,4,rep,packed,name=player_money,json=playerMoney,proto3" json:"player_money,omitempty"` // 8 values
+	MoneyEarned              []int32                `protobuf:"varint,5,rep,packed,name=money_earned,json=moneyEarned,proto3" json:"money_earned,omitempty"`
+	UnitsBuilt               []int32                `protobuf:"varint,6,rep,packed,name=units_built,json=unitsBuilt,proto3" json:"units_built,omitempty"`
+	UnitsLost                []int32                `protobuf:"varint,7,rep,packed,name=units_lost,json=unitsLost,proto3" json:"units_lost,omitempty"`
+	BuildingsBuilt           []int32                `protobuf:"varint,8,rep,packed,name=buildings_built,json=buildingsBuilt,proto3" json:"buildings_built,omitempty"`
+	BuildingsLost            []int32                `protobuf:"varint,9,rep,packed,name=buildings_lost,json=buildingsLost,proto3" json:"buildings_lost,omitempty"`
+	BuildingsKilled          []*Int32Array8X8       `protobuf:"bytes,10,rep,name=buildings_killed,json=buildingsKilled,proto3" json:"buildings_killed,omitempty"`
+	UnitsKilled              []*Int32Array8X8       `protobuf:"bytes,11,rep,name=units_killed,json=unitsKilled,proto3" json:"units_killed,omitempty"`
+	GeneralsPointsTotal      []int32                `protobuf:"varint,12,rep,packed,name=generals_points_total,json=generalsPointsTotal,proto3" json:"generals_points_total,omitempty"`
+	GeneralsPointsUsed       []int32                `protobuf:"varint,13,rep,packed,name=generals_points_used,json=generalsPointsUsed,proto3" json:"generals_points_used,omitempty"`
+	RadarsBuilt              []int32                `protobuf:"varint,14,rep,packed,name=radars_built,json=radarsBuilt,proto3" json:"radars_built,omitempty"`
+	SearchAndDestroy         []int32                `protobuf:"varint,15,rep,packed,name=search_and_destroy,json=searchAndDestroy,proto3" json:"search_and_destroy,omitempty"`
+	HoldTheLine              []int32                `protobuf:"varint,16,rep,packed,name=hold_the_line,json=holdTheLine,proto3" json:"hold_the_line,omitempty"`
+	Bombardment              []int32                `protobuf:"varint,17,rep,packed,name=bombardment,proto3" json:"bombardment,omitempty"`
+	Xp                       []int32                `protobuf:"varint,18,rep,packed,name=xp,proto3" json:"xp,omitempty"`
+	XpLevel                  []int32                `protobuf:"varint,19,rep,packed,name=xp_level,json=xpLevel,proto3" json:"xp_level,omitempty"`
+	TechBuildingsCaptured    []int32                `protobuf:"varint,20,rep,packed,name=tech_buildings_captured,json=techBuildingsCaptured,proto3" json:"tech_buildings_captured,omitempty"`
+	FactionBuildingsCaptured []int32                `protobuf:"varint,21,rep,packed,name=faction_buildings_captured,json=factionBuildingsCaptured,proto3" json:"faction_buildings_captured,omitempty"`
+	PowerTotal               []int32                `protobuf:"varint,22,rep,packed,name=power_total,json=powerTotal,proto3" json:"power_total,omitempty"`
+	PowerUsed                []int32                `protobuf:"varint,23,rep,packed,name=power_used,json=powerUsed,proto3" json:"power_used,omitempty"`
+	CreatedAt                int64                  `protobuf:"varint,24,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp
+	UpdatedAt                int64                  `protobuf:"varint,25,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Unix timestamp
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
 
 func (x *MoneyDataResponse) Reset() {
 	*x = MoneyDataResponse{}
-	mi := &file_player_money_proto_msgTypes[2]
+	mi := &file_proto_player_money_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +325,7 @@ func (x *MoneyDataResponse) String() string {
 func (*MoneyDataResponse) ProtoMessage() {}
 
 func (x *MoneyDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[2]
+	mi := &file_proto_player_money_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,7 +338,7 @@ func (x *MoneyDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoneyDataResponse.ProtoReflect.Descriptor instead.
 func (*MoneyDataResponse) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{2}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *MoneyDataResponse) GetId() uint32 {
@@ -369,60 +362,11 @@ func (x *MoneyDataResponse) GetTimecode() int32 {
 	return 0
 }
 
-func (x *MoneyDataResponse) GetPlayer_1Money() int32 {
+func (x *MoneyDataResponse) GetPlayerMoney() []int32 {
 	if x != nil {
-		return x.Player_1Money
+		return x.PlayerMoney
 	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_2Money() int32 {
-	if x != nil {
-		return x.Player_2Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_3Money() int32 {
-	if x != nil {
-		return x.Player_3Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_4Money() int32 {
-	if x != nil {
-		return x.Player_4Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_5Money() int32 {
-	if x != nil {
-		return x.Player_5Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_6Money() int32 {
-	if x != nil {
-		return x.Player_6Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_7Money() int32 {
-	if x != nil {
-		return x.Player_7Money
-	}
-	return 0
-}
-
-func (x *MoneyDataResponse) GetPlayer_8Money() int32 {
-	if x != nil {
-		return x.Player_8Money
-	}
-	return 0
+	return nil
 }
 
 func (x *MoneyDataResponse) GetMoneyEarned() []int32 {
@@ -582,7 +526,7 @@ type GetBySeedRequest struct {
 
 func (x *GetBySeedRequest) Reset() {
 	*x = GetBySeedRequest{}
-	mi := &file_player_money_proto_msgTypes[3]
+	mi := &file_proto_player_money_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -594,7 +538,7 @@ func (x *GetBySeedRequest) String() string {
 func (*GetBySeedRequest) ProtoMessage() {}
 
 func (x *GetBySeedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[3]
+	mi := &file_proto_player_money_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -607,7 +551,7 @@ func (x *GetBySeedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBySeedRequest.ProtoReflect.Descriptor instead.
 func (*GetBySeedRequest) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{3}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetBySeedRequest) GetSeed() string {
@@ -628,7 +572,7 @@ type GetAllRequest struct {
 
 func (x *GetAllRequest) Reset() {
 	*x = GetAllRequest{}
-	mi := &file_player_money_proto_msgTypes[4]
+	mi := &file_proto_player_money_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -640,7 +584,7 @@ func (x *GetAllRequest) String() string {
 func (*GetAllRequest) ProtoMessage() {}
 
 func (x *GetAllRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[4]
+	mi := &file_proto_player_money_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -653,7 +597,7 @@ func (x *GetAllRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllRequest.ProtoReflect.Descriptor instead.
 func (*GetAllRequest) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{4}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetAllRequest) GetLimit() int32 {
@@ -680,7 +624,7 @@ type GetByTimecodeRequest struct {
 
 func (x *GetByTimecodeRequest) Reset() {
 	*x = GetByTimecodeRequest{}
-	mi := &file_player_money_proto_msgTypes[5]
+	mi := &file_proto_player_money_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -692,7 +636,7 @@ func (x *GetByTimecodeRequest) String() string {
 func (*GetByTimecodeRequest) ProtoMessage() {}
 
 func (x *GetByTimecodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_player_money_proto_msgTypes[5]
+	mi := &file_proto_player_money_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -705,7 +649,7 @@ func (x *GetByTimecodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetByTimecodeRequest.ProtoReflect.Descriptor instead.
 func (*GetByTimecodeRequest) Descriptor() ([]byte, []int) {
-	return file_player_money_proto_rawDescGZIP(), []int{5}
+	return file_proto_player_money_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetByTimecodeRequest) GetTimecode() int32 {
@@ -715,11 +659,11 @@ func (x *GetByTimecodeRequest) GetTimecode() int32 {
 	return 0
 }
 
-var File_player_money_proto protoreflect.FileDescriptor
+var File_proto_player_money_proto protoreflect.FileDescriptor
 
-const file_player_money_proto_rawDesc = "" +
+const file_proto_player_money_proto_rawDesc = "" +
 	"\n" +
-	"\x12player_money.proto\x12\fplayer_money\"\xf1\x06\n" +
+	"\x18proto/player_money.proto\x12\fplayer_money\"\xf1\x06\n" +
 	"\x10MoneyDataRequest\x12\x12\n" +
 	"\x04seed\x18\x01 \x01(\tR\x04seed\x12\x1a\n" +
 	"\btimecode\x18\x02 \x01(\x03R\btimecode\x12\x14\n" +
@@ -749,47 +693,40 @@ const file_player_money_proto_rawDesc = "" +
 	"\n" +
 	"power_used\x18\x16 \x03(\x05R\tpowerUsed\"'\n" +
 	"\rInt32Array8x8\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\x05R\x06values\"\xda\t\n" +
+	"\x06values\x18\x01 \x03(\x05R\x06values\"\xcd\a\n" +
 	"\x11MoneyDataResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04seed\x18\x02 \x01(\tR\x04seed\x12\x1a\n" +
-	"\btimecode\x18\x03 \x01(\x05R\btimecode\x12$\n" +
-	"\x0eplayer_1_money\x18\x04 \x01(\x05R\fplayer1Money\x12$\n" +
-	"\x0eplayer_2_money\x18\x05 \x01(\x05R\fplayer2Money\x12$\n" +
-	"\x0eplayer_3_money\x18\x06 \x01(\x05R\fplayer3Money\x12$\n" +
-	"\x0eplayer_4_money\x18\a \x01(\x05R\fplayer4Money\x12$\n" +
-	"\x0eplayer_5_money\x18\b \x01(\x05R\fplayer5Money\x12$\n" +
-	"\x0eplayer_6_money\x18\t \x01(\x05R\fplayer6Money\x12$\n" +
-	"\x0eplayer_7_money\x18\n" +
-	" \x01(\x05R\fplayer7Money\x12$\n" +
-	"\x0eplayer_8_money\x18\v \x01(\x05R\fplayer8Money\x12!\n" +
-	"\fmoney_earned\x18\f \x03(\x05R\vmoneyEarned\x12\x1f\n" +
-	"\vunits_built\x18\r \x03(\x05R\n" +
+	"\btimecode\x18\x03 \x01(\x05R\btimecode\x12!\n" +
+	"\fplayer_money\x18\x04 \x03(\x05R\vplayerMoney\x12!\n" +
+	"\fmoney_earned\x18\x05 \x03(\x05R\vmoneyEarned\x12\x1f\n" +
+	"\vunits_built\x18\x06 \x03(\x05R\n" +
 	"unitsBuilt\x12\x1d\n" +
 	"\n" +
-	"units_lost\x18\x0e \x03(\x05R\tunitsLost\x12'\n" +
-	"\x0fbuildings_built\x18\x0f \x03(\x05R\x0ebuildingsBuilt\x12%\n" +
-	"\x0ebuildings_lost\x18\x10 \x03(\x05R\rbuildingsLost\x12F\n" +
-	"\x10buildings_killed\x18\x11 \x03(\v2\x1b.player_money.Int32Array8x8R\x0fbuildingsKilled\x12>\n" +
-	"\funits_killed\x18\x12 \x03(\v2\x1b.player_money.Int32Array8x8R\vunitsKilled\x122\n" +
-	"\x15generals_points_total\x18\x13 \x03(\x05R\x13generalsPointsTotal\x120\n" +
-	"\x14generals_points_used\x18\x14 \x03(\x05R\x12generalsPointsUsed\x12!\n" +
-	"\fradars_built\x18\x15 \x03(\x05R\vradarsBuilt\x12,\n" +
-	"\x12search_and_destroy\x18\x16 \x03(\x05R\x10searchAndDestroy\x12\"\n" +
-	"\rhold_the_line\x18\x17 \x03(\x05R\vholdTheLine\x12 \n" +
-	"\vbombardment\x18\x18 \x03(\x05R\vbombardment\x12\x0e\n" +
-	"\x02xp\x18\x19 \x03(\x05R\x02xp\x12\x19\n" +
-	"\bxp_level\x18\x1a \x03(\x05R\axpLevel\x126\n" +
-	"\x17tech_buildings_captured\x18\x1b \x03(\x05R\x15techBuildingsCaptured\x12<\n" +
-	"\x1afaction_buildings_captured\x18\x1c \x03(\x05R\x18factionBuildingsCaptured\x12\x1f\n" +
-	"\vpower_total\x18\x1d \x03(\x05R\n" +
+	"units_lost\x18\a \x03(\x05R\tunitsLost\x12'\n" +
+	"\x0fbuildings_built\x18\b \x03(\x05R\x0ebuildingsBuilt\x12%\n" +
+	"\x0ebuildings_lost\x18\t \x03(\x05R\rbuildingsLost\x12F\n" +
+	"\x10buildings_killed\x18\n" +
+	" \x03(\v2\x1b.player_money.Int32Array8x8R\x0fbuildingsKilled\x12>\n" +
+	"\funits_killed\x18\v \x03(\v2\x1b.player_money.Int32Array8x8R\vunitsKilled\x122\n" +
+	"\x15generals_points_total\x18\f \x03(\x05R\x13generalsPointsTotal\x120\n" +
+	"\x14generals_points_used\x18\r \x03(\x05R\x12generalsPointsUsed\x12!\n" +
+	"\fradars_built\x18\x0e \x03(\x05R\vradarsBuilt\x12,\n" +
+	"\x12search_and_destroy\x18\x0f \x03(\x05R\x10searchAndDestroy\x12\"\n" +
+	"\rhold_the_line\x18\x10 \x03(\x05R\vholdTheLine\x12 \n" +
+	"\vbombardment\x18\x11 \x03(\x05R\vbombardment\x12\x0e\n" +
+	"\x02xp\x18\x12 \x03(\x05R\x02xp\x12\x19\n" +
+	"\bxp_level\x18\x13 \x03(\x05R\axpLevel\x126\n" +
+	"\x17tech_buildings_captured\x18\x14 \x03(\x05R\x15techBuildingsCaptured\x12<\n" +
+	"\x1afaction_buildings_captured\x18\x15 \x03(\x05R\x18factionBuildingsCaptured\x12\x1f\n" +
+	"\vpower_total\x18\x16 \x03(\x05R\n" +
 	"powerTotal\x12\x1d\n" +
 	"\n" +
-	"power_used\x18\x1e \x03(\x05R\tpowerUsed\x12\x1d\n" +
+	"power_used\x18\x17 \x03(\x05R\tpowerUsed\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x1f \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\x18 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18  \x01(\x03R\tupdatedAt\"&\n" +
+	"updated_at\x18\x19 \x01(\x03R\tupdatedAt\"&\n" +
 	"\x10GetBySeedRequest\x12\x12\n" +
 	"\x04seed\x18\x01 \x01(\tR\x04seed\"=\n" +
 	"\rGetAllRequest\x12\x14\n" +
@@ -804,19 +741,19 @@ const file_player_money_proto_rawDesc = "" +
 	"\"StreamGetPlayerMoneyDataByTimecode\x12\".player_money.GetByTimecodeRequest\x1a\x1f.player_money.MoneyDataResponse0\x01B2Z0github.com/bill-rich/cncstats/proto/player_moneyb\x06proto3"
 
 var (
-	file_player_money_proto_rawDescOnce sync.Once
-	file_player_money_proto_rawDescData []byte
+	file_proto_player_money_proto_rawDescOnce sync.Once
+	file_proto_player_money_proto_rawDescData []byte
 )
 
-func file_player_money_proto_rawDescGZIP() []byte {
-	file_player_money_proto_rawDescOnce.Do(func() {
-		file_player_money_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_player_money_proto_rawDesc), len(file_player_money_proto_rawDesc)))
+func file_proto_player_money_proto_rawDescGZIP() []byte {
+	file_proto_player_money_proto_rawDescOnce.Do(func() {
+		file_proto_player_money_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_player_money_proto_rawDesc), len(file_proto_player_money_proto_rawDesc)))
 	})
-	return file_player_money_proto_rawDescData
+	return file_proto_player_money_proto_rawDescData
 }
 
-var file_player_money_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_player_money_proto_goTypes = []any{
+var file_proto_player_money_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_player_money_proto_goTypes = []any{
 	(*MoneyDataRequest)(nil),     // 0: player_money.MoneyDataRequest
 	(*Int32Array8X8)(nil),        // 1: player_money.Int32Array8x8
 	(*MoneyDataResponse)(nil),    // 2: player_money.MoneyDataResponse
@@ -824,7 +761,7 @@ var file_player_money_proto_goTypes = []any{
 	(*GetAllRequest)(nil),        // 4: player_money.GetAllRequest
 	(*GetByTimecodeRequest)(nil), // 5: player_money.GetByTimecodeRequest
 }
-var file_player_money_proto_depIdxs = []int32{
+var file_proto_player_money_proto_depIdxs = []int32{
 	1, // 0: player_money.MoneyDataRequest.buildings_killed:type_name -> player_money.Int32Array8x8
 	1, // 1: player_money.MoneyDataRequest.units_killed:type_name -> player_money.Int32Array8x8
 	1, // 2: player_money.MoneyDataResponse.buildings_killed:type_name -> player_money.Int32Array8x8
@@ -844,26 +781,26 @@ var file_player_money_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_player_money_proto_init() }
-func file_player_money_proto_init() {
-	if File_player_money_proto != nil {
+func init() { file_proto_player_money_proto_init() }
+func file_proto_player_money_proto_init() {
+	if File_proto_player_money_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_player_money_proto_rawDesc), len(file_player_money_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_player_money_proto_rawDesc), len(file_proto_player_money_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_player_money_proto_goTypes,
-		DependencyIndexes: file_player_money_proto_depIdxs,
-		MessageInfos:      file_player_money_proto_msgTypes,
+		GoTypes:           file_proto_player_money_proto_goTypes,
+		DependencyIndexes: file_proto_player_money_proto_depIdxs,
+		MessageInfos:      file_proto_player_money_proto_msgTypes,
 	}.Build()
-	File_player_money_proto = out.File
-	file_player_money_proto_goTypes = nil
-	file_player_money_proto_depIdxs = nil
+	File_proto_player_money_proto = out.File
+	file_proto_player_money_proto_goTypes = nil
+	file_proto_player_money_proto_depIdxs = nil
 }
