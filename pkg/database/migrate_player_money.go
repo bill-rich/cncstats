@@ -163,6 +163,51 @@ func MigratePlayerMoneyToArray() error {
 	return nil
 }
 
+// MigrateSeedIndex adds an index on the seed column for faster lookups
+func MigrateSeedIndex() error {
+	if DB == nil {
+		return fmt.Errorf("database not connected")
+	}
+
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	log.Println("Checking if seed index exists...")
+
+	// Check if index already exists
+	var indexExists bool
+	err = sqlDB.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1 
+			FROM pg_indexes 
+			WHERE tablename = 'player_money_data' 
+			AND indexname = 'idx_seed'
+		)
+	`).Scan(&indexExists)
+	if err != nil {
+		return fmt.Errorf("failed to check if seed index exists: %w", err)
+	}
+
+	if indexExists {
+		log.Println("Seed index already exists")
+		return nil
+	}
+
+	// Create the index
+	log.Println("Creating index on seed column...")
+	_, err = sqlDB.Exec(`
+		CREATE INDEX idx_seed ON player_money_data(seed)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create seed index: %w", err)
+	}
+
+	log.Println("Seed index created successfully!")
+	return nil
+}
+
 // getIntValue safely extracts int value from sql.NullInt64
 func getIntValue(n sql.NullInt64) int {
 	if n.Valid {

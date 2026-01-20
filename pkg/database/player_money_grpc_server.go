@@ -24,12 +24,12 @@ type QueuedRequest struct {
 // PlayerMoneyGRPCServer implements the gRPC PlayerMoneyService server
 type PlayerMoneyGRPCServer struct {
 	player_money.UnimplementedPlayerMoneyServiceServer
-	service    *PlayerMoneyService
+	service      *PlayerMoneyService
 	requestQueue chan *QueuedRequest
-	workers     sync.WaitGroup
-	ctx         context.Context
-	cancel      context.CancelFunc
-	once        sync.Once
+	workers      sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
+	once         sync.Once
 }
 
 // NewPlayerMoneyGRPCServer creates a new gRPC server for player money service
@@ -41,7 +41,7 @@ func NewPlayerMoneyGRPCServer() *PlayerMoneyGRPCServer {
 		ctx:          ctx,
 		cancel:       cancel,
 	}
-	
+
 	// Start worker goroutines to process queued requests
 	// Use 10 workers for concurrent processing
 	numWorkers := 10
@@ -49,14 +49,14 @@ func NewPlayerMoneyGRPCServer() *PlayerMoneyGRPCServer {
 		server.workers.Add(1)
 		go server.worker()
 	}
-	
+
 	return server
 }
 
 // worker processes requests from the queue
 func (s *PlayerMoneyGRPCServer) worker() {
 	defer s.workers.Done()
-	
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -65,10 +65,10 @@ func (s *PlayerMoneyGRPCServer) worker() {
 			if queuedReq == nil {
 				return
 			}
-			
+
 			// Convert proto request to internal request
 			internalReq := protoToMoneyDataRequest(queuedReq.Request)
-			
+
 			// Create the record
 			result, err := s.service.CreatePlayerMoneyData(internalReq)
 			if err != nil {
@@ -77,10 +77,10 @@ func (s *PlayerMoneyGRPCServer) worker() {
 				close(queuedReq.Error)
 				continue
 			}
-			
+
 			// Convert result to proto response
 			response := playerMoneyDataToProto(result)
-			
+
 			// Send response back
 			queuedReq.Response <- response
 			close(queuedReq.Response)
@@ -100,6 +100,8 @@ func (s *PlayerMoneyGRPCServer) Shutdown() {
 
 // StreamCreatePlayerMoneyData handles bidirectional streaming for creating player money data
 func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.PlayerMoneyService_StreamCreatePlayerMoneyDataServer) error {
+	firstMessage := true
+
 	for {
 		req, err := stream.Recv()
 		if err != nil {
@@ -107,17 +109,32 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 			return nil
 		}
 
+		// On the first message, check if seed already has data and delete it if it does
+		if firstMessage {
+			firstMessage = false
+			hasData, err := s.service.HasDataForSeed(req.Seed)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to check for existing data: %v", err)
+			}
+
+			if hasData {
+				if err := s.service.DeletePlayerMoneyDataBySeed(req.Seed); err != nil {
+					return status.Errorf(codes.Internal, "failed to delete existing data: %v", err)
+				}
+			}
+		}
+
 		// Create channels for response and error
 		responseChan := make(chan *player_money.MoneyDataResponse, 1)
 		errorChan := make(chan error, 1)
-		
+
 		// Create queued request
 		queuedReq := &QueuedRequest{
 			Request:  req,
 			Response: responseChan,
 			Error:    errorChan,
 		}
-		
+
 		// Try to enqueue the request
 		select {
 		case s.requestQueue <- queuedReq:
@@ -132,7 +149,7 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 			close(errorChan)
 			return status.Errorf(codes.ResourceExhausted, "request queue is full, please retry later")
 		}
-		
+
 		// Wait for response or error
 		select {
 		case response := <-responseChan:

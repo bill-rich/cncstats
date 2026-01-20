@@ -118,7 +118,7 @@ func (n *NullableInt32Array8x8) Scan(value interface{}) error {
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
 	ID                       uint                  `gorm:"primaryKey" json:"id"`
-	Seed                     string                `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
+	Seed                     string                `gorm:"not null;uniqueIndex:idx_seed_timecode;index:idx_seed" json:"seed"`
 	Timecode                 int                   `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
 	PlayerMoney              NullableInt32Array8   `gorm:"type:jsonb" json:"player_money"`
 	MoneyEarned              NullableInt32Array8   `gorm:"type:jsonb" json:"money_earned"`
@@ -207,6 +207,12 @@ func Migrate() error {
 	err = MigratePlayerMoneyToArray()
 	if err != nil {
 		return fmt.Errorf("failed to migrate player money columns: %w", err)
+	}
+
+	// Run migration to add index on seed column
+	err = MigrateSeedIndex()
+	if err != nil {
+		return fmt.Errorf("failed to migrate seed index: %w", err)
 	}
 
 	return nil

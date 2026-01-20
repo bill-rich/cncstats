@@ -311,6 +311,33 @@ func (s *PlayerMoneyService) DeletePlayerMoneyData(id uint) error {
 	return nil
 }
 
+// DeletePlayerMoneyDataBySeed deletes all player money data for a specific seed
+func (s *PlayerMoneyService) DeletePlayerMoneyDataBySeed(seed string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not connected")
+	}
+
+	if err := s.db.Where("seed = ?", seed).Delete(&PlayerMoneyData{}).Error; err != nil {
+		return fmt.Errorf("failed to delete player money data by seed: %w", err)
+	}
+
+	return nil
+}
+
+// HasDataForSeed checks if there is any data in the database for the given seed
+func (s *PlayerMoneyService) HasDataForSeed(seed string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("database not connected")
+	}
+
+	var count int64
+	if err := s.db.Model(&PlayerMoneyData{}).Where("seed = ?", seed).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("failed to check for existing data: %w", err)
+	}
+
+	return count > 0, nil
+}
+
 // isAllZerosInt32Array8 checks if all values in an [8]int32 array are zero
 func isAllZerosInt32Array8(arr [8]int32) bool {
 	for _, v := range arr {
