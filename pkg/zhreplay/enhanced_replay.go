@@ -236,18 +236,18 @@ func (er *EnhancedReplay) AddPlayerMoneyData() {
 			continue
 		}
 
-		if moneyData != nil {
+		if moneyData != nil && moneyData.PlayerMoney.Valid {
 			// Convert database money data to our PlayerMoneyData format
 			playerMoney := &PlayerMoneyData{
 				PlayerMoney: [8]int{
-					moneyData.Player1Money,
-					moneyData.Player2Money,
-					moneyData.Player3Money,
-					moneyData.Player4Money,
-					moneyData.Player5Money,
-					moneyData.Player6Money,
-					moneyData.Player7Money,
-					moneyData.Player8Money,
+					int(moneyData.PlayerMoney.Int32Array8[0]),
+					int(moneyData.PlayerMoney.Int32Array8[1]),
+					int(moneyData.PlayerMoney.Int32Array8[2]),
+					int(moneyData.PlayerMoney.Int32Array8[3]),
+					int(moneyData.PlayerMoney.Int32Array8[4]),
+					int(moneyData.PlayerMoney.Int32Array8[5]),
+					int(moneyData.PlayerMoney.Int32Array8[6]),
+					int(moneyData.PlayerMoney.Int32Array8[7]),
 				},
 			}
 
@@ -279,33 +279,36 @@ func (er *EnhancedReplay) AddMoneyChangeEvents() {
 	// Create money change events for each database record
 	var moneyChangeEvents []*EnhancedBodyChunk
 	for _, moneyData := range moneyChanges {
-		// Create a money change event for each timecode
-		moneyChangeEvent := &EnhancedBodyChunk{
-			BodyChunk: &body.BodyChunk{
-				TimeCode:          moneyData.Timecode,
-				OrderCode:         2000, // MoneyValueChange code
-				OrderName:         "MoneyValueChange",
-				PlayerID:          0, // Money changes affect all players
-				PlayerName:        "",
-				NumberOfArguments: 0,
-				Details:           nil,
-				ArgMetadata:       []*body.ArgMetadata{},
-				Arguments:         []interface{}{},
-			},
-			PlayerMoney: &PlayerMoneyData{
-				PlayerMoney: [8]int{
-					moneyData.Player1Money,
-					moneyData.Player2Money,
-					moneyData.Player3Money,
-					moneyData.Player4Money,
-					moneyData.Player5Money,
-					moneyData.Player6Money,
-					moneyData.Player7Money,
-					moneyData.Player8Money,
+		// Only create event if player_money is valid
+		if moneyData.PlayerMoney.Valid {
+			// Create a money change event for each timecode
+			moneyChangeEvent := &EnhancedBodyChunk{
+				BodyChunk: &body.BodyChunk{
+					TimeCode:          moneyData.Timecode,
+					OrderCode:         2000, // MoneyValueChange code
+					OrderName:         "MoneyValueChange",
+					PlayerID:          0, // Money changes affect all players
+					PlayerName:        "",
+					NumberOfArguments: 0,
+					Details:           nil,
+					ArgMetadata:       []*body.ArgMetadata{},
+					Arguments:         []interface{}{},
 				},
-			},
+				PlayerMoney: &PlayerMoneyData{
+					PlayerMoney: [8]int{
+						int(moneyData.PlayerMoney.Int32Array8[0]),
+						int(moneyData.PlayerMoney.Int32Array8[1]),
+						int(moneyData.PlayerMoney.Int32Array8[2]),
+						int(moneyData.PlayerMoney.Int32Array8[3]),
+						int(moneyData.PlayerMoney.Int32Array8[4]),
+						int(moneyData.PlayerMoney.Int32Array8[5]),
+						int(moneyData.PlayerMoney.Int32Array8[6]),
+						int(moneyData.PlayerMoney.Int32Array8[7]),
+					},
+				},
+			}
+			moneyChangeEvents = append(moneyChangeEvents, moneyChangeEvent)
 		}
-		moneyChangeEvents = append(moneyChangeEvents, moneyChangeEvent)
 	}
 
 	// Merge the money change events with existing body chunks, sorted by timecode

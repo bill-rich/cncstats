@@ -118,16 +118,9 @@ func (n *NullableInt32Array8x8) Scan(value interface{}) error {
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
 	ID                       uint                  `gorm:"primaryKey" json:"id"`
-	Seed                     string                `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"seed"`
+	Seed                     string                `gorm:"not null;uniqueIndex:idx_seed_timecode;index:idx_seed" json:"seed"`
 	Timecode                 int                   `gorm:"not null;uniqueIndex:idx_seed_timecode" json:"timecode"`
-	Player1Money             int                   `gorm:"default:0" json:"player_1_money"`
-	Player2Money             int                   `gorm:"default:0" json:"player_2_money"`
-	Player3Money             int                   `gorm:"default:0" json:"player_3_money"`
-	Player4Money             int                   `gorm:"default:0" json:"player_4_money"`
-	Player5Money             int                   `gorm:"default:0" json:"player_5_money"`
-	Player6Money             int                   `gorm:"default:0" json:"player_6_money"`
-	Player7Money             int                   `gorm:"default:0" json:"player_7_money"`
-	Player8Money             int                   `gorm:"default:0" json:"player_8_money"`
+	PlayerMoney              NullableInt32Array8   `gorm:"type:jsonb" json:"player_money"`
 	MoneyEarned              NullableInt32Array8   `gorm:"type:jsonb" json:"money_earned"`
 	UnitsBuilt               NullableInt32Array8   `gorm:"type:jsonb" json:"units_built"`
 	UnitsLost                NullableInt32Array8   `gorm:"type:jsonb" json:"units_lost"`
@@ -208,6 +201,18 @@ func Migrate() error {
 	err := DB.AutoMigrate(&PlayerMoneyData{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	// Run custom migration to combine playerX_money columns into player_money array
+	err = MigratePlayerMoneyToArray()
+	if err != nil {
+		return fmt.Errorf("failed to migrate player money columns: %w", err)
+	}
+
+	// Run migration to add index on seed column
+	err = MigrateSeedIndex()
+	if err != nil {
+		return fmt.Errorf("failed to migrate seed index: %w", err)
 	}
 
 	return nil

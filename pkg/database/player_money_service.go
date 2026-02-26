@@ -56,16 +56,9 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 
 	updateMap := make(map[string]interface{})
 
-	// Handle Money array - update individual player money fields
-	if req.Money != nil {
-		updateMap["Player1Money"] = int(req.Money[0])
-		updateMap["Player2Money"] = int(req.Money[1])
-		updateMap["Player3Money"] = int(req.Money[2])
-		updateMap["Player4Money"] = int(req.Money[3])
-		updateMap["Player5Money"] = int(req.Money[4])
-		updateMap["Player6Money"] = int(req.Money[5])
-		updateMap["Player7Money"] = int(req.Money[6])
-		updateMap["Player8Money"] = int(req.Money[7])
+	// Handle Money array - update player_money field only if not all zeros
+	if req.Money != nil && !isAllZerosInt32Array8(*req.Money) {
+		updateMap["PlayerMoney"] = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
 	// Handle all other optional fields - only update if provided
@@ -152,16 +145,9 @@ func (s *PlayerMoneyService) CreatePlayerMoneyData(req *MoneyDataRequest) (*Play
 		Timecode: int(req.Timecode),
 	}
 
-	// Set money fields if provided
-	if req.Money != nil {
-		playerMoneyData.Player1Money = int(req.Money[0])
-		playerMoneyData.Player2Money = int(req.Money[1])
-		playerMoneyData.Player3Money = int(req.Money[2])
-		playerMoneyData.Player4Money = int(req.Money[3])
-		playerMoneyData.Player5Money = int(req.Money[4])
-		playerMoneyData.Player6Money = int(req.Money[5])
-		playerMoneyData.Player7Money = int(req.Money[6])
-		playerMoneyData.Player8Money = int(req.Money[7])
+	// Set money field if provided and not all zeros
+	if req.Money != nil && !isAllZerosInt32Array8(*req.Money) {
+		playerMoneyData.PlayerMoney = NullableInt32Array8{Int32Array8: Int32Array8(*req.Money), Valid: true}
 	}
 
 	// Set other fields if provided
@@ -323,4 +309,41 @@ func (s *PlayerMoneyService) DeletePlayerMoneyData(id uint) error {
 	}
 
 	return nil
+}
+
+// DeletePlayerMoneyDataBySeed deletes all player money data for a specific seed
+func (s *PlayerMoneyService) DeletePlayerMoneyDataBySeed(seed string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not connected")
+	}
+
+	if err := s.db.Where("seed = ?", seed).Delete(&PlayerMoneyData{}).Error; err != nil {
+		return fmt.Errorf("failed to delete player money data by seed: %w", err)
+	}
+
+	return nil
+}
+
+// HasDataForSeed checks if there is any data in the database for the given seed
+func (s *PlayerMoneyService) HasDataForSeed(seed string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("database not connected")
+	}
+
+	var count int64
+	if err := s.db.Model(&PlayerMoneyData{}).Where("seed = ?", seed).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("failed to check for existing data: %w", err)
+	}
+
+	return count > 0, nil
+}
+
+// isAllZerosInt32Array8 checks if all values in an [8]int32 array are zero
+func isAllZerosInt32Array8(arr [8]int32) bool {
+	for _, v := range arr {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }
