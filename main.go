@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/database"
@@ -17,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"gorm.io/gorm"
 )
 
@@ -232,7 +234,19 @@ func startGRPCServer() {
 		log.WithError(err).Fatal("Failed to listen for gRPC")
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle:     5 * time.Minute,
+			MaxConnectionAge:      30 * time.Minute,
+			MaxConnectionAgeGrace: 10 * time.Second,
+			Time:                  1 * time.Minute,
+			Timeout:               20 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             10 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
 	playerMoneyGRPCServer := database.NewPlayerMoneyGRPCServer()
 	player_money.RegisterPlayerMoneyServiceServer(grpcServer, playerMoneyGRPCServer)
 

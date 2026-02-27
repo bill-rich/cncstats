@@ -2,9 +2,13 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
+	"time"
 
 	"github.com/bill-rich/cncstats/proto/player_money"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -12,6 +16,10 @@ import (
 const (
 	// RequestQueueSize is the size of the queue for incoming streaming requests
 	RequestQueueSize = 10000
+	// QueueSendTimeout is how long to wait when the queue is full before giving up
+	QueueSendTimeout = 30 * time.Second
+	// WorkerResponseTimeout is how long to wait for a worker to respond
+	WorkerResponseTimeout = 30 * time.Second
 )
 
 // QueuedRequest represents a request queued for processing
@@ -65,28 +73,41 @@ func (s *PlayerMoneyGRPCServer) worker() {
 			if queuedReq == nil {
 				return
 			}
+			s.processRequest(queuedReq)
+		}
+	}
+}
 
-			// Convert proto request to internal request
-			internalReq := protoToMoneyDataRequest(queuedReq.Request)
-
-			// Create the record
-			result, err := s.service.CreatePlayerMoneyData(internalReq)
-			if err != nil {
-				queuedReq.Error <- status.Errorf(codes.Internal, "failed to create player money data: %v", err)
-				close(queuedReq.Response)
-				close(queuedReq.Error)
-				continue
-			}
-
-			// Convert result to proto response
-			response := playerMoneyDataToProto(result)
-
-			// Send response back
-			queuedReq.Response <- response
+// processRequest handles a single queued request with panic recovery.
+func (s *PlayerMoneyGRPCServer) processRequest(queuedReq *QueuedRequest) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.WithField("panic", fmt.Sprintf("%v", r)).Error("worker panic recovered")
+			queuedReq.Error <- status.Errorf(codes.Internal, "worker panic: %v", r)
 			close(queuedReq.Response)
 			close(queuedReq.Error)
 		}
+	}()
+
+	// Convert proto request to internal request
+	internalReq := protoToMoneyDataRequest(queuedReq.Request)
+
+	// Create the record
+	result, err := s.service.CreatePlayerMoneyData(internalReq)
+	if err != nil {
+		queuedReq.Error <- status.Errorf(codes.Internal, "failed to create player money data: %v", err)
+		close(queuedReq.Response)
+		close(queuedReq.Error)
+		return
 	}
+
+	// Convert result to proto response
+	response := playerMoneyDataToProto(result)
+
+	// Send response back
+	queuedReq.Response <- response
+	close(queuedReq.Response)
+	close(queuedReq.Error)
 }
 
 // Shutdown gracefully shuts down the server and waits for workers to finish
@@ -100,11 +121,17 @@ func (s *PlayerMoneyGRPCServer) Shutdown() {
 
 // StreamCreatePlayerMoneyData handles bidirectional streaming for creating player money data
 func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.PlayerMoneyService_StreamCreatePlayerMoneyDataServer) error {
+	log.Info("stream opened: StreamCreatePlayerMoneyData")
+	defer log.Info("stream closed: StreamCreatePlayerMoneyData")
+
 	for {
 		req, err := stream.Recv()
 		if err != nil {
-			// End of stream
-			return nil
+			if err == io.EOF {
+				return nil
+			}
+			log.WithError(err).Warn("stream recv error")
+			return status.Errorf(codes.Unknown, "recv error: %v", err)
 		}
 
 		// Delete existing data for this seed if the client requests it.
@@ -112,7 +139,9 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 		// but not on reconnects, avoiding accidental data loss.
 		if req.ResetSeed {
 			if err := s.service.DeletePlayerMoneyDataBySeed(req.Seed); err != nil {
-				return status.Errorf(codes.Internal, "failed to delete existing data: %v", err)
+				log.WithError(err).WithField("seed", req.Seed).Warn("failed to reset seed (continuing)")
+			} else {
+				log.WithField("seed", req.Seed).Info("reset seed data")
 			}
 		}
 
@@ -127,36 +156,43 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 			Error:    errorChan,
 		}
 
-		// Try to enqueue the request
+		// Try to enqueue the request with backpressure timeout
+		enqueued := true
 		select {
 		case s.requestQueue <- queuedReq:
-			// Successfully queued, wait for response
+			// Successfully queued
 		case <-s.ctx.Done():
 			close(responseChan)
 			close(errorChan)
 			return status.Errorf(codes.Unavailable, "server is shutting down")
-		default:
-			// Queue is full, return error
+		case <-time.After(QueueSendTimeout):
+			// Queue is full after timeout — truly stuck
 			close(responseChan)
 			close(errorChan)
-			return status.Errorf(codes.ResourceExhausted, "request queue is full, please retry later")
+			log.WithField("seed", req.Seed).Warn("queue send timeout, dropping message")
+			enqueued = false
 		}
 
-		// Wait for response or error
+		if !enqueued {
+			continue
+		}
+
+		// Wait for response or error with timeout
 		select {
 		case response := <-responseChan:
 			if response != nil {
-				// Send response back to client
 				if err := stream.Send(response); err != nil {
-					return status.Errorf(codes.Internal, "failed to send response: %v", err)
+					log.WithError(err).Warn("stream send error (continuing)")
 				}
 			}
 		case err := <-errorChan:
 			if err != nil {
-				return err
+				log.WithError(err).Warn("worker error (continuing)")
 			}
 		case <-s.ctx.Done():
 			return status.Errorf(codes.Unavailable, "server is shutting down")
+		case <-time.After(WorkerResponseTimeout):
+			log.WithField("seed", req.Seed).Warn("worker response timeout, skipping message")
 		}
 	}
 }
