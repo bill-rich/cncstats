@@ -100,8 +100,6 @@ func (s *PlayerMoneyGRPCServer) Shutdown() {
 
 // StreamCreatePlayerMoneyData handles bidirectional streaming for creating player money data
 func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.PlayerMoneyService_StreamCreatePlayerMoneyDataServer) error {
-	firstMessage := true
-
 	for {
 		req, err := stream.Recv()
 		if err != nil {
@@ -109,18 +107,12 @@ func (s *PlayerMoneyGRPCServer) StreamCreatePlayerMoneyData(stream player_money.
 			return nil
 		}
 
-		// On the first message, check if seed already has data and delete it if it does
-		if firstMessage {
-			firstMessage = false
-			hasData, err := s.service.HasDataForSeed(req.Seed)
-			if err != nil {
-				return status.Errorf(codes.Internal, "failed to check for existing data: %v", err)
-			}
-
-			if hasData {
-				if err := s.service.DeletePlayerMoneyDataBySeed(req.Seed); err != nil {
-					return status.Errorf(codes.Internal, "failed to delete existing data: %v", err)
-				}
+		// Delete existing data for this seed if the client requests it.
+		// The client sends this on the first message of a new game session
+		// but not on reconnects, avoiding accidental data loss.
+		if req.ResetSeed {
+			if err := s.service.DeletePlayerMoneyDataBySeed(req.Seed); err != nil {
+				return status.Errorf(codes.Internal, "failed to delete existing data: %v", err)
 			}
 		}
 

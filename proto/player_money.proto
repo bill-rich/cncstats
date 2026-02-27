@@ -47,6 +47,7 @@ message MoneyDataRequest {
   repeated int32 faction_buildings_captured = 20;  // 8 values
   repeated int32 power_total = 21;  // 8 values
   repeated int32 power_used = 22;  // 8 values
+  bool reset_seed = 23;  // If true, delete existing data for this seed before inserting
 }
 
 // Int32Array8x8 represents a 2D array of 8x8 int32 values
