@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
 	"github.com/bill-rich/cncstats/proto/player_money"
 	"github.com/gin-gonic/gin"
@@ -264,6 +266,11 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 		saveFileHandler(c, objectStore, powerStore, upgradeStore, colorStore)
 	})
 
+	// Stats upload endpoint - receives gzip-compressed JSON stats from Generals
+	router.POST("/stats", func(c *gin.Context) {
+		uploadStatsHandler(c)
+	})
+
 	// New player money data endpoints
 	playerMoneyService := database.NewPlayerMoneyService()
 
@@ -326,7 +333,22 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 
-	// Convert to enhanced replay and add money and stats change events
+	// Check if v2 format is requested and stats file exists
+	format := c.Query("format")
+	seed := replay.Header.Metadata.Seed
+
+	if format == "v2" && seed != "" && statsfile.Exists(seed) {
+		stats, err := statsfile.Load(seed)
+		if err != nil {
+			log.WithError(err).Warn("Failed to load stats file, falling back to v1")
+		} else {
+			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats)
+			c.JSON(http.StatusOK, v2Replay)
+			return
+		}
+	}
+
+	// Default: v1 format with database-backed money/stats events
 	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
 	enhancedReplay.AddMoneyChangeEvents()
 	enhancedReplay.AddStatsChangeEvents()
@@ -335,6 +357,47 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 	enhancedReplay.DetermineWinnersByMoney()
 
 	c.JSON(http.StatusOK, enhancedReplay)
+}
+
+func uploadStatsHandler(c *gin.Context) {
+	seed := c.GetHeader("X-Game-Seed")
+	if seed == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "X-Game-Seed header is required",
+		})
+		return
+	}
+
+	data, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to read request body",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if len(data) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Empty request body",
+		})
+		return
+	}
+
+	if err := statsfile.Store(seed, data); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to store stats file",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	log.WithField("seed", seed).WithField("size", len(data)).Info("Stats file stored")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Stats stored successfully",
+		"seed":    seed,
+		"size":    len(data),
+	})
 }
 
 // Player money data handlers
