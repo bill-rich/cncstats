@@ -19,10 +19,13 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/cncstats?sslmode=disable
       - CNC_INI=/app/inizh/Data/INI
+      - STATS_DIR=/app/stats
     depends_on:
       - postgres
     volumes:
       - ./inizh:/app/inizh
+      - stats_data:/app/stats
 
 volumes:
   postgres_data:
+  stats_data:
