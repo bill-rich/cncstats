@@ -150,7 +150,6 @@ type BattlePlanEvent struct {
 }
 
 type TimeSeries struct {
-	Frames  []uint             `json:"frames"`
 	Players []TimeSeriesPlayer `json:"players"`
 }
 
