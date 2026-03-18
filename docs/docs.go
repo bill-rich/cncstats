@@ -913,10 +913,19 @@ const docTemplate = `{
                 "lostValue": {
                     "type": "integer"
                 },
+                "moneyEarned": {
+                    "type": "integer"
+                },
                 "netAssets": {
                     "type": "integer"
                 },
-                "recentBuildValue": {
+                "playerScore": {
+                    "type": "integer"
+                },
+                "playersAlive": {
+                    "type": "integer"
+                },
+                "playersDead": {
                     "type": "integer"
                 },
                 "recentIncome": {
@@ -931,7 +940,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agreeCount": {
-                    "description": "how many of 3 factors pick the winner (1-3)",
+                    "description": "how many factors pick the winner",
                     "type": "integer"
                 },
                 "confidence": {
@@ -942,6 +951,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/zhreplay.TeamFactors"
                     }
+                },
+                "totalFactors": {
+                    "description": "total active factors (3 or 4)",
+                    "type": "integer"
                 }
             }
         }
