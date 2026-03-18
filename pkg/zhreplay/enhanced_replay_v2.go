@@ -14,45 +14,45 @@ const (
 
 // EnhancedReplayV2 represents a replay with stats from the Generals JSON exporter
 type EnhancedReplayV2 struct {
-	Header    *header.GeneralsHeader `json:"Header"`
-	Version   int                    `json:"Version"`
-	WinMethod string                 `json:"WinMethod"`
-	GameInfo  *GameInfoV2            `json:"GameInfo,omitempty"`
-	Stats     *EnrichedStats         `json:"Stats"`
-	Body      []*body.BodyChunk      `json:"Body"`
-	Summary   []*PlayerSummaryV2     `json:"Summary"`
-	Offset    int                    `json:"Offset"`
+	Header    *header.GeneralsHeader `json:"header"`
+	Version   int                    `json:"version"`
+	WinMethod string                 `json:"winMethod"`
+	GameInfo  *GameInfoV2            `json:"gameInfo,omitempty"`
+	Stats     *EnrichedStats         `json:"stats"`
+	Body      []*body.BodyChunk      `json:"body"`
+	Summary   []*PlayerSummaryV2     `json:"summary"`
+	Offset    int                    `json:"offset"`
 }
 
 // GameInfoV2 holds non-duplicate game metadata from the stats file.
 type GameInfoV2 struct {
-	Mode             string `json:"Mode"`
-	FrameCount       uint   `json:"FrameCount"`
-	PlayerCount      int    `json:"PlayerCount"`
-	SnapshotInterval int    `json:"SnapshotInterval"`
+	Mode             string `json:"mode"`
+	FrameCount       uint   `json:"frameCount"`
+	PlayerCount      int    `json:"playerCount"`
+	SnapshotInterval int    `json:"snapshotInterval"`
 }
 
 // PlayerSummaryV2 keeps per-type breakdowns from replay parsing, enriched with
 // stats player data (index, economy, faction, etc.)
 type PlayerSummaryV2 struct {
-	Name           string                           `json:"Name"`
-	Side           string                           `json:"Side"`
-	Team           int                              `json:"Team"`
-	Win            bool                             `json:"Win"`
-	Index          int                              `json:"Index"`
-	PlayerType     string                           `json:"PlayerType"`
-	Color          string                           `json:"Color"`
-	Faction        string                           `json:"Faction"`
-	BaseSide       string                           `json:"BaseSide"`
-	Money          uint                             `json:"Money"`
-	MoneyEarned    int                              `json:"MoneyEarned"`
-	MoneySpent     int                              `json:"MoneySpent"`
-	Score          int                              `json:"Score"`
-	Academy        *statsfile.Academy               `json:"Academy,omitempty"`
-	UnitsCreated   map[string]*object.ObjectSummary `json:"UnitsCreated"`
-	BuildingsBuilt map[string]*object.ObjectSummary `json:"BuildingsBuilt"`
-	UpgradesBuilt  map[string]*object.ObjectSummary `json:"UpgradesBuilt"`
-	PowersUsed     map[string]int                   `json:"PowersUsed"`
+	Name           string                           `json:"name"`
+	Side           string                           `json:"side"`
+	Team           int                              `json:"team"`
+	Win            bool                             `json:"win"`
+	Index          int                              `json:"index"`
+	PlayerType     string                           `json:"playerType"`
+	Color          string                           `json:"color"`
+	Faction        string                           `json:"faction"`
+	BaseSide       string                           `json:"baseSide"`
+	Money          uint                             `json:"money"`
+	MoneyEarned    int                              `json:"moneyEarned"`
+	MoneySpent     int                              `json:"moneySpent"`
+	Score          int                              `json:"score"`
+	Academy        *statsfile.Academy               `json:"academy,omitempty"`
+	UnitsCreated   map[string]*object.ObjectSummary `json:"unitsCreated"`
+	BuildingsBuilt map[string]*object.ObjectSummary `json:"buildingsBuilt"`
+	UpgradesBuilt  map[string]*object.ObjectSummary `json:"upgradesBuilt"`
+	PowersUsed     map[string]int                   `json:"powersUsed"`
 }
 
 // EnrichedBuildEvent embeds a BuildEvent and adds object type classification.

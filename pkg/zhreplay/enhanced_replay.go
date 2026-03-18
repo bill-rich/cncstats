@@ -16,36 +16,36 @@ const (
 // EnhancedBodyChunk represents a body chunk with player money and stats data
 type EnhancedBodyChunk struct {
 	*body.BodyChunk
-	PlayerMoney *PlayerMoneyData `json:"PlayerMoney,omitempty"`
-	PlayerStats *PlayerStatsData `json:"PlayerStats,omitempty"`
+	PlayerMoney *PlayerMoneyData `json:"playerMoney,omitempty"`
+	PlayerStats *PlayerStatsData `json:"playerStats,omitempty"`
 }
 
 // PlayerMoneyData represents the money data for players at a specific seed
 type PlayerMoneyData struct {
-	PlayerMoney [8]int `json:"PlayerMoney"`
+	PlayerMoney [8]int `json:"playerMoney"`
 }
 
 // PlayerStatsData represents all the stats data for players at a specific seed
 type PlayerStatsData struct {
-	MoneyEarned              [8]int    `json:"money_earned,omitempty"`
-	UnitsBuilt               [8]int    `json:"units_built,omitempty"`
-	UnitsLost                [8]int    `json:"units_lost,omitempty"`
-	BuildingsBuilt           [8]int    `json:"buildings_built,omitempty"`
-	BuildingsLost            [8]int    `json:"buildings_lost,omitempty"`
-	BuildingsKilled          [8][8]int `json:"buildings_killed,omitempty"`
-	UnitsKilled              [8][8]int `json:"units_killed,omitempty"`
-	GeneralsPointsTotal      [8]int    `json:"generals_points_total,omitempty"`
-	GeneralsPointsUsed       [8]int    `json:"generals_points_used,omitempty"`
-	RadarsBuilt              [8]int    `json:"radars_built,omitempty"`
-	SearchAndDestroy         [8]int    `json:"search_and_destroy,omitempty"`
-	HoldTheLine              [8]int    `json:"hold_the_line,omitempty"`
+	MoneyEarned              [8]int    `json:"moneyEarned,omitempty"`
+	UnitsBuilt               [8]int    `json:"unitsBuilt,omitempty"`
+	UnitsLost                [8]int    `json:"unitsLost,omitempty"`
+	BuildingsBuilt           [8]int    `json:"buildingsBuilt,omitempty"`
+	BuildingsLost            [8]int    `json:"buildingsLost,omitempty"`
+	BuildingsKilled          [8][8]int `json:"buildingsKilled,omitempty"`
+	UnitsKilled              [8][8]int `json:"unitsKilled,omitempty"`
+	GeneralsPointsTotal      [8]int    `json:"generalsPointsTotal,omitempty"`
+	GeneralsPointsUsed       [8]int    `json:"generalsPointsUsed,omitempty"`
+	RadarsBuilt              [8]int    `json:"radarsBuilt,omitempty"`
+	SearchAndDestroy         [8]int    `json:"searchAndDestroy,omitempty"`
+	HoldTheLine              [8]int    `json:"holdTheLine,omitempty"`
 	Bombardment              [8]int    `json:"bombardment,omitempty"`
 	XP                       [8]int    `json:"xp,omitempty"`
-	XPLevel                  [8]int    `json:"xp_level,omitempty"`
-	TechBuildingsCaptured    [8]int    `json:"tech_buildings_captured,omitempty"`
-	FactionBuildingsCaptured [8]int    `json:"faction_buildings_captured,omitempty"`
-	PowerTotal               [8]int    `json:"power_total,omitempty"`
-	PowerUsed                [8]int    `json:"power_used,omitempty"`
+	XPLevel                  [8]int    `json:"xpLevel,omitempty"`
+	TechBuildingsCaptured    [8]int    `json:"techBuildingsCaptured,omitempty"`
+	FactionBuildingsCaptured [8]int    `json:"factionBuildingsCaptured,omitempty"`
+	PowerTotal               [8]int    `json:"powerTotal,omitempty"`
+	PowerUsed                [8]int    `json:"powerUsed,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshaling to omit fields with all zero values
@@ -53,25 +53,25 @@ func (psd *PlayerStatsData) MarshalJSON() ([]byte, error) {
 	type Alias PlayerStatsData
 	aux := &struct {
 		*Alias
-		MoneyEarned              *[8]int    `json:"money_earned,omitempty"`
-		UnitsBuilt               *[8]int    `json:"units_built,omitempty"`
-		UnitsLost                *[8]int    `json:"units_lost,omitempty"`
-		BuildingsBuilt           *[8]int    `json:"buildings_built,omitempty"`
-		BuildingsLost            *[8]int    `json:"buildings_lost,omitempty"`
-		BuildingsKilled          *[8][8]int `json:"buildings_killed,omitempty"`
-		UnitsKilled              *[8][8]int `json:"units_killed,omitempty"`
-		GeneralsPointsTotal      *[8]int    `json:"generals_points_total,omitempty"`
-		GeneralsPointsUsed       *[8]int    `json:"generals_points_used,omitempty"`
-		RadarsBuilt              *[8]int    `json:"radars_built,omitempty"`
-		SearchAndDestroy         *[8]int    `json:"search_and_destroy,omitempty"`
-		HoldTheLine              *[8]int    `json:"hold_the_line,omitempty"`
+		MoneyEarned              *[8]int    `json:"moneyEarned,omitempty"`
+		UnitsBuilt               *[8]int    `json:"unitsBuilt,omitempty"`
+		UnitsLost                *[8]int    `json:"unitsLost,omitempty"`
+		BuildingsBuilt           *[8]int    `json:"buildingsBuilt,omitempty"`
+		BuildingsLost            *[8]int    `json:"buildingsLost,omitempty"`
+		BuildingsKilled          *[8][8]int `json:"buildingsKilled,omitempty"`
+		UnitsKilled              *[8][8]int `json:"unitsKilled,omitempty"`
+		GeneralsPointsTotal      *[8]int    `json:"generalsPointsTotal,omitempty"`
+		GeneralsPointsUsed       *[8]int    `json:"generalsPointsUsed,omitempty"`
+		RadarsBuilt              *[8]int    `json:"radarsBuilt,omitempty"`
+		SearchAndDestroy         *[8]int    `json:"searchAndDestroy,omitempty"`
+		HoldTheLine              *[8]int    `json:"holdTheLine,omitempty"`
 		Bombardment              *[8]int    `json:"bombardment,omitempty"`
 		XP                       *[8]int    `json:"xp,omitempty"`
-		XPLevel                  *[8]int    `json:"xp_level,omitempty"`
-		TechBuildingsCaptured    *[8]int    `json:"tech_buildings_captured,omitempty"`
-		FactionBuildingsCaptured *[8]int    `json:"faction_buildings_captured,omitempty"`
-		PowerTotal               *[8]int    `json:"power_total,omitempty"`
-		PowerUsed                *[8]int    `json:"power_used,omitempty"`
+		XPLevel                  *[8]int    `json:"xpLevel,omitempty"`
+		TechBuildingsCaptured    *[8]int    `json:"techBuildingsCaptured,omitempty"`
+		FactionBuildingsCaptured *[8]int    `json:"factionBuildingsCaptured,omitempty"`
+		PowerTotal               *[8]int    `json:"powerTotal,omitempty"`
+		PowerUsed                *[8]int    `json:"powerUsed,omitempty"`
 	}{
 		Alias: (*Alias)(psd),
 	}
@@ -160,12 +160,12 @@ func isAllZeros8x8(arr [8][8]int) bool {
 
 // EnhancedReplay represents a replay with enhanced data including player money
 type EnhancedReplay struct {
-	Header    *header.GeneralsHeader  `json:"Header"`
-	Version   int                     `json:"Version"`
-	WinMethod string                  `json:"WinMethod"`
-	Body      []*EnhancedBodyChunk    `json:"Body"`
-	Summary   []*object.PlayerSummary `json:"Summary"`
-	Offset    int                     `json:"Offset"`
+	Header    *header.GeneralsHeader  `json:"header"`
+	Version   int                     `json:"version"`
+	WinMethod string                  `json:"winMethod"`
+	Body      []*EnhancedBodyChunk    `json:"body"`
+	Summary   []*object.PlayerSummary `json:"summary"`
+	Offset    int                     `json:"offset"`
 }
 
 // ConvertToEnhancedReplay converts a regular replay to an enhanced replay

@@ -137,19 +137,22 @@ func ConvertArg(bp *bitparse.BitParser, at int) interface{} {
 
 // Position3D represents a 3D position with float32 coordinates
 type Position3D struct {
-	X, Y, Z float32
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+	Z float32 `json:"z"`
 }
 
 // ScreenPosition represents a 2D screen position with uint32 coordinates
 type ScreenPosition struct {
-	X, Y uint32
+	X uint32 `json:"x"`
+	Y uint32 `json:"y"`
 }
 
 // Position is kept for backward compatibility but should be replaced with specific types
 type Position struct {
-	X interface{}
-	Y interface{}
-	Z interface{}
+	X interface{} `json:"x"`
+	Y interface{} `json:"y"`
+	Z interface{} `json:"z"`
 }
 
 // ScreenRectangle represents a rectangle on screen with two screen positions
@@ -159,37 +162,37 @@ type ScreenRectangle [2]ScreenPosition
 type Rectangle [2]Position
 
 type ArgMetadata struct {
-	Type  int
-	Count int
+	Type  int `json:"type"`
+	Count int `json:"count"`
 }
 
 type BodyChunk struct {
-	TimeCode          int
-	OrderCode         int
-	OrderName         string
-	PlayerID          int // Starts at 2 for humans
-	PlayerName        string
-	NumberOfArguments int
-	Details           object.Object
-	ArgMetadata       []*ArgMetadata
-	Arguments         []interface{}
+	TimeCode          int           `json:"timeCode"`
+	OrderCode         int           `json:"orderCode"`
+	OrderName         string        `json:"orderName"`
+	PlayerID          int           `json:"playerID"` // Starts at 2 for humans
+	PlayerName        string        `json:"playerName"`
+	NumberOfArguments int           `json:"numberOfArguments"`
+	Details           object.Object `json:"details"`
+	ArgMetadata       []*ArgMetadata `json:"argMetadata"`
+	Arguments         []interface{} `json:"arguments"`
 }
 
 type BodyChunkEasyUnmarshall struct {
-	TimeCode          int
-	OrderCode         int
-	OrderName         string
-	PlayerID          int // Starts at 2 for humans
-	PlayerName        string
-	NumberOfArguments int
-	Details           GeneralDetail
-	ArgMetadata       []*ArgMetadata
-	Arguments         []interface{}
+	TimeCode          int            `json:"timeCode"`
+	OrderCode         int            `json:"orderCode"`
+	OrderName         string         `json:"orderName"`
+	PlayerID          int            `json:"playerID"` // Starts at 2 for humans
+	PlayerName        string         `json:"playerName"`
+	NumberOfArguments int            `json:"numberOfArguments"`
+	Details           GeneralDetail  `json:"details"`
+	ArgMetadata       []*ArgMetadata `json:"argMetadata"`
+	Arguments         []interface{}  `json:"arguments"`
 }
 
 type GeneralDetail struct {
-	Cost int
-	Name string
+	Cost int    `json:"cost"`
+	Name string `json:"name"`
 }
 
 var PassiveCommands = map[int]bool{

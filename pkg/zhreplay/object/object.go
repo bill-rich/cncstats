@@ -25,20 +25,20 @@ type Upgrade struct {
 }
 
 type ObjectSummary struct {
-	Count      int
-	TotalSpent int
+	Count      int `json:"count"`
+	TotalSpent int `json:"totalSpent"`
 }
 
 type PlayerSummary struct {
-	Name           string
-	Side           string
-	Team           int
-	Win            bool
-	MoneySpent     int
-	UnitsCreated   map[string]*ObjectSummary
-	BuildingsBuilt map[string]*ObjectSummary
-	UpgradesBuilt  map[string]*ObjectSummary
-	PowersUsed     map[string]int
+	Name           string                    `json:"name"`
+	Side           string                    `json:"side"`
+	Team           int                       `json:"team"`
+	Win            bool                      `json:"win"`
+	MoneySpent     int                       `json:"moneySpent"`
+	UnitsCreated   map[string]*ObjectSummary `json:"unitsCreated"`
+	BuildingsBuilt map[string]*ObjectSummary `json:"buildingsBuilt"`
+	UpgradesBuilt  map[string]*ObjectSummary `json:"upgradesBuilt"`
+	PowersUsed     map[string]int            `json:"powersUsed"`
 }
 
 func (u *Unit) GetName() string {

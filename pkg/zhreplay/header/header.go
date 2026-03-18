@@ -20,28 +20,28 @@ const (
 )
 
 type Metadata struct {
-	MapFile         string   // M
-	MapCRC          string   // MC
-	MapSize         string   // MS
-	Seed            string   // Seed
-	C               string   // C
-	SR              string   // SR
-	StartingCredits string   // SC
-	O               string   // O
-	Players         []Player // S
+	MapFile         string   `json:"mapFile"`         // M
+	MapCRC          string   `json:"mapCRC"`          // MC
+	MapSize         string   `json:"mapSize"`         // MS
+	Seed            string   `json:"seed"`            // Seed
+	C               string   `json:"c"`               // C
+	SR              string   `json:"sr"`              // SR
+	StartingCredits string   `json:"startingCredits"` // SC
+	O               string   `json:"o"`               // O
+	Players         []Player `json:"players"`         // S
 }
 
 type Player struct {
-	Type             string
-	Name             string
-	IP               string
-	Port             string
-	FT               string
-	Color            string
-	Faction          string
-	StartingPosition string
-	Team             string
-	Unknown          string
+	Type             string `json:"type"`
+	Name             string `json:"name"`
+	IP               string `json:"ip"`
+	Port             string `json:"port"`
+	FT               string `json:"ft"`
+	Color            string `json:"color"`
+	Faction          string `json:"faction"`
+	StartingPosition string `json:"startingPosition"`
+	Team             string `json:"team"`
+	Unknown          string `json:"unknown"`
 }
 
 // GetColorName converts the Player.Color string (which should be an int) to the actual color name
@@ -72,36 +72,36 @@ func (p *Player) GetColorName(colorStore *iniparse.ColorStore) string {
 // It contains metadata about the game session, including timestamps, version information,
 // and player details.
 type GeneralsHeader struct {
-	GameType         string
-	TimeStampBegin   int
-	TimeStampEnd     int
-	NumTimeStamps    int
-	UnusedDesync     [2]byte
-	Desync           [1]byte
-	MoreUnusedDesync [1]byte
-	QuitEarly        [1]byte
-	Disconnect       [1]byte
-	Filler           [6]byte
-	FileName         string
-	Year             int
-	Month            int
-	DOW              int
-	Day              int
-	Hour             int
-	Minute           int
-	Second           int
-	Millisecond      int
-	Version          string
-	BuildDate        string
-	VersionMinor     int
-	VersionMajor     int
-	Hash             [8]byte
-	Metadata         Metadata
-	ReplayOwnerSlot  [2]byte
-	Unknown1         [4]byte
-	Unknown2         [4]byte
-	Unknown3         [4]byte
-	GameSpeed        int
+	GameType         string   `json:"gameType"`
+	TimeStampBegin   int      `json:"timeStampBegin"`
+	TimeStampEnd     int      `json:"timeStampEnd"`
+	NumTimeStamps    int      `json:"numTimeStamps"`
+	UnusedDesync     [2]byte  `json:"unusedDesync"`
+	Desync           [1]byte  `json:"desync"`
+	MoreUnusedDesync [1]byte  `json:"moreUnusedDesync"`
+	QuitEarly        [1]byte  `json:"quitEarly"`
+	Disconnect       [1]byte  `json:"disconnect"`
+	Filler           [6]byte  `json:"filler"`
+	FileName         string   `json:"fileName"`
+	Year             int      `json:"year"`
+	Month            int      `json:"month"`
+	DOW              int      `json:"dow"`
+	Day              int      `json:"day"`
+	Hour             int      `json:"hour"`
+	Minute           int      `json:"minute"`
+	Second           int      `json:"second"`
+	Millisecond      int      `json:"millisecond"`
+	Version          string   `json:"version"`
+	BuildDate        string   `json:"buildDate"`
+	VersionMinor     int      `json:"versionMinor"`
+	VersionMajor     int      `json:"versionMajor"`
+	Hash             [8]byte  `json:"hash"`
+	Metadata         Metadata `json:"metadata"`
+	ReplayOwnerSlot  [2]byte  `json:"replayOwnerSlot"`
+	Unknown1         [4]byte  `json:"unknown1"`
+	Unknown2         [4]byte  `json:"unknown2"`
+	Unknown3         [4]byte  `json:"unknown3"`
+	GameSpeed        int      `json:"gameSpeed"`
 }
 
 // Helper functions for reading values with fallback error handling
