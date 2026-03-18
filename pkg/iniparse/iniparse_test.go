@@ -43,6 +43,12 @@ func TestMatchKey(t *testing.T) {
 		{"SpecialPower_noSpaces", "SpecialPower", "SpecialPower"},
 		{"SpecialPower_leadingSpaces", "  SpecialPower", ""},
 
+		// KindOf tests
+		{"KindOf_asExpected", "  KindOf = INFANTRY SELECTABLE", "KindOf"},
+		{"KindOf_noSpaces", "KindOf", ""},
+		{"KindOf_leadingSpaces", "    KindOf = VEHICLE", ""},
+		{"KindOf_withValue", "  KindOf=AIRCRAFT VEHICLE", "KindOf"},
+
 		// Edge cases
 		{"EmptyString", "", ""},
 		{"OnlySpaces", "   ", ""},
@@ -733,6 +739,135 @@ End`
 	for i, expected := range expectedObjects {
 		if objectStore.Object[i] != expected {
 			t.Errorf("object %d: expected %+v, got %+v", i, expected, objectStore.Object[i])
+		}
+	}
+}
+
+func TestParseKindOfFromLine(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"Normal", "  KindOf = INFANTRY SELECTABLE SCORE", []string{"INFANTRY", "SELECTABLE", "SCORE"}},
+		{"WithComment", "  KindOf = VEHICLE SELECTABLE ; some comment", []string{"VEHICLE", "SELECTABLE"}},
+		{"Empty", "  KindOf = ", nil},
+		{"WithCarriageReturn", "  KindOf = AIRCRAFT VEHICLE\r", []string{"AIRCRAFT", "VEHICLE"}},
+		{"NoEquals", "  KindOf INFANTRY", nil},
+		{"SingleFlag", "  KindOf = STRUCTURE", []string{"STRUCTURE"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseKindOfFromLine(tc.input)
+			if tc.expected == nil {
+				if result != nil {
+					t.Errorf("expected nil, got %v", result)
+				}
+				return
+			}
+			if len(result) != len(tc.expected) {
+				t.Errorf("expected %d flags, got %d: %v", len(tc.expected), len(result), result)
+				return
+			}
+			for i, expected := range tc.expected {
+				if result[i] != expected {
+					t.Errorf("flag %d: expected %q, got %q", i, expected, result[i])
+				}
+			}
+		})
+	}
+}
+
+func TestClassifyObject(t *testing.T) {
+	cases := []struct {
+		name     string
+		kindOf   []string
+		expected ObjectType
+	}{
+		{"Aircraft", []string{"VEHICLE", "SELECTABLE", "AIRCRAFT"}, ObjectTypeAircraft},
+		{"Infantry", []string{"INFANTRY", "SELECTABLE", "SCORE"}, ObjectTypeInfantry},
+		{"Structure", []string{"STRUCTURE", "SELECTABLE"}, ObjectTypeStructure},
+		{"Vehicle", []string{"VEHICLE", "SELECTABLE"}, ObjectTypeVehicle},
+		{"Unknown", []string{"SELECTABLE", "SCORE"}, ObjectTypeUnknown},
+		{"Empty", []string{}, ObjectTypeUnknown},
+		{"Nil", nil, ObjectTypeUnknown},
+		{"AircraftOverVehicle", []string{"AIRCRAFT", "VEHICLE"}, ObjectTypeAircraft},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := classifyObject(tc.kindOf)
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetObjectByName(t *testing.T) {
+	objectStore := &ObjectStore{
+		Object: []Object{
+			{Name: "Humvee", Cost: 700, Type: ObjectTypeVehicle},
+			{Name: "Ranger", Cost: 225, Type: ObjectTypeInfantry},
+		},
+		byName: map[string]*Object{},
+	}
+	// Build the map
+	for i := range objectStore.Object {
+		objectStore.byName[objectStore.Object[i].Name] = &objectStore.Object[i]
+	}
+
+	// Found
+	obj := objectStore.GetObjectByName("Humvee")
+	if obj == nil {
+		t.Fatal("expected non-nil object for Humvee")
+	}
+	if obj.Name != "Humvee" || obj.Type != ObjectTypeVehicle {
+		t.Errorf("unexpected object: %+v", obj)
+	}
+
+	// Not found
+	obj = objectStore.GetObjectByName("NonExistent")
+	if obj != nil {
+		t.Errorf("expected nil for non-existent object, got %+v", obj)
+	}
+
+	// Nil store
+	var nilStore *ObjectStore
+	obj = nilStore.GetObjectByName("Humvee")
+	if obj != nil {
+		t.Errorf("expected nil for nil store, got %+v", obj)
+	}
+}
+
+func TestParseFileWithKindOf(t *testing.T) {
+	input := "Object AmericaVehicleHumvee\n  BuildCost=700\n  KindOf = VEHICLE SELECTABLE SCORE\nEnd\n" +
+		"Object AmericaInfantryRanger\n  BuildCost=225\n  KindOf = INFANTRY SELECTABLE SCORE\nEnd\n" +
+		"Object AmericaJetRaptor\n  BuildCost=1400\n  KindOf = AIRCRAFT VEHICLE SELECTABLE\nEnd\n" +
+		"Object AmericaWarFactory\n  BuildCost=2000\n  KindOf = STRUCTURE SELECTABLE\nEnd"
+
+	reader := strings.NewReader(input)
+	objectStore := &ObjectStore{}
+	err := objectStore.parseFile(reader)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := []Object{
+		{Name: "AmericaVehicleHumvee", Cost: 700, Type: ObjectTypeVehicle},
+		{Name: "AmericaInfantryRanger", Cost: 225, Type: ObjectTypeInfantry},
+		{Name: "AmericaJetRaptor", Cost: 1400, Type: ObjectTypeAircraft},
+		{Name: "AmericaWarFactory", Cost: 2000, Type: ObjectTypeStructure},
+	}
+
+	if len(objectStore.Object) != len(expected) {
+		t.Fatalf("expected %d objects, got %d", len(expected), len(objectStore.Object))
+	}
+
+	for i, exp := range expected {
+		if objectStore.Object[i] != exp {
+			t.Errorf("object %d: expected %+v, got %+v", i, exp, objectStore.Object[i])
 		}
 	}
 }

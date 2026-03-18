@@ -9,13 +9,26 @@ import (
 	"strings"
 )
 
+// ObjectType classifies game objects by their category.
+type ObjectType string
+
+const (
+	ObjectTypeInfantry  ObjectType = "infantry"
+	ObjectTypeVehicle   ObjectType = "vehicle"
+	ObjectTypeAircraft  ObjectType = "aircraft"
+	ObjectTypeStructure ObjectType = "structure"
+	ObjectTypeUnknown   ObjectType = "unknown"
+)
+
 type ObjectStore struct {
 	Object []Object
+	byName map[string]*Object
 }
 
 type Object struct {
 	Name string
 	Cost int
+	Type ObjectType
 }
 
 type UpgradeStore struct {
@@ -67,6 +80,7 @@ var IniKey = []string{
 	"Object",
 	"End",
 	"  BuildCost",
+	"  KindOf",
 	"Upgrade",
 	"SpecialPower",
 	"MultiplayerColor",
@@ -131,7 +145,21 @@ func (o *ObjectStore) loadObjects(dir string) error {
 			return err
 		}
 	}
+
+	// Build name lookup map
+	o.byName = make(map[string]*Object, len(o.Object))
+	for i := range o.Object {
+		o.byName[o.Object[i].Name] = &o.Object[i]
+	}
 	return nil
+}
+
+// GetObjectByName returns a pointer to the Object with the given name, or nil if not found.
+func (o *ObjectStore) GetObjectByName(name string) *Object {
+	if o == nil || o.byName == nil {
+		return nil
+	}
+	return o.byName[name]
 }
 
 func NewPowerStore(dir string) (*PowerStore, error) {
@@ -291,6 +319,44 @@ func parseNameFromLine(line string) (string, error) {
 	return fields[1], nil
 }
 
+// parseKindOfFromLine extracts KindOf flags from a line like "  KindOf = INFANTRY SELECTABLE"
+func parseKindOfFromLine(line string) []string {
+	parts := strings.SplitN(line, "=", 2)
+	if len(parts) < 2 {
+		return nil
+	}
+	// Strip inline comments and carriage returns
+	value := strings.SplitN(parts[1], ";", 2)[0]
+	value = strings.ReplaceAll(value, "\r", "")
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return strings.Fields(value)
+}
+
+// classifyObject determines the ObjectType from KindOf flags.
+// Priority: AIRCRAFT > INFANTRY > STRUCTURE > VEHICLE > unknown.
+// Aircraft is checked first because aircraft objects carry both VEHICLE and AIRCRAFT flags.
+func classifyObject(kindOf []string) ObjectType {
+	has := make(map[string]bool, len(kindOf))
+	for _, flag := range kindOf {
+		has[flag] = true
+	}
+	switch {
+	case has["AIRCRAFT"]:
+		return ObjectTypeAircraft
+	case has["INFANTRY"]:
+		return ObjectTypeInfantry
+	case has["STRUCTURE"]:
+		return ObjectTypeStructure
+	case has["VEHICLE"]:
+		return ObjectTypeVehicle
+	default:
+		return ObjectTypeUnknown
+	}
+}
+
 func matchKey(line string) string {
 	for _, key := range IniKey {
 		// Handle keys with leading spaces (like "  BuildCost")
@@ -328,6 +394,12 @@ func (o *ObjectStore) parseFile(file io.Reader) error {
 				return err
 			}
 			object.Cost = cost
+		case "KindOf":
+			if object == nil {
+				break
+			}
+			flags := parseKindOfFromLine(line)
+			object.Type = classifyObject(flags)
 		case "End":
 		default:
 		}

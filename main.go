@@ -342,7 +342,7 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 		if err != nil {
 			log.WithError(err).Warn("Failed to load stats file, falling back to v1")
 		} else {
-			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats)
+			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats, objectStore)
 			c.JSON(http.StatusOK, v2Replay)
 			return
 		}
