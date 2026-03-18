@@ -62,7 +62,7 @@ func main() {
 
 	// Print header information
 	fmt.Printf("Replay Header:\n")
-	fmt.Printf("  Map: %s\n", streamingReplay.Header.Metadata.MapFile)
+	fmt.Printf("  Map: %s\n", streamingReplay.Header.Metadata.MapPath)
 	fmt.Printf("  Players: %d\n", len(streamingReplay.Header.Metadata.Players))
 	for i, player := range streamingReplay.Header.Metadata.Players {
 		fmt.Printf("    Player %d: %s (Team %s)\n", i+1, player.Name, player.Team)

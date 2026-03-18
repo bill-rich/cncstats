@@ -12,62 +12,64 @@ func TestMetadataParse(t *testing.T) {
 	input := "US=1;M=07maps/tournament island;MC=12BE477C;MS=130668;SD=6449734;C=100;SR=0;SC=10000;O=N;S=HModus,17F04000,8088,FT,7,-1,-1,0,1:HYe_Ole_Seans,48595000,8088,FT,0,-1,-1,2,1:HOneThree111,49DDD000,8088,FT,6,-1,-1,2,1:Hjbb,18099000,8088,FT,3,-1,-1,0,1:X:X:X:X:;"
 	mdOut := parseMetadata(input, nil)
 	mdExpected := Metadata{
-		MapFile:         "07maps/tournament island",
-		MapCRC:          "12BE477C",
-		MapSize:         "130668",
-		Seed:            "6449734",
-		C:               "100",
-		SR:              "0",
-		StartingCredits: "10000",
-		O:               "N",
+		UseStats:               "1",
+		MapContentsMask:        "07",
+		MapPath:                "maps/tournament island",
+		MapCRC:                 "12BE477C",
+		MapSize:                "130668",
+		Seed:                   "6449734",
+		CRCInterval:            "100",
+		SuperweaponRestriction: "0",
+		StartingCash:           "10000",
+		OldFactionsOnly:        "N",
 		Players: []Player{
 			{
 				Type:             "H",
 				Name:             "Modus",
 				IP:               "17F04000",
 				Port:             "8088",
-				FT:               "FT",
+				Flags:            "FT",
 				Color:            "7",
-				Faction:          "-1",
+				PlayerTemplate:   "-1",
 				StartingPosition: "-1",
 				Team:             "0",
-				Unknown:          "1",
+				NATBehavior:      "1",
 			},
 			{
 				Type:             "H",
 				Name:             "Ye_Ole_Seans",
 				IP:               "48595000",
 				Port:             "8088",
-				FT:               "FT",
+				Flags:            "FT",
 				Color:            "0",
-				Faction:          "-1",
+				PlayerTemplate:   "-1",
 				StartingPosition: "-1",
 				Team:             "2",
-				Unknown:          "1",
+				NATBehavior:      "1",
 			},
 			{
 				Type:             "H",
 				Name:             "OneThree111",
 				IP:               "49DDD000",
 				Port:             "8088",
-				FT:               "FT",
+				Flags:            "FT",
 				Color:            "6",
-				Faction:          "-1",
+				PlayerTemplate:   "-1",
 				StartingPosition: "-1",
 				Team:             "2",
-				Unknown:          "1",
+				NATBehavior:      "1",
 			},
 			{
 				Type:             "H",
 				Name:             "jbb",
 				IP:               "18099000",
 				Port:             "8088",
-				FT:               "FT",
+				Flags:            "FT",
 				Color:            "3",
-				Faction:          "-1",
+				PlayerTemplate:   "-1",
 				StartingPosition: "-1",
 				Team:             "0",
-				Unknown:          "1",
+				NATBehavior:      "1",
 			},
 		},
 	}
@@ -203,15 +205,31 @@ func TestNewHeader(t *testing.T) {
 	if header.MaxFPS != 30 {
 		t.Errorf("expected MaxFPS 30, got %d", header.MaxFPS)
 	}
+
+	// M=test has only 4 chars, so mask="te" and path="st"
+	if header.Metadata.MapContentsMask != "te" {
+		t.Errorf("expected MapContentsMask 'te', got '%s'", header.Metadata.MapContentsMask)
+	}
+	if header.Metadata.MapPath != "st" {
+		t.Errorf("expected MapPath 'st', got '%s'", header.Metadata.MapPath)
+	}
 }
 
 func TestParseMetadata(t *testing.T) {
 	t.Run("CompleteMetadata", func(t *testing.T) {
-		input := "M=testmap;MC=12345678;MS=100000;SD=9876543;C=50;SR=1;SC=5000;O=Y;S=HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1"
+		input := "US=1;M=07testmap;MC=12345678;MS=100000;SD=9876543;C=50;SR=1;SC=5000;O=Y;S=HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1"
 		metadata := parseMetadata(input, nil)
 
-		if metadata.MapFile != "testmap" {
-			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
+		if metadata.UseStats != "1" {
+			t.Errorf("expected UseStats '1', got '%s'", metadata.UseStats)
+		}
+
+		if metadata.MapContentsMask != "07" {
+			t.Errorf("expected MapContentsMask '07', got '%s'", metadata.MapContentsMask)
+		}
+
+		if metadata.MapPath != "testmap" {
+			t.Errorf("expected MapPath 'testmap', got '%s'", metadata.MapPath)
 		}
 
 		if metadata.MapCRC != "12345678" {
@@ -226,20 +244,20 @@ func TestParseMetadata(t *testing.T) {
 			t.Errorf("expected Seed '9876543', got '%s'", metadata.Seed)
 		}
 
-		if metadata.C != "50" {
-			t.Errorf("expected C '50', got '%s'", metadata.C)
+		if metadata.CRCInterval != "50" {
+			t.Errorf("expected CRCInterval '50', got '%s'", metadata.CRCInterval)
 		}
 
-		if metadata.SR != "1" {
-			t.Errorf("expected SR '1', got '%s'", metadata.SR)
+		if metadata.SuperweaponRestriction != "1" {
+			t.Errorf("expected SuperweaponRestriction '1', got '%s'", metadata.SuperweaponRestriction)
 		}
 
-		if metadata.StartingCredits != "5000" {
-			t.Errorf("expected StartingCredits '5000', got '%s'", metadata.StartingCredits)
+		if metadata.StartingCash != "5000" {
+			t.Errorf("expected StartingCash '5000', got '%s'", metadata.StartingCash)
 		}
 
-		if metadata.O != "Y" {
-			t.Errorf("expected O 'Y', got '%s'", metadata.O)
+		if metadata.OldFactionsOnly != "Y" {
+			t.Errorf("expected OldFactionsOnly 'Y', got '%s'", metadata.OldFactionsOnly)
 		}
 
 		if len(metadata.Players) != 1 {
@@ -254,8 +272,8 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("EmptyInput", func(t *testing.T) {
 		metadata := parseMetadata("", nil)
 
-		if metadata.MapFile != "" {
-			t.Errorf("expected empty MapFile, got '%s'", metadata.MapFile)
+		if metadata.MapPath != "" {
+			t.Errorf("expected empty MapPath, got '%s'", metadata.MapPath)
 		}
 
 		if len(metadata.Players) != 0 {
@@ -264,11 +282,11 @@ func TestParseMetadata(t *testing.T) {
 	})
 
 	t.Run("InvalidFieldFormat", func(t *testing.T) {
-		input := "M=testmap;INVALID_FIELD;MC=12345678"
+		input := "M=07testmap;INVALID_FIELD;MC=12345678"
 		metadata := parseMetadata(input, nil)
 
-		if metadata.MapFile != "testmap" {
-			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
+		if metadata.MapPath != "testmap" {
+			t.Errorf("expected MapPath 'testmap', got '%s'", metadata.MapPath)
 		}
 
 		if metadata.MapCRC != "12345678" {
@@ -277,11 +295,11 @@ func TestParseMetadata(t *testing.T) {
 	})
 
 	t.Run("PartialMetadata", func(t *testing.T) {
-		input := "M=testmap;MC=12345678"
+		input := "M=07testmap;MC=12345678"
 		metadata := parseMetadata(input, nil)
 
-		if metadata.MapFile != "testmap" {
-			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
+		if metadata.MapPath != "testmap" {
+			t.Errorf("expected MapPath 'testmap', got '%s'", metadata.MapPath)
 		}
 
 		if metadata.MapCRC != "12345678" {
@@ -290,6 +308,20 @@ func TestParseMetadata(t *testing.T) {
 
 		if metadata.MapSize != "" {
 			t.Errorf("expected empty MapSize, got '%s'", metadata.MapSize)
+		}
+	})
+
+	t.Run("ShortMapValue", func(t *testing.T) {
+		// M value shorter than 2 chars — no mask split possible
+		input := "M=x"
+		metadata := parseMetadata(input, nil)
+
+		if metadata.MapContentsMask != "" {
+			t.Errorf("expected empty MapContentsMask, got '%s'", metadata.MapContentsMask)
+		}
+
+		if metadata.MapPath != "x" {
+			t.Errorf("expected MapPath 'x', got '%s'", metadata.MapPath)
 		}
 	})
 }
@@ -320,16 +352,16 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected Port '8080', got '%s'", player.Port)
 		}
 
-		if player.FT != "FT" {
-			t.Errorf("expected FT 'FT', got '%s'", player.FT)
+		if player.Flags != "FT" {
+			t.Errorf("expected Flags 'FT', got '%s'", player.Flags)
 		}
 
 		if player.Color != "1" {
 			t.Errorf("expected Color '1', got '%s'", player.Color)
 		}
 
-		if player.Faction != "0" {
-			t.Errorf("expected Faction '0', got '%s'", player.Faction)
+		if player.PlayerTemplate != "0" {
+			t.Errorf("expected PlayerTemplate '0', got '%s'", player.PlayerTemplate)
 		}
 
 		if player.StartingPosition != "0" {
@@ -340,8 +372,8 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected Team '0', got '%s'", player.Team)
 		}
 
-		if player.Unknown != "1" {
-			t.Errorf("expected Unknown '1', got '%s'", player.Unknown)
+		if player.NATBehavior != "1" {
+			t.Errorf("expected NATBehavior '1', got '%s'", player.NATBehavior)
 		}
 	})
 
@@ -374,7 +406,6 @@ func TestParsePlayers(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0:HPlayer2,5.6.7.8,8081,FT,2,1,1,1,2"
 		players := parsePlayers(input, nil)
 
-		// Should skip invalid players and only include valid ones
 		if len(players) != 1 {
 			t.Errorf("expected 1 player (invalid one skipped), got %d", len(players))
 			return
@@ -411,16 +442,16 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected Type 'C', got '%s'", player.Type)
 		}
 
-		if player.FT != "E" {
-			t.Errorf("expected difficulty 'E', got '%s'", player.FT)
+		if player.Flags != "E" {
+			t.Errorf("expected Flags 'E', got '%s'", player.Flags)
 		}
 
 		if player.Color != "0" {
 			t.Errorf("expected Color '0', got '%s'", player.Color)
 		}
 
-		if player.Faction != "3" {
-			t.Errorf("expected Faction '3', got '%s'", player.Faction)
+		if player.PlayerTemplate != "3" {
+			t.Errorf("expected PlayerTemplate '3', got '%s'", player.PlayerTemplate)
 		}
 
 		if player.StartingPosition != "-1" {
@@ -440,7 +471,6 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected 2 players, got %d", len(players))
 		}
 
-		// Check human player
 		if players[0].Type != "H" {
 			t.Errorf("expected first player type 'H', got '%s'", players[0].Type)
 		}
@@ -448,12 +478,11 @@ func TestParsePlayers(t *testing.T) {
 			t.Errorf("expected first player name 'Player1', got '%s'", players[0].Name)
 		}
 
-		// Check computer player
 		if players[1].Type != "C" {
 			t.Errorf("expected second player type 'C', got '%s'", players[1].Type)
 		}
-		if players[1].FT != "E" {
-			t.Errorf("expected second player difficulty 'E', got '%s'", players[1].FT)
+		if players[1].Flags != "E" {
+			t.Errorf("expected second player Flags 'E', got '%s'", players[1].Flags)
 		}
 	})
 }
@@ -461,21 +490,21 @@ func TestParsePlayers(t *testing.T) {
 func TestDataStructures(t *testing.T) {
 	t.Run("Metadata", func(t *testing.T) {
 		metadata := Metadata{
-			MapFile:         "testmap",
+			MapPath:         "testmap",
 			MapCRC:          "12345678",
 			MapSize:         "100000",
 			Seed:            "9876543",
-			C:               "50",
-			SR:              "1",
-			StartingCredits: "5000",
-			O:               "Y",
+			CRCInterval:     "50",
+			SuperweaponRestriction: "1",
+			StartingCash:    "5000",
+			OldFactionsOnly: "Y",
 			Players: []Player{
 				{Name: "Player1"},
 			},
 		}
 
-		if metadata.MapFile != "testmap" {
-			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
+		if metadata.MapPath != "testmap" {
+			t.Errorf("expected MapPath 'testmap', got '%s'", metadata.MapPath)
 		}
 
 		if len(metadata.Players) != 1 {
@@ -489,12 +518,12 @@ func TestDataStructures(t *testing.T) {
 			Name:             "TestPlayer",
 			IP:               "1.2.3.4",
 			Port:             "8080",
-			FT:               "FT",
+			Flags:            "FT",
 			Color:            "1",
-			Faction:          "0",
+			PlayerTemplate:   "0",
 			StartingPosition: "0",
 			Team:             "0",
-			Unknown:          "1",
+			NATBehavior:      "1",
 		}
 
 		if player.Name != "TestPlayer" {
@@ -545,9 +574,8 @@ func TestEdgeCases(t *testing.T) {
 		input := "M=;MC=;MS=;SD=;C=;SR=;SC=;O=;S="
 		metadata := parseMetadata(input, nil)
 
-		// All fields should be empty strings
-		if metadata.MapFile != "" {
-			t.Errorf("expected empty MapFile, got '%s'", metadata.MapFile)
+		if metadata.MapPath != "" {
+			t.Errorf("expected empty MapPath, got '%s'", metadata.MapPath)
 		}
 
 		if metadata.MapCRC != "" {
@@ -574,12 +602,11 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("ParseMetadataWithUnknownFields", func(t *testing.T) {
-		input := "M=testmap;UNKNOWN=value;MC=12345678;ANOTHER=test"
+		input := "M=07testmap;UNKNOWN=value;MC=12345678;ANOTHER=test"
 		metadata := parseMetadata(input, nil)
 
-		// Should still parse known fields correctly
-		if metadata.MapFile != "testmap" {
-			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
+		if metadata.MapPath != "testmap" {
+			t.Errorf("expected MapPath 'testmap', got '%s'", metadata.MapPath)
 		}
 
 		if metadata.MapCRC != "12345678" {
@@ -591,7 +618,6 @@ func TestEdgeCases(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0"
 		players := parsePlayers(input, nil)
 
-		// Should skip invalid player
 		if len(players) != 0 {
 			t.Errorf("expected 0 players (invalid format), got %d", len(players))
 		}
@@ -601,7 +627,6 @@ func TestEdgeCases(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1,extra,field"
 		players := parsePlayers(input, nil)
 
-		// Should skip invalid player
 		if len(players) != 0 {
 			t.Errorf("expected 0 players (invalid format), got %d", len(players))
 		}

@@ -19,29 +19,36 @@ const (
 	MaxPlayers           = 8
 )
 
+// Metadata represents the game configuration from the replay header.
+// Field names match GameInfoToAsciiString() / ParseAsciiStringToGameInfo() in GameInfo.cpp.
 type Metadata struct {
-	MapFile         string   `json:"mapFile"`         // M
-	MapCRC          string   `json:"mapCRC"`          // MC
-	MapSize         string   `json:"mapSize"`         // MS
-	Seed            string   `json:"seed"`            // Seed
-	C               string   `json:"c"`               // C
-	SR              string   `json:"sr"`              // SR
-	StartingCredits string   `json:"startingCredits"` // SC
-	O               string   `json:"o"`               // O
-	Players         []Player `json:"players"`         // S
+	UseStats               string   `json:"useStats"`               // US (ZH only: 1=yes, 0=no)
+	MapContentsMask        string   `json:"mapContentsMask"`        // M prefix (2 hex digits)
+	MapPath                string   `json:"mapPath"`                // M remainder (map directory path)
+	MapCRC                 string   `json:"mapCRC"`                 // MC (hex)
+	MapSize                string   `json:"mapSize"`                // MS
+	Seed                   string   `json:"seed"`                   // SD
+	CRCInterval            string   `json:"crcInterval"`            // C
+	SuperweaponRestriction string   `json:"superweaponRestriction"` // SR (ZH only)
+	StartingCash           string   `json:"startingCash"`           // SC (ZH only)
+	OldFactionsOnly        string   `json:"oldFactionsOnly"`        // O (ZH only: Y/N)
+	Players                []Player `json:"players"`                // S
 }
 
+// Player represents a slot entry from the S= metadata field.
+// Human format: H<name>,<IP>,<port>,<accepted><hasMap>,<color>,<playerTemplate>,<startPos>,<team>,<natBehavior>
+// AI format:    C<difficulty>,<color>,<playerTemplate>,<startPos>,<team>
 type Player struct {
-	Type             string `json:"type"`
-	Name             string `json:"name"`
-	IP               string `json:"ip"`
-	Port             string `json:"port"`
-	FT               string `json:"ft"`
-	Color            string `json:"color"`
-	Faction          string `json:"faction"`
-	StartingPosition string `json:"startingPosition"`
-	Team             string `json:"team"`
-	Unknown          string `json:"unknown"`
+	Type             string `json:"type"`             // H=human, C=computer
+	Name             string `json:"name"`             // Human only
+	IP               string `json:"ip"`               // Human only (hex)
+	Port             string `json:"port"`             // Human only
+	Flags            string `json:"flags"`            // Human: <accepted><hasMap> (e.g. "TT"); AI: difficulty (E/M/H)
+	Color            string `json:"color"`            // Color index (or name if ColorStore provided)
+	PlayerTemplate   string `json:"playerTemplate"`   // Index into player template store
+	StartingPosition string `json:"startingPosition"` // Start position (-1 = random)
+	Team             string `json:"team"`             // Team number (-1 = none)
+	NATBehavior      string `json:"natBehavior"`      // Human only: firewall behavior type
 }
 
 // GetColorName converts the Player.Color string (which should be an int) to the actual color name
@@ -237,8 +244,16 @@ func parseMetadata(raw string, colorStore *iniparse.ColorStore) Metadata {
 		value := fieldSplit[1]
 
 		switch key {
+		case "US":
+			metadata.UseStats = value
 		case "M":
-			metadata.MapFile = value
+			// M value is <2-hex-digit-mask><mappath> (e.g. "07maps/tournament island")
+			if len(value) >= 2 {
+				metadata.MapContentsMask = value[:2]
+				metadata.MapPath = value[2:]
+			} else {
+				metadata.MapPath = value
+			}
 		case "MC":
 			metadata.MapCRC = value
 		case "MS":
@@ -246,13 +261,13 @@ func parseMetadata(raw string, colorStore *iniparse.ColorStore) Metadata {
 		case "SD":
 			metadata.Seed = value
 		case "C":
-			metadata.C = value
+			metadata.CRCInterval = value
 		case "SR":
-			metadata.SR = value
+			metadata.SuperweaponRestriction = value
 		case "SC":
-			metadata.StartingCredits = value
+			metadata.StartingCash = value
 		case "O":
-			metadata.O = value
+			metadata.OldFactionsOnly = value
 		case "S":
 			metadata.Players = parsePlayers(value, colorStore)
 		default:
@@ -330,21 +345,20 @@ func parsePlayers(raw string, colorStore *iniparse.ColorStore) []Player {
 				Name:             playerName,
 				IP:               fields[1],
 				Port:             fields[2],
-				FT:               fields[3],
+				Flags:            fields[3], // <accepted><hasMap> e.g. "TT"
 				Color:            convertColorString(fields[4], colorStore),
-				Faction:          fields[5],
+				PlayerTemplate:   fields[5],
 				StartingPosition: fields[6],
 				Team:             fields[7],
-				Unknown:          fields[8],
+				NATBehavior:      fields[8],
 			}
 		} else if playerType == "C" {
-			// Computer player - use new format: "C<difficulty>,<color>,<faction>,<startPos>,<teamNumber>"
+			// AI player: "C<difficulty>,<color>,<playerTemplate>,<startPos>,<team>"
 			if len(fields) != 5 {
 				log.Debugf("invalid computer player format: expected 5 fields, got %d", len(fields))
 				continue
 			}
 
-			// Extract difficulty from the first field (after "C")
 			difficulty := ""
 			if len(fields[PlayerTypeIndex]) > 1 {
 				difficulty = fields[PlayerTypeIndex][1:]
@@ -352,15 +366,11 @@ func parsePlayers(raw string, colorStore *iniparse.ColorStore) []Player {
 
 			player = Player{
 				Type:             playerType,
-				Name:             "",         // Computer players don't have names
-				IP:               "",         // Computer players don't have IPs
-				Port:             "",         // Computer players don't have ports
-				FT:               difficulty, // Store difficulty in FT field
+				Flags:            difficulty, // E=Easy, M=Medium, H=Brutal
 				Color:            convertColorString(fields[1], colorStore),
-				Faction:          fields[2],
+				PlayerTemplate:   fields[2],
 				StartingPosition: fields[3],
 				Team:             fields[4],
-				Unknown:          "", // Computer players don't have unknown field
 			}
 		} else {
 			// Unknown player type, skip
