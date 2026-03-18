@@ -51,42 +51,24 @@ type Player struct {
 	NATBehavior      string `json:"natBehavior"`      // Human only: firewall behavior type
 }
 
-// GetColorName converts the Player.Color string (which should be an int) to the actual color name
+// GetColorName converts the Player.Color string to the actual color name
 // using the provided ColorStore. Returns the color name or the original string if conversion fails.
 func (p *Player) GetColorName(colorStore *iniparse.ColorStore) string {
-	if colorStore == nil {
-		return p.Color
-	}
-
-	// Convert the color string to an integer
-	colorID, err := strconv.Atoi(p.Color)
-	if err != nil {
-		log.Debugf("failed to convert color string '%s' to int: %v", p.Color, err)
-		return p.Color
-	}
-
-	// Get the color name from the ColorStore
-	colorName, err := colorStore.GetColorName(colorID)
-	if err != nil {
-		log.Debugf("failed to get color name for ID %d: %v", colorID, err)
-		return p.Color
-	}
-
-	return colorName
+	return convertColorString(p.Color, colorStore)
 }
 
 // GeneralsHeader represents the header structure of a Command & Conquer Generals replay file.
 // Field order and sizes match Recorder.cpp startRecording() / readReplayHeader().
 type GeneralsHeader struct {
-	GameType         string   `json:"gameType"`         // 6 bytes: "GENREP"
-	TimeStampBegin   int      `json:"timeStampBegin"`   // int32 (replay_time_t)
-	TimeStampEnd     int      `json:"timeStampEnd"`     // int32 (replay_time_t)
-	FrameCount       int      `json:"frameCount"`       // uint32
-	Desync           bool     `json:"desync"`           // 1 byte Bool
-	QuitEarly        bool     `json:"quitEarly"`        // 1 byte Bool
-	PlayerDiscons    [8]bool  `json:"playerDiscons"`    // 8 × 1 byte Bool (MAX_SLOTS)
-	ReplayName       string   `json:"replayName"`       // UTF-16 null-terminated
-	Year             int      `json:"year"`             // SYSTEMTIME fields (8 × uint16)
+	GameType         string   `json:"gameType"`       // 6 bytes: "GENREP"
+	TimeStampBegin   int      `json:"timeStampBegin"` // int32 (replay_time_t)
+	TimeStampEnd     int      `json:"timeStampEnd"`   // int32 (replay_time_t)
+	FrameCount       int      `json:"frameCount"`     // uint32
+	Desync           bool     `json:"desync"`         // 1 byte Bool
+	QuitEarly        bool     `json:"quitEarly"`      // 1 byte Bool
+	PlayerDiscons    [8]bool  `json:"playerDiscons"`  // 8 × 1 byte Bool (MAX_SLOTS)
+	ReplayName       string   `json:"replayName"`     // UTF-16 null-terminated
+	Year             int      `json:"year"`           // SYSTEMTIME fields (8 × uint16)
 	Month            int      `json:"month"`
 	DOW              int      `json:"dow"`
 	Day              int      `json:"day"`
@@ -109,7 +91,7 @@ type GeneralsHeader struct {
 
 // Helper functions for reading values with fallback error handling
 
-func readStringWithFallback(bp *bitparse.BitParser, reader func() (string, error), defaultValue string, fieldName string) string {
+func readStringWithFallback(reader func() (string, error), defaultValue string, fieldName string) string {
 	value, err := reader()
 	if err != nil {
 		log.WithError(err).Errorf("failed to read %s", fieldName)
@@ -118,7 +100,7 @@ func readStringWithFallback(bp *bitparse.BitParser, reader func() (string, error
 	return value
 }
 
-func readIntWithFallback(bp *bitparse.BitParser, reader func() (int, error), defaultValue int, fieldName string) int {
+func readIntWithFallback(reader func() (int, error), defaultValue int, fieldName string) int {
 	value, err := reader()
 	if err != nil {
 		log.WithError(err).Errorf("failed to read %s", fieldName)
@@ -127,7 +109,7 @@ func readIntWithFallback(bp *bitparse.BitParser, reader func() (int, error), def
 	return value
 }
 
-func readBytesWithFallback(bp *bitparse.BitParser, reader func() ([]byte, error), defaultValue []byte, fieldName string) []byte {
+func readBytesWithFallback(reader func() ([]byte, error), defaultValue []byte, fieldName string) []byte {
 	value, err := reader()
 	if err != nil {
 		log.WithError(err).Errorf("failed to read %s", fieldName)
@@ -139,48 +121,48 @@ func readBytesWithFallback(bp *bitparse.BitParser, reader func() ([]byte, error)
 // NewHeader parses a Command & Conquer Generals replay file header from the provided BitParser.
 // Layout matches Recorder.cpp startRecording() / readReplayHeader().
 func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
-	gameType := readStringWithFallback(bp, func() (string, error) { return bp.ReadString(6) }, "", "GameType")
-	timeStampBegin := readIntWithFallback(bp, bp.ReadUInt32, 0, "TimeStampBegin")
-	timeStampEnd := readIntWithFallback(bp, bp.ReadUInt32, 0, "TimeStampEnd")
-	frameCount := readIntWithFallback(bp, bp.ReadUInt32, 0, "FrameCount")
+	gameType := readStringWithFallback(func() (string, error) { return bp.ReadString(6) }, "", "GameType")
+	timeStampBegin := readIntWithFallback(bp.ReadUInt32, 0, "TimeStampBegin")
+	timeStampEnd := readIntWithFallback(bp.ReadUInt32, 0, "TimeStampEnd")
+	frameCount := readIntWithFallback(bp.ReadUInt32, 0, "FrameCount")
 
-	desyncBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Desync")
-	quitEarlyBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "QuitEarly")
-	playerDisconsBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(8) }, make([]byte, 8), "PlayerDiscons")
+	desyncBytes := readBytesWithFallback(func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Desync")
+	quitEarlyBytes := readBytesWithFallback(func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "QuitEarly")
+	playerDisconsBytes := readBytesWithFallback(func() ([]byte, error) { return bp.ReadBytes(8) }, make([]byte, 8), "PlayerDiscons")
 	var playerDiscons [8]bool
 	for i := 0; i < 8; i++ {
 		playerDiscons[i] = playerDisconsBytes[i] != 0
 	}
 
-	replayName := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "ReplayName")
-	year := readIntWithFallback(bp, bp.ReadUInt16, 0, "Year")
-	month := readIntWithFallback(bp, bp.ReadUInt16, 0, "Month")
-	dow := readIntWithFallback(bp, bp.ReadUInt16, 0, "DOW")
-	day := readIntWithFallback(bp, bp.ReadUInt16, 0, "Day")
-	hour := readIntWithFallback(bp, bp.ReadUInt16, 0, "Hour")
-	minute := readIntWithFallback(bp, bp.ReadUInt16, 0, "Minute")
-	second := readIntWithFallback(bp, bp.ReadUInt16, 0, "Second")
-	millisecond := readIntWithFallback(bp, bp.ReadUInt16, 0, "Millisecond")
+	replayName := readStringWithFallback(func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "ReplayName")
+	year := readIntWithFallback(bp.ReadUInt16, 0, "Year")
+	month := readIntWithFallback(bp.ReadUInt16, 0, "Month")
+	dow := readIntWithFallback(bp.ReadUInt16, 0, "DOW")
+	day := readIntWithFallback(bp.ReadUInt16, 0, "Day")
+	hour := readIntWithFallback(bp.ReadUInt16, 0, "Hour")
+	minute := readIntWithFallback(bp.ReadUInt16, 0, "Minute")
+	second := readIntWithFallback(bp.ReadUInt16, 0, "Second")
+	millisecond := readIntWithFallback(bp.ReadUInt16, 0, "Millisecond")
 
-	version := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "Version")
-	buildDate := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "BuildDate")
-	versionNumber := readIntWithFallback(bp, bp.ReadUInt32, 0, "VersionNumber")
-	exeCRC := readIntWithFallback(bp, bp.ReadUInt32, 0, "ExeCRC")
-	iniCRC := readIntWithFallback(bp, bp.ReadUInt32, 0, "IniCRC")
+	version := readStringWithFallback(func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "Version")
+	buildDate := readStringWithFallback(func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "BuildDate")
+	versionNumber := readIntWithFallback(bp.ReadUInt32, 0, "VersionNumber")
+	exeCRC := readIntWithFallback(bp.ReadUInt32, 0, "ExeCRC")
+	iniCRC := readIntWithFallback(bp.ReadUInt32, 0, "IniCRC")
 
-	metadataStr := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf8") }, "", "Metadata")
+	metadataStr := readStringWithFallback(func() (string, error) { return bp.ReadNullTermString("utf8") }, "", "Metadata")
 
-	localPlayerIndexStr := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf8") }, "0", "LocalPlayerIndex")
+	localPlayerIndexStr := readStringWithFallback(func() (string, error) { return bp.ReadNullTermString("utf8") }, "0", "LocalPlayerIndex")
 	localPlayerIndex, err := strconv.Atoi(localPlayerIndexStr)
 	if err != nil {
 		log.WithError(err).Warn("failed to parse LocalPlayerIndex, defaulting to 0")
 		localPlayerIndex = 0
 	}
 
-	difficulty := readIntWithFallback(bp, bp.ReadUInt32, 0, "Difficulty")
-	originalGameMode := readIntWithFallback(bp, bp.ReadUInt32, 0, "OriginalGameMode")
-	rankPoints := readIntWithFallback(bp, bp.ReadUInt32, 0, "RankPoints")
-	maxFPS := readIntWithFallback(bp, bp.ReadUInt32, 0, "MaxFPS")
+	difficulty := readIntWithFallback(bp.ReadUInt32, 0, "Difficulty")
+	originalGameMode := readIntWithFallback(bp.ReadUInt32, 0, "OriginalGameMode")
+	rankPoints := readIntWithFallback(bp.ReadUInt32, 0, "RankPoints")
+	maxFPS := readIntWithFallback(bp.ReadUInt32, 0, "MaxFPS")
 
 	if year < MinYear || year > MaxYear {
 		log.Warnf("unusual year value: %d (expected %d-%d)", year, MinYear, MaxYear)

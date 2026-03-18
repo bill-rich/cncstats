@@ -190,9 +190,9 @@ func initializeStores(objDataPath string) (*iniparse.ObjectStore, *iniparse.Powe
 }
 
 func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
-	// Use command line argument or fall back to os.Args[1] for backward compatibility
-	if replayFile == "" && len(os.Args) > 1 {
-		replayFile = os.Args[1]
+	// Use command line argument or fall back to first non-flag argument
+	if replayFile == "" && flag.NArg() > 0 {
+		replayFile = flag.Arg(0)
 	}
 
 	if replayFile == "" {

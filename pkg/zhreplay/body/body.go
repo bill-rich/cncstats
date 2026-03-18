@@ -20,8 +20,6 @@ const (
 	ArgUnknown10
 )
 
-type ArgType int
-
 // argSize maps argument types to their expected byte sizes
 // Note: Some sizes may be incorrect and need validation
 var argSize = map[int]int{
@@ -59,7 +57,7 @@ func ConvertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgInt:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return uint32(0)
+			return int(0)
 		}
 		return val
 	case ArgFloat:
@@ -77,13 +75,13 @@ func ConvertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgObjectID:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return uint32(0)
+			return int(0)
 		}
 		return val
 	case ArgUnknown4:
 		val, err := bp.ReadUInt32()
 		if err != nil {
-			return uint32(0)
+			return int(0)
 		}
 		return val
 	case ArgUnknown5:
@@ -127,7 +125,7 @@ func ConvertArg(bp *bitparse.BitParser, at int) interface{} {
 	case ArgUnknown10:
 		val, err := bp.ReadUInt16()
 		if err != nil {
-			return uint16(0)
+			return int(0)
 		}
 		return val
 	default:
@@ -148,18 +146,8 @@ type ScreenPosition struct {
 	Y uint32 `json:"y"`
 }
 
-// Position is kept for backward compatibility but should be replaced with specific types
-type Position struct {
-	X interface{} `json:"x"`
-	Y interface{} `json:"y"`
-	Z interface{} `json:"z"`
-}
-
 // ScreenRectangle represents a rectangle on screen with two screen positions
 type ScreenRectangle [2]ScreenPosition
-
-// Rectangle is kept for backward compatibility
-type Rectangle [2]Position
 
 type ArgMetadata struct {
 	Type  int `json:"type"`
@@ -167,32 +155,15 @@ type ArgMetadata struct {
 }
 
 type BodyChunk struct {
-	TimeCode          int           `json:"timeCode"`
-	OrderCode         int           `json:"orderCode"`
-	OrderName         string        `json:"orderName"`
-	PlayerID          int           `json:"playerID"` // Starts at 2 for humans
-	PlayerName        string        `json:"playerName"`
-	NumberOfArguments int           `json:"numberOfArguments"`
-	Details           object.Object `json:"details"`
-	ArgMetadata       []*ArgMetadata `json:"argMetadata"`
-	Arguments         []interface{} `json:"arguments"`
-}
-
-type BodyChunkEasyUnmarshall struct {
 	TimeCode          int            `json:"timeCode"`
 	OrderCode         int            `json:"orderCode"`
 	OrderName         string         `json:"orderName"`
 	PlayerID          int            `json:"playerID"` // Starts at 2 for humans
 	PlayerName        string         `json:"playerName"`
 	NumberOfArguments int            `json:"numberOfArguments"`
-	Details           GeneralDetail  `json:"details"`
+	Details           object.Object  `json:"details"`
 	ArgMetadata       []*ArgMetadata `json:"argMetadata"`
 	Arguments         []interface{}  `json:"arguments"`
-}
-
-type GeneralDetail struct {
-	Cost int    `json:"cost"`
-	Name string `json:"name"`
 }
 
 var PassiveCommands = map[int]bool{
@@ -238,7 +209,7 @@ var PassiveCommands = map[int]bool{
 	2019: true, // PowerUsedChange
 }
 
-var CommandType map[int]string = map[int]string{
+var CommandType = map[int]string{
 	27:   "EndReplay",
 	1001: "SetSelection",
 	1002: "SelectAll", // Pretty sure this is "e", the bool is everywhere or just on screen.
@@ -323,7 +294,7 @@ var CommandType map[int]string = map[int]string{
 	2019: "PowerUsedChange",
 }
 
-func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {
+func ParseBody(bp *bitparse.BitParser, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {
 	body := []*BodyChunk{}
 
 	for {
@@ -364,21 +335,25 @@ func ParseBody(bp *bitparse.BitParser, playerList []*object.PlayerSummary, objec
 		chunk.OrderName = CommandType[chunk.OrderCode]
 
 		// Read argument metadata
+		parseErr := false
 		for i := 0; i < chunk.NumberOfArguments; i++ {
 			argType, err1 := bp.ReadUInt8()
 			argCount, err2 := bp.ReadUInt8()
 			if err1 != nil || err2 != nil {
+				parseErr = true
 				break
 			}
-			// Validate argument type and count
 			if !ValidateArgType(int(argType)) || !ValidateArgCount(int(argCount)) {
+				parseErr = true
 				break
 			}
-			argCountData := &ArgMetadata{
+			chunk.ArgMetadata = append(chunk.ArgMetadata, &ArgMetadata{
 				Type:  argType,
 				Count: argCount,
-			}
-			chunk.ArgMetadata = append(chunk.ArgMetadata, argCountData)
+			})
+		}
+		if parseErr {
+			break
 		}
 
 		// Read arguments
@@ -450,7 +425,7 @@ func (c *BodyChunk) setPowerDetails(powerStore *iniparse.PowerStore) {
 		return
 	}
 	if arg, ok := c.Arguments[0].(int); ok {
-		if newObject, err := powerStore.GetObject(arg); err == nil && newObject != nil {
+		if newObject, err := powerStore.GetPower(arg); err == nil && newObject != nil {
 			c.Details = &object.Power{
 				Name: newObject.Name,
 			}
@@ -469,7 +444,7 @@ func (c *BodyChunk) setUpgradeDetails(upgradeStore *iniparse.UpgradeStore) {
 	}
 
 	if arg, ok := c.Arguments[1].(int); ok {
-		if newObject, err := upgradeStore.GetObject(arg); err == nil && newObject != nil {
+		if newObject, err := upgradeStore.GetUpgrade(arg); err == nil && newObject != nil {
 			c.Details = &object.Upgrade{
 				Name: newObject.Name,
 				Cost: newObject.Cost,

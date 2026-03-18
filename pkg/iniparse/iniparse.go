@@ -66,10 +66,6 @@ type RGBColor struct {
 }
 
 const (
-	nilString         = ""
-	ObjectStart       = "Object"
-	ObjectEnd         = "End"
-	Cost              = "BuildCost"
 	ObjectStoreOffset = 2
 	// UpgradeStoreOffset is 2270 because upgrades are usually part of the object listing. This is where the upgrades start.
 	UpgradeStoreOffset = 2270
@@ -87,23 +83,6 @@ var IniKey = []string{
 	"  RGBColor",
 	"  RGBNightColor",
 	"  TooltipName",
-	/*
-		"OkToChangeModelColor",
-		"ConditionState",
-		"ArmorSet",
-		"Body",
-		"Behavior",
-		"Draw",
-		"ClientUpdate",
-		"DefaultConditionState",
-		"TransitionState",
-		"WeaponSet",
-		"UnitSpecificSounds",
-		"Prerequisites",
-		"Turret",
-		"AttackAreaDecal",
-		"TargetingReticleDecal",
-	*/
 }
 
 func NewObjectStore(dir string) (*ObjectStore, error) {
@@ -173,7 +152,7 @@ func NewPowerStore(dir string) (*PowerStore, error) {
 	return powerStore, err
 }
 
-func (p *PowerStore) GetObject(i int) (*Power, error) {
+func (p *PowerStore) GetPower(i int) (*Power, error) {
 	if i < PowerStoreOffset {
 		return nil, fmt.Errorf("power ID %d is below minimum %d", i, PowerStoreOffset)
 	}
@@ -189,12 +168,8 @@ func (p *PowerStore) loadPowers(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close() // Ensure file is closed
-	err = p.parseFile(file)
-	if err != nil {
-		return err
-	}
-	return nil
+	defer file.Close()
+	return p.parseFile(file)
 }
 
 func (p *PowerStore) parseFile(file io.Reader) error {
@@ -235,7 +210,7 @@ func NewUpgradeStore(dir string) (*UpgradeStore, error) {
 	return upgradeStore, err
 }
 
-func (u *UpgradeStore) GetObject(i int) (*Upgrade, error) {
+func (u *UpgradeStore) GetUpgrade(i int) (*Upgrade, error) {
 	max := len(u.Upgrade) + UpgradeStoreOffset
 	if i < UpgradeStoreOffset {
 		return nil, fmt.Errorf("upgrade ID %d is below minimum %d", i, UpgradeStoreOffset)
@@ -251,12 +226,8 @@ func (u *UpgradeStore) loadUpgrades(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close() // Ensure file is closed
-	err = u.parseFile(file)
-	if err != nil {
-		return err
-	}
-	return nil
+	defer file.Close()
+	return u.parseFile(file)
 }
 
 func (u *UpgradeStore) parseFile(file io.Reader) error {
@@ -365,7 +336,7 @@ func matchKey(line string) string {
 			return strings.TrimLeft(key, " ")
 		}
 	}
-	return nilString
+	return ""
 }
 
 func (o *ObjectStore) parseFile(file io.Reader) error {
@@ -446,11 +417,7 @@ func (c *ColorStore) loadColors(dir string) error {
 		return err
 	}
 	defer file.Close()
-	err = c.parseFile(file)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.parseFile(file)
 }
 
 func (c *ColorStore) parseFile(file io.Reader) error {
@@ -552,7 +519,7 @@ func parseRGBFromLine(line string) (RGBColor, error) {
 	if bStart == -1 {
 		return RGBColor{}, fmt.Errorf("cannot find B value")
 	}
-	bStr := rgbString[bStart+2:]
+	bStr := strings.TrimSpace(rgbString[bStart+2:])
 	b, err := strconv.Atoi(bStr)
 	if err != nil {
 		return RGBColor{}, fmt.Errorf("invalid B value: %w", err)

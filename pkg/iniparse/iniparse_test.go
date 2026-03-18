@@ -172,7 +172,7 @@ func TestPowerStoreGetObject(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			power, err := powerStore.GetObject(tc.id)
+			power, err := powerStore.GetPower(tc.id)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("expected error, got nil")
@@ -223,7 +223,7 @@ func TestUpgradeStoreGetObject(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			upgrade, err := upgradeStore.GetObject(tc.id)
+			upgrade, err := upgradeStore.GetUpgrade(tc.id)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("expected error, got nil")

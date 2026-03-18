@@ -490,14 +490,14 @@ func TestParsePlayers(t *testing.T) {
 func TestDataStructures(t *testing.T) {
 	t.Run("Metadata", func(t *testing.T) {
 		metadata := Metadata{
-			MapPath:         "testmap",
-			MapCRC:          "12345678",
-			MapSize:         "100000",
-			Seed:            "9876543",
-			CRCInterval:     "50",
+			MapPath:                "testmap",
+			MapCRC:                 "12345678",
+			MapSize:                "100000",
+			Seed:                   "9876543",
+			CRCInterval:            "50",
 			SuperweaponRestriction: "1",
-			StartingCash:    "5000",
-			OldFactionsOnly: "Y",
+			StartingCash:           "5000",
+			OldFactionsOnly:        "Y",
 			Players: []Player{
 				{Name: "Player1"},
 			},

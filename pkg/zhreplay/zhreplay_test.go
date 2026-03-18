@@ -19,19 +19,19 @@ func TestNewReplay(t *testing.T) {
 		100, 0, 0, 0, // TimeStampBegin (uint32)
 		200, 0, 0, 0, // TimeStampEnd (uint32)
 		5, 0, 0, 0, // FrameCount (uint32)
-		0,                         // Desync (1 byte Bool)
-		0,                         // QuitEarly (1 byte Bool)
-		0, 0, 0, 0, 0, 0, 0, 0,   // PlayerDiscons (8 bytes, Bool[MAX_SLOTS])
+		0,                      // Desync (1 byte Bool)
+		0,                      // QuitEarly (1 byte Bool)
+		0, 0, 0, 0, 0, 0, 0, 0, // PlayerDiscons (8 bytes, Bool[MAX_SLOTS])
 		// ReplayName (UTF16 null-terminated)
 		'T', 0, 'e', 0, 's', 0, 't', 0, 0, 0,
 		// SYSTEMTIME (8 x uint16)
 		231, 7, // Year: 2023
-		12, 0,  // Month
-		1, 0,   // DOW
-		25, 0,  // Day
-		14, 0,  // Hour
-		30, 0,  // Minute
-		45, 0,  // Second
+		12, 0, // Month
+		1, 0, // DOW
+		25, 0, // Day
+		14, 0, // Hour
+		30, 0, // Minute
+		45, 0, // Second
 		244, 1, // Millisecond: 500
 		// Version (UTF16 null-terminated)
 		'1', 0, '.', 0, '0', 0, 0, 0,
@@ -84,17 +84,17 @@ func TestNewReplay(t *testing.T) {
 		t.Error("expected non-nil summary")
 	}
 
-	// Offset will be adjusted by AdjustOffset() call in NewReplay
+	// Offset will be adjusted by AdjustPlayerIDOffset() call in NewReplay
 	// The mock data has PlayerID: 0 in the body, so offset should be 0
 	// But if the body parsing fails or returns empty, offset might remain 1000
-	if replay.Offset != 0 && replay.Offset != 1000 {
-		t.Errorf("expected offset 0 or 1000, got %d", replay.Offset)
+	if replay.PlayerIDOffset != 0 && replay.PlayerIDOffset != 1000 {
+		t.Errorf("expected offset 0 or 1000, got %d", replay.PlayerIDOffset)
 	}
 }
 
 func TestReplayAddUserNames(t *testing.T) {
 	replay := &Replay{
-		Offset: 2,
+		PlayerIDOffset: 2,
 		Summary: []*object.PlayerSummary{
 			{Name: "Player1"},
 			{Name: "Player2"},
@@ -121,9 +121,9 @@ func TestReplayAddUserNames(t *testing.T) {
 	}
 }
 
-func TestReplayAdjustOffset(t *testing.T) {
+func TestReplayAdjustPlayerIDOffset(t *testing.T) {
 	replay := &Replay{
-		Offset: 1000,
+		PlayerIDOffset: 1000,
 		Body: []*body.BodyChunk{
 			{PlayerID: 5},
 			{PlayerID: 3},
@@ -131,10 +131,10 @@ func TestReplayAdjustOffset(t *testing.T) {
 		},
 	}
 
-	replay.AdjustOffset()
+	replay.AdjustPlayerIDOffset()
 
-	if replay.Offset != 3 {
-		t.Errorf("expected offset 3, got %d", replay.Offset)
+	if replay.PlayerIDOffset != 3 {
+		t.Errorf("expected offset 3, got %d", replay.PlayerIDOffset)
 	}
 }
 
@@ -296,7 +296,7 @@ func TestReplayGenerateData(t *testing.T) {
 	}
 }
 
-func TestConstructorMap(t *testing.T) {
+func TestConstructorMapEntries(t *testing.T) {
 	testCases := []struct {
 		unitName     string
 		expectedSide string
@@ -316,8 +316,8 @@ func TestConstructorMap(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		if side, ok := ConstructorMap[tc.unitName]; !ok {
-			t.Errorf("expected %s to be in ConstructorMap", tc.unitName)
+		if side, ok := constructorMap[tc.unitName]; !ok {
+			t.Errorf("expected %s to be in constructorMap", tc.unitName)
 		} else if side != tc.expectedSide {
 			t.Errorf("expected side %s for %s, got %s", tc.expectedSide, tc.unitName, side)
 		}
@@ -330,7 +330,7 @@ func TestReplayDataStructures(t *testing.T) {
 			Header:  &header.GeneralsHeader{},
 			Body:    []*body.BodyChunk{},
 			Summary: []*object.PlayerSummary{},
-			Offset:  2,
+			PlayerIDOffset:  2,
 		}
 
 		if replay.Header == nil {
@@ -345,35 +345,11 @@ func TestReplayDataStructures(t *testing.T) {
 			t.Error("expected non-nil summary")
 		}
 
-		if replay.Offset != 2 {
-			t.Errorf("expected offset 2, got %d", replay.Offset)
+		if replay.PlayerIDOffset != 2 {
+			t.Errorf("expected offset 2, got %d", replay.PlayerIDOffset)
 		}
 	})
 
-	t.Run("ReplayEasyUnmarshall", func(t *testing.T) {
-		replay := &ReplayEasyUnmarshall{
-			Header:  &header.GeneralsHeader{},
-			Body:    []*body.BodyChunkEasyUnmarshall{},
-			Summary: []*object.PlayerSummary{},
-			Offset:  2,
-		}
-
-		if replay.Header == nil {
-			t.Error("expected non-nil header")
-		}
-
-		if replay.Body == nil {
-			t.Error("expected non-nil body")
-		}
-
-		if replay.Summary == nil {
-			t.Error("expected non-nil summary")
-		}
-
-		if replay.Offset != 2 {
-			t.Errorf("expected offset 2, got %d", replay.Offset)
-		}
-	})
 }
 
 func TestEdgeCases(t *testing.T) {
@@ -417,22 +393,22 @@ func TestEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("AdjustOffsetWithEmptyBody", func(t *testing.T) {
+	t.Run("AdjustPlayerIDOffsetWithEmptyBody", func(t *testing.T) {
 		replay := &Replay{
-			Offset: 1000,
+			PlayerIDOffset: 1000,
 			Body:   []*body.BodyChunk{},
 		}
 
-		replay.AdjustOffset()
+		replay.AdjustPlayerIDOffset()
 
-		if replay.Offset != 1000 {
-			t.Errorf("expected offset to remain 1000, got %d", replay.Offset)
+		if replay.PlayerIDOffset != 1000 {
+			t.Errorf("expected offset to remain 1000, got %d", replay.PlayerIDOffset)
 		}
 	})
 
 	t.Run("AddUserNamesWithEmptySummary", func(t *testing.T) {
 		replay := &Replay{
-			Offset:  2,
+			PlayerIDOffset:  2,
 			Summary: []*object.PlayerSummary{},
 			Body: []*body.BodyChunk{
 				{PlayerID: 2, PlayerName: ""},
@@ -573,7 +549,7 @@ func TestIntegrationScenarios(t *testing.T) {
 
 		// Test the complete flow
 		replay.CreatePlayerList()
-		replay.AdjustOffset()
+		replay.AdjustPlayerIDOffset()
 		replay.AddUserNames()
 		replay.GenerateData()
 
@@ -581,8 +557,8 @@ func TestIntegrationScenarios(t *testing.T) {
 			t.Errorf("expected 2 players, got %d", len(replay.Summary))
 		}
 
-		if replay.Offset != 2 {
-			t.Errorf("expected offset 2, got %d", replay.Offset)
+		if replay.PlayerIDOffset != 2 {
+			t.Errorf("expected offset 2, got %d", replay.PlayerIDOffset)
 		}
 
 		if replay.Body[0].PlayerName != "Player1" {

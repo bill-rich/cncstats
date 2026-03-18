@@ -42,7 +42,7 @@ type EnhancedReplayV2 struct {
 	Stats         *EnrichedStats         `json:"stats"`
 	Body          []*body.BodyChunk      `json:"body"`
 	Summary       []*PlayerSummaryV2     `json:"summary"`
-	Offset        int                    `json:"offset"`
+	PlayerIDOffset int                   `json:"offset"`
 }
 
 // GameInfoV2 holds non-duplicate game metadata from the stats file.
@@ -98,17 +98,17 @@ type EnrichedCaptureEvent struct {
 
 // EnrichedStats holds enriched events and time series from the stats file.
 type EnrichedStats struct {
-	BuildEvents         []EnrichedBuildEvent         `json:"buildEvents"`
-	KillEvents          []EnrichedKillEvent          `json:"killEvents"`
-	CaptureEvents       []EnrichedCaptureEvent       `json:"captureEvents"`
-	EnergyEvents        []statsfile.EnergyEvent      `json:"energyEvents"`
-	RankEvents          []statsfile.RankEvent         `json:"rankEvents"`
-	SkillPointsEvents   []statsfile.SkillPointsEvent `json:"skillPointsEvents"`
+	BuildEvents         []EnrichedBuildEvent           `json:"buildEvents"`
+	KillEvents          []EnrichedKillEvent            `json:"killEvents"`
+	CaptureEvents       []EnrichedCaptureEvent         `json:"captureEvents"`
+	EnergyEvents        []statsfile.EnergyEvent        `json:"energyEvents"`
+	RankEvents          []statsfile.RankEvent          `json:"rankEvents"`
+	SkillPointsEvents   []statsfile.SkillPointsEvent   `json:"skillPointsEvents"`
 	SciencePointsEvents []statsfile.SciencePointsEvent `json:"sciencePointsEvents"`
-	RadarEvents         []statsfile.RadarEvent       `json:"radarEvents"`
-	DeathEvents         []statsfile.DeathEvent       `json:"deathEvents"`
-	BattlePlanEvents    []statsfile.BattlePlanEvent  `json:"battlePlanEvents"`
-	TimeSeries          statsfile.TimeSeries         `json:"timeSeries"`
+	RadarEvents         []statsfile.RadarEvent         `json:"radarEvents"`
+	DeathEvents         []statsfile.DeathEvent         `json:"deathEvents"`
+	BattlePlanEvents    []statsfile.BattlePlanEvent    `json:"battlePlanEvents"`
+	TimeSeries          statsfile.TimeSeries           `json:"timeSeries"`
 }
 
 // lookupObjectType returns the ObjectType string for a given object name, or empty string.
@@ -180,7 +180,7 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 		},
 		Stats:   enrichStats(stats, objectStore),
 		Body:    replay.Body,
-		Offset:  replay.Offset,
+		PlayerIDOffset: replay.PlayerIDOffset,
 		Summary: make([]*PlayerSummaryV2, len(replay.Summary)),
 	}
 

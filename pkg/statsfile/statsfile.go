@@ -11,21 +11,21 @@ import (
 
 // GameStats represents the JSON structure from the Generals stats exporter
 type GameStats struct {
-	Version int       `json:"version"`
-	Game    GameInfo  `json:"game"`
-	Players []Player  `json:"players"`
+	Version int      `json:"version"`
+	Game    GameInfo `json:"game"`
+	Players []Player `json:"players"`
 
-	BuildEvents       []BuildEvent       `json:"buildEvents"`
-	KillEvents        []KillEvent        `json:"killEvents"`
-	CaptureEvents     []CaptureEvent     `json:"captureEvents"`
-	EnergyEvents      []EnergyEvent      `json:"energyEvents"`
-	RankEvents        []RankEvent        `json:"rankEvents"`
-	SkillPointsEvents []SkillPointsEvent `json:"skillPointsEvents"`
+	BuildEvents         []BuildEvent         `json:"buildEvents"`
+	KillEvents          []KillEvent          `json:"killEvents"`
+	CaptureEvents       []CaptureEvent       `json:"captureEvents"`
+	EnergyEvents        []EnergyEvent        `json:"energyEvents"`
+	RankEvents          []RankEvent          `json:"rankEvents"`
+	SkillPointsEvents   []SkillPointsEvent   `json:"skillPointsEvents"`
 	SciencePointsEvents []SciencePointsEvent `json:"sciencePointsEvents"`
-	RadarEvents       []RadarEvent       `json:"radarEvents"`
-	DeathEvents       []DeathEvent       `json:"deathEvents"`
-	BattlePlanEvents  []BattlePlanEvent  `json:"battlePlanEvents"`
-	TimeSeries        TimeSeries         `json:"timeSeries"`
+	RadarEvents         []RadarEvent         `json:"radarEvents"`
+	DeathEvents         []DeathEvent         `json:"deathEvents"`
+	BattlePlanEvents    []BattlePlanEvent    `json:"battlePlanEvents"`
+	TimeSeries          TimeSeries           `json:"timeSeries"`
 }
 
 type GameInfo struct {
@@ -39,50 +39,50 @@ type GameInfo struct {
 }
 
 type Player struct {
-	Index       int    `json:"index"`
-	DisplayName string `json:"displayName"`
-	Faction     string `json:"faction,omitempty"`
-	Side        string `json:"side"`
-	BaseSide    string `json:"baseSide,omitempty"`
-	Type        string `json:"type"`
-	Color       string `json:"color"`
-	Money       uint   `json:"money"`
-	MoneyEarned int    `json:"moneyEarned"`
-	MoneySpent  int    `json:"moneySpent"`
-	Score       int    `json:"score"`
+	Index       int      `json:"index"`
+	DisplayName string   `json:"displayName"`
+	Faction     string   `json:"faction,omitempty"`
+	Side        string   `json:"side"`
+	BaseSide    string   `json:"baseSide,omitempty"`
+	Type        string   `json:"type"`
+	Color       string   `json:"color"`
+	Money       uint     `json:"money"`
+	MoneyEarned int      `json:"moneyEarned"`
+	MoneySpent  int      `json:"moneySpent"`
+	Score       int      `json:"score"`
 	Academy     *Academy `json:"academy,omitempty"`
 }
 
 type Academy struct {
-	SupplyCentersBuilt           uint `json:"supplyCentersBuilt"`
-	PeonsBuilt                   uint `json:"peonsBuilt"`
-	StructuresCaptured           uint `json:"structuresCaptured"`
-	GeneralsPointsSpent          uint `json:"generalsPointsSpent"`
-	SpecialPowersUsed            uint `json:"specialPowersUsed"`
-	StructuresGarrisoned         uint `json:"structuresGarrisoned"`
-	UpgradesPurchased            uint `json:"upgradesPurchased"`
-	GatherersBuilt               uint `json:"gatherersBuilt"`
-	HeroesBuilt                  uint `json:"heroesBuilt"`
-	ControlGroupsUsed            uint `json:"controlGroupsUsed"`
-	SecondaryIncomeUnitsBuilt    uint `json:"secondaryIncomeUnitsBuilt"`
-	ClearedGarrisonedBuildings   uint `json:"clearedGarrisonedBuildings"`
-	SalvageCollected             uint `json:"salvageCollected"`
-	GuardAbilityUsedCount        uint `json:"guardAbilityUsedCount"`
+	SupplyCentersBuilt               uint `json:"supplyCentersBuilt"`
+	PeonsBuilt                       uint `json:"peonsBuilt"`
+	StructuresCaptured               uint `json:"structuresCaptured"`
+	GeneralsPointsSpent              uint `json:"generalsPointsSpent"`
+	SpecialPowersUsed                uint `json:"specialPowersUsed"`
+	StructuresGarrisoned             uint `json:"structuresGarrisoned"`
+	UpgradesPurchased                uint `json:"upgradesPurchased"`
+	GatherersBuilt                   uint `json:"gatherersBuilt"`
+	HeroesBuilt                      uint `json:"heroesBuilt"`
+	ControlGroupsUsed                uint `json:"controlGroupsUsed"`
+	SecondaryIncomeUnitsBuilt        uint `json:"secondaryIncomeUnitsBuilt"`
+	ClearedGarrisonedBuildings       uint `json:"clearedGarrisonedBuildings"`
+	SalvageCollected                 uint `json:"salvageCollected"`
+	GuardAbilityUsedCount            uint `json:"guardAbilityUsedCount"`
 	DoubleClickAttackMoveOrdersGiven uint `json:"doubleClickAttackMoveOrdersGiven"`
-	MinesCleared                 uint `json:"minesCleared"`
-	VehiclesDisguised            uint `json:"vehiclesDisguised"`
-	FirestormsCreated            uint `json:"firestormsCreated"`
+	MinesCleared                     uint `json:"minesCleared"`
+	VehiclesDisguised                uint `json:"vehiclesDisguised"`
+	FirestormsCreated                uint `json:"firestormsCreated"`
 }
 
 type BuildEvent struct {
-	Frame    uint    `json:"frame"`
-	Player   int     `json:"player"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-	Cost     int     `json:"cost"`
-	BuildTime int    `json:"buildTime"`
-	Object   string  `json:"object"`
-	Producer string  `json:"producer"`
+	Frame     uint    `json:"frame"`
+	Player    int     `json:"player"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Cost      int     `json:"cost"`
+	BuildTime int     `json:"buildTime"`
+	Object    string  `json:"object"`
+	Producer  string  `json:"producer"`
 }
 
 type KillEvent struct {
@@ -154,10 +154,10 @@ type TimeSeries struct {
 }
 
 type TimeSeriesPlayer struct {
-	Index      int    `json:"index"`
-	Money      []uint `json:"money"`
-	MoneyEarned []int `json:"moneyEarned"`
-	MoneySpent  []int `json:"moneySpent"`
+	Index       int    `json:"index"`
+	Money       []uint `json:"money"`
+	MoneyEarned []int  `json:"moneyEarned"`
+	MoneySpent  []int  `json:"moneySpent"`
 }
 
 // StatsDir is the directory where stats files are stored.
