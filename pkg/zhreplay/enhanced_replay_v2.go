@@ -1,6 +1,8 @@
 package zhreplay
 
 import (
+	"math"
+
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/body"
@@ -12,16 +14,35 @@ const (
 	EnhancedReplayVersionV2 = 2
 )
 
+// WinEstimation holds the estimated winner result and per-team breakdown.
+type WinEstimation struct {
+	Confidence float64              `json:"confidence"`
+	Teams      map[int]*TeamFactors `json:"teams"`
+}
+
+// TeamFactors holds the scoring factors used to estimate a team's strength.
+type TeamFactors struct {
+	BuiltValue     int     `json:"builtValue"`
+	LostValue      int     `json:"lostValue"`
+	DestroyedValue int     `json:"destroyedValue"`
+	CaptureGain    int     `json:"captureGain"`
+	CaptureLoss    int     `json:"captureLoss"`
+	NetAssets      int     `json:"netAssets"`
+	Efficiency     float64 `json:"efficiency"`
+	Score          float64 `json:"score"`
+}
+
 // EnhancedReplayV2 represents a replay with stats from the Generals JSON exporter
 type EnhancedReplayV2 struct {
-	Header    *header.GeneralsHeader `json:"header"`
-	Version   int                    `json:"version"`
-	WinMethod string                 `json:"winMethod"`
-	GameInfo  *GameInfoV2            `json:"gameInfo,omitempty"`
-	Stats     *EnrichedStats         `json:"stats"`
-	Body      []*body.BodyChunk      `json:"body"`
-	Summary   []*PlayerSummaryV2     `json:"summary"`
-	Offset    int                    `json:"offset"`
+	Header        *header.GeneralsHeader `json:"header"`
+	Version       int                    `json:"version"`
+	WinMethod     string                 `json:"winMethod"`
+	WinEstimation *WinEstimation         `json:"winEstimation,omitempty"`
+	GameInfo      *GameInfoV2            `json:"gameInfo,omitempty"`
+	Stats         *EnrichedStats         `json:"stats"`
+	Body          []*body.BodyChunk      `json:"body"`
+	Summary       []*PlayerSummaryV2     `json:"summary"`
+	Offset        int                    `json:"offset"`
 }
 
 // GameInfoV2 holds non-duplicate game metadata from the stats file.
@@ -196,15 +217,15 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 	}
 
 	// Determine winners using death events from stats
-	v2.DetermineWinnersByDeathEvents()
+	v2.DetermineWinnersByDeathEvents(objectStore)
 
 	return v2
 }
 
 // DetermineWinnersByDeathEvents uses the stats death events to determine winners.
-// If the result is ambiguous (more than one winning team), the original replay-based
-// winner detection is left in place.
-func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
+// If the result is ambiguous (more than one winning team) or no death events exist,
+// it falls back to estimateWinner before returning.
+func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents(objectStore *iniparse.ObjectStore) {
 	if v2.Stats == nil {
 		return
 	}
@@ -215,8 +236,9 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		deadPlayers[de.Player] = true
 	}
 
-	// If no death events, can't determine — leave default
+	// If no death events, try estimated winner
 	if len(deadPlayers) == 0 {
+		v2.estimateWinner(objectStore)
 		return
 	}
 
@@ -231,7 +253,7 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		}
 	}
 
-	// Count winning teams — if more than one, something is wrong; fall back
+	// Count winning teams — if more than one, ambiguous; try estimated winner
 	winningTeams := 0
 	for _, alive := range teamAlive {
 		if alive {
@@ -239,6 +261,7 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		}
 	}
 	if winningTeams != 1 {
+		v2.estimateWinner(objectStore)
 		return
 	}
 
@@ -250,4 +273,172 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		p.Win = teamAlive[p.Team]
 	}
 	v2.WinMethod = "deathEvents"
+}
+
+// estimateWinner uses build/kill/capture economic data to estimate the winner.
+// It computes a composite score per team from net assets and kill efficiency,
+// then picks the highest-scoring team if confidence is above zero.
+func (v2 *EnhancedReplayV2) estimateWinner(objectStore *iniparse.ObjectStore) {
+	if v2.Stats == nil {
+		return
+	}
+
+	// Build cost map from BuildEvents (object name → cost)
+	objectCost := make(map[string]int)
+	for _, ev := range v2.Stats.BuildEvents {
+		objectCost[ev.Object] = ev.Cost
+	}
+
+	lookupCost := func(name string) int {
+		if c, ok := objectCost[name]; ok {
+			return c
+		}
+		if objectStore != nil {
+			if obj := objectStore.GetObjectByName(name); obj != nil {
+				return obj.Cost
+			}
+		}
+		return 0
+	}
+
+	// Build player index → team map
+	playerTeam := make(map[int]int)
+	teams := make(map[int]bool)
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		playerTeam[p.Index] = p.Team
+		teams[p.Team] = true
+	}
+
+	// Need at least 2 teams to compare
+	if len(teams) < 2 {
+		return
+	}
+
+	// Initialize team factors
+	factors := make(map[int]*TeamFactors)
+	for team := range teams {
+		factors[team] = &TeamFactors{}
+	}
+
+	// Accumulate built value
+	for _, ev := range v2.Stats.BuildEvents {
+		team, ok := playerTeam[ev.Player]
+		if !ok {
+			continue
+		}
+		factors[team].BuiltValue += ev.Cost
+	}
+
+	// Accumulate kill values
+	for _, ev := range v2.Stats.KillEvents {
+		cost := lookupCost(ev.Victim)
+
+		if team, ok := playerTeam[ev.VictimPlayer]; ok {
+			factors[team].LostValue += cost
+		}
+		if team, ok := playerTeam[ev.KillerPlayer]; ok {
+			factors[team].DestroyedValue += cost
+		}
+	}
+
+	// Accumulate capture values
+	for _, ev := range v2.Stats.CaptureEvents {
+		cost := lookupCost(ev.Object)
+
+		if team, ok := playerTeam[ev.NewOwner]; ok {
+			factors[team].CaptureGain += cost
+		}
+		if team, ok := playerTeam[ev.OldOwner]; ok {
+			factors[team].CaptureLoss += cost
+		}
+	}
+
+	// Compute per-team derived values
+	for _, tf := range factors {
+		tf.NetAssets = tf.BuiltValue - tf.LostValue + tf.CaptureGain - tf.CaptureLoss
+		tf.Efficiency = float64(tf.DestroyedValue+1) / float64(tf.LostValue+1)
+	}
+
+	// Find min/max for normalization
+	minNet, maxNet := math.MaxFloat64, -math.MaxFloat64
+	minEff, maxEff := math.MaxFloat64, -math.MaxFloat64
+	for _, tf := range factors {
+		net := float64(tf.NetAssets)
+		if net < minNet {
+			minNet = net
+		}
+		if net > maxNet {
+			maxNet = net
+		}
+		if tf.Efficiency < minEff {
+			minEff = tf.Efficiency
+		}
+		if tf.Efficiency > maxEff {
+			maxEff = tf.Efficiency
+		}
+	}
+
+	netRange := maxNet - minNet
+	effRange := maxEff - minEff
+
+	// Compute composite score
+	for _, tf := range factors {
+		var normNet, normEff float64
+		if netRange > 0 {
+			normNet = (float64(tf.NetAssets) - minNet) / netRange
+		} else {
+			normNet = 0.5
+		}
+		if effRange > 0 {
+			normEff = (tf.Efficiency - minEff) / effRange
+		} else {
+			normEff = 0.5
+		}
+		tf.Score = 0.6*normNet + 0.4*normEff
+	}
+
+	// Find highest-scoring team
+	bestTeam := -1
+	bestScore := -1.0
+	secondScore := -1.0
+	for team, tf := range factors {
+		if tf.Score > bestScore {
+			secondScore = bestScore
+			bestScore = tf.Score
+			bestTeam = team
+		} else if tf.Score > secondScore {
+			secondScore = tf.Score
+		}
+	}
+
+	if bestTeam < 0 || bestScore <= 0 {
+		return
+	}
+
+	// Compute confidence from margin
+	var confidence float64
+	if bestScore > 0 {
+		margin := math.Abs(bestScore-secondScore) / bestScore
+		confidence = math.Min(margin*2, 1.0)
+	}
+
+	if confidence <= 0 {
+		return
+	}
+
+	// Apply wins
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		p.Win = p.Team == bestTeam
+	}
+	v2.WinMethod = "estimatedWinner"
+	v2.WinEstimation = &WinEstimation{
+		Confidence: confidence,
+		Teams:      factors,
+	}
 }
