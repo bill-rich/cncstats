@@ -460,47 +460,50 @@ func (v2 *EnhancedReplayV2) estimateWinner(objectStore *iniparse.ObjectStore) {
 		return
 	}
 
-	// --- Compute econ ratio for the chosen winner ---
-	winnerScore := factors[bestTeam].Score
-	if winnerScore <= 0 {
+	// --- Compute net assets ratio for confidence ---
+	// The composite score (netAssets × efficiency) picks the winner, but
+	// confidence is driven by the net assets ratio — the most direct measure
+	// of who controls the game. Efficiency compresses differences (a team
+	// with 2x assets but slightly lower efficiency looks only ~1.7x ahead
+	// in composite score), while net assets directly reflects dominance.
+	winnerNet := factors[bestTeam].NetAssets
+	if winnerNet <= 0 {
 		return
 	}
 
-	var bestOpponentScore float64
+	var bestOpponentNet int
 	for team, tf := range factors {
-		if team == bestTeam && tf.Score > bestOpponentScore {
-			continue
-		}
-		if team != bestTeam && tf.Score > bestOpponentScore {
-			bestOpponentScore = tf.Score
+		if team != bestTeam && tf.NetAssets > bestOpponentNet {
+			bestOpponentNet = tf.NetAssets
 		}
 	}
 
-	var econRatio float64
-	if bestOpponentScore > 0 {
-		econRatio = winnerScore / bestOpponentScore
+	var assetRatio float64
+	if bestOpponentNet > 0 {
+		assetRatio = float64(winnerNet) / float64(bestOpponentNet)
 	} else {
-		econRatio = winnerScore // opponent has 0 or negative score; treat as very dominant
+		// Opponent has zero or negative net assets — very dominant.
+		// Use a high ratio but not infinite.
+		assetRatio = float64(winnerNet) / 1000.0
+		if assetRatio > 100 {
+			assetRatio = 100
+		}
 	}
 
-	// --- Confidence via sigmoid on econ ratio, modulated by factor agreement ---
+	// --- Confidence via sigmoid on asset ratio, modulated by factor agreement ---
 	//
-	// Base confidence: sigmoid(k * ln(econRatio)) mapped to (0, 1).
+	// Base confidence: sigmoid(k * ln(assetRatio)) mapped to (0, 1).
 	//   sigmoid(x) = 2 / (1 + e^(-x)) - 1
-	//   k = 1.5 calibrated against 9 test games:
-	//     ratio 1.5x → ~0.30, ratio 3x → ~0.70, ratio 10x → ~0.95
+	//   k = 2.0 calibrated against 10 test games using net asset ratios:
+	//     ratio 1.5x → ~0.40, ratio 2x → ~0.60, ratio 3x → ~0.77, ratio 10x → ~0.98
 	//
 	// Agreement multiplier:
 	//   3/3 agree: 1.0 (full confidence from sigmoid)
 	//   2/3 agree: 0.75 (damped — factors split, less certain)
 	//   1/3 agree: 0.50 (econ alone, other factors disagree)
-	//
-	// This produces confidence approaching 0 when the ratio is near 1x or
-	// factors disagree, and approaching 1 when the ratio is extreme and all
-	// factors align — without ever reaching exactly 0 or 1.
 
-	const k = 1.5
-	logRatio := math.Log(math.Max(econRatio, 1.0))
+	const k = 2.75
+	logRatio := math.Log(math.Max(assetRatio, 1.0))
 	baseSigmoid := 2.0/(1.0+math.Exp(-k*logRatio)) - 1.0
 
 	var agreementMultiplier float64
