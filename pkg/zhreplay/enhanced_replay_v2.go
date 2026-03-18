@@ -201,7 +201,9 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 	return v2
 }
 
-// DetermineWinnersByDeathEvents uses the stats death events to determine winners
+// DetermineWinnersByDeathEvents uses the stats death events to determine winners.
+// If the result is ambiguous (more than one winning team), the original replay-based
+// winner detection is left in place.
 func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 	if v2.Stats == nil {
 		return
@@ -218,11 +220,6 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		return
 	}
 
-	// Reset wins
-	for _, p := range v2.Summary {
-		p.Win = false
-	}
-
 	// Teams with at least one alive player win
 	teamAlive := make(map[int]bool)
 	for _, p := range v2.Summary {
@@ -234,14 +231,23 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		}
 	}
 
-	// Mark winners
+	// Count winning teams — if more than one, something is wrong; fall back
+	winningTeams := 0
+	for _, alive := range teamAlive {
+		if alive {
+			winningTeams++
+		}
+	}
+	if winningTeams != 1 {
+		return
+	}
+
+	// Exactly one winning team — apply death-based results
 	for _, p := range v2.Summary {
 		if p.Side == "Observer" {
 			continue
 		}
-		if teamAlive[p.Team] {
-			p.Win = true
-		}
+		p.Win = teamAlive[p.Team]
 	}
 	v2.WinMethod = "deathEvents"
 }
