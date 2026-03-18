@@ -10,7 +10,7 @@ import (
 
 func TestMetadataParse(t *testing.T) {
 	input := "US=1;M=07maps/tournament island;MC=12BE477C;MS=130668;SD=6449734;C=100;SR=0;SC=10000;O=N;S=HModus,17F04000,8088,FT,7,-1,-1,0,1:HYe_Ole_Seans,48595000,8088,FT,0,-1,-1,2,1:HOneThree111,49DDD000,8088,FT,6,-1,-1,2,1:Hjbb,18099000,8088,FT,3,-1,-1,0,1:X:X:X:X:;"
-	mdOut := parseMetadata(input)
+	mdOut := parseMetadata(input, nil)
 	mdExpected := Metadata{
 		MapFile:         "07maps/tournament island",
 		MapCRC:          "12BE477C",
@@ -170,7 +170,7 @@ func TestNewHeader(t *testing.T) {
 func TestParseMetadata(t *testing.T) {
 	t.Run("CompleteMetadata", func(t *testing.T) {
 		input := "M=testmap;MC=12345678;MS=100000;SD=9876543;C=50;SR=1;SC=5000;O=Y;S=HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1"
-		metadata := parseMetadata(input)
+		metadata := parseMetadata(input, nil)
 
 		if metadata.MapFile != "testmap" {
 			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
@@ -214,7 +214,7 @@ func TestParseMetadata(t *testing.T) {
 	})
 
 	t.Run("EmptyInput", func(t *testing.T) {
-		metadata := parseMetadata("")
+		metadata := parseMetadata("", nil)
 
 		if metadata.MapFile != "" {
 			t.Errorf("expected empty MapFile, got '%s'", metadata.MapFile)
@@ -227,7 +227,7 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("InvalidFieldFormat", func(t *testing.T) {
 		input := "M=testmap;INVALID_FIELD;MC=12345678"
-		metadata := parseMetadata(input)
+		metadata := parseMetadata(input, nil)
 
 		if metadata.MapFile != "testmap" {
 			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
@@ -240,7 +240,7 @@ func TestParseMetadata(t *testing.T) {
 
 	t.Run("PartialMetadata", func(t *testing.T) {
 		input := "M=testmap;MC=12345678"
-		metadata := parseMetadata(input)
+		metadata := parseMetadata(input, nil)
 
 		if metadata.MapFile != "testmap" {
 			t.Errorf("expected MapFile 'testmap', got '%s'", metadata.MapFile)
@@ -259,7 +259,7 @@ func TestParseMetadata(t *testing.T) {
 func TestParsePlayers(t *testing.T) {
 	t.Run("SinglePlayer", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 1 {
 			t.Errorf("expected 1 player, got %d", len(players))
@@ -309,7 +309,7 @@ func TestParsePlayers(t *testing.T) {
 
 	t.Run("MultiplePlayers", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1:HPlayer2,5.6.7.8,8081,FT,2,1,1,1,2"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 2 {
 			t.Errorf("expected 2 players, got %d", len(players))
@@ -325,7 +325,7 @@ func TestParsePlayers(t *testing.T) {
 	})
 
 	t.Run("EmptyInput", func(t *testing.T) {
-		players := parsePlayers("")
+		players := parsePlayers("", nil)
 
 		if len(players) != 0 {
 			t.Errorf("expected 0 players, got %d", len(players))
@@ -334,7 +334,7 @@ func TestParsePlayers(t *testing.T) {
 
 	t.Run("InvalidPlayerFormat", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0:HPlayer2,5.6.7.8,8081,FT,2,1,1,1,2"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		// Should skip invalid players and only include valid ones
 		if len(players) != 1 {
@@ -349,7 +349,7 @@ func TestParsePlayers(t *testing.T) {
 
 	t.Run("PlayerWithSpecialCharacters", func(t *testing.T) {
 		input := "HPlayer_With_Underscores,1.2.3.4,8080,FT,1,0,0,0,1"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 1 {
 			t.Errorf("expected 1 player, got %d", len(players))
@@ -362,7 +362,7 @@ func TestParsePlayers(t *testing.T) {
 
 	t.Run("ComputerPlayer", func(t *testing.T) {
 		input := "CE,0,3,-1,-1"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 1 {
 			t.Errorf("expected 1 player, got %d", len(players))
@@ -396,7 +396,7 @@ func TestParsePlayers(t *testing.T) {
 
 	t.Run("MixedHumanAndComputerPlayers", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1:CE,0,3,-1,-1"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 2 {
 			t.Errorf("expected 2 players, got %d", len(players))
@@ -507,7 +507,7 @@ func TestDataStructures(t *testing.T) {
 func TestEdgeCases(t *testing.T) {
 	t.Run("ParseMetadataWithEmptyFields", func(t *testing.T) {
 		input := "M=;MC=;MS=;SD=;C=;SR=;SC=;O=;S="
-		metadata := parseMetadata(input)
+		metadata := parseMetadata(input, nil)
 
 		// All fields should be empty strings
 		if metadata.MapFile != "" {
@@ -521,7 +521,7 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("ParsePlayersWithEmptyFields", func(t *testing.T) {
 		input := "H,,,,,,,,"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		if len(players) != 1 {
 			t.Errorf("expected 1 player, got %d", len(players))
@@ -539,7 +539,7 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("ParseMetadataWithUnknownFields", func(t *testing.T) {
 		input := "M=testmap;UNKNOWN=value;MC=12345678;ANOTHER=test"
-		metadata := parseMetadata(input)
+		metadata := parseMetadata(input, nil)
 
 		// Should still parse known fields correctly
 		if metadata.MapFile != "testmap" {
@@ -553,7 +553,7 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("ParsePlayersWithTooFewFields", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		// Should skip invalid player
 		if len(players) != 0 {
@@ -563,7 +563,7 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("ParsePlayersWithTooManyFields", func(t *testing.T) {
 		input := "HPlayer1,1.2.3.4,8080,FT,1,0,0,0,1,extra,field"
-		players := parsePlayers(input)
+		players := parsePlayers(input, nil)
 
 		// Should skip invalid player
 		if len(players) != 0 {
