@@ -14,21 +14,40 @@ const (
 
 // EnhancedReplayV2 represents a replay with stats from the Generals JSON exporter
 type EnhancedReplayV2 struct {
-	Header  *header.GeneralsHeader `json:"Header"`
-	Version int                    `json:"Version"`
-	Stats   *EnrichedStats         `json:"Stats"`
-	Body    []*body.BodyChunk      `json:"Body"`
-	Summary []*PlayerSummaryV2     `json:"Summary"`
-	Offset  int                    `json:"Offset"`
+	Header   *header.GeneralsHeader `json:"Header"`
+	Version  int                    `json:"Version"`
+	GameInfo *GameInfoV2            `json:"GameInfo,omitempty"`
+	Stats    *EnrichedStats         `json:"Stats"`
+	Body     []*body.BodyChunk      `json:"Body"`
+	Summary  []*PlayerSummaryV2     `json:"Summary"`
+	Offset   int                    `json:"Offset"`
 }
 
-// PlayerSummaryV2 keeps per-type breakdowns from replay parsing but removes
-// fields that are now in the Stats section
+// GameInfoV2 holds non-duplicate game metadata from the stats file.
+type GameInfoV2 struct {
+	Mode             string `json:"Mode"`
+	FrameCount       uint   `json:"FrameCount"`
+	PlayerCount      int    `json:"PlayerCount"`
+	SnapshotInterval int    `json:"SnapshotInterval"`
+}
+
+// PlayerSummaryV2 keeps per-type breakdowns from replay parsing, enriched with
+// stats player data (index, economy, faction, etc.)
 type PlayerSummaryV2 struct {
 	Name           string                           `json:"Name"`
 	Side           string                           `json:"Side"`
 	Team           int                              `json:"Team"`
 	Win            bool                             `json:"Win"`
+	Index          int                              `json:"Index"`
+	PlayerType     string                           `json:"PlayerType"`
+	Color          string                           `json:"Color"`
+	Faction        string                           `json:"Faction"`
+	BaseSide       string                           `json:"BaseSide"`
+	Money          uint                             `json:"Money"`
+	MoneyEarned    int                              `json:"MoneyEarned"`
+	MoneySpent     int                              `json:"MoneySpent"`
+	Score          int                              `json:"Score"`
+	Academy        *statsfile.Academy               `json:"Academy,omitempty"`
 	UnitsCreated   map[string]*object.ObjectSummary `json:"UnitsCreated"`
 	BuildingsBuilt map[string]*object.ObjectSummary `json:"BuildingsBuilt"`
 	UpgradesBuilt  map[string]*object.ObjectSummary `json:"UpgradesBuilt"`
@@ -55,13 +74,8 @@ type EnrichedCaptureEvent struct {
 	ObjectType string `json:"objectType,omitempty"`
 }
 
-// EnrichedStats mirrors statsfile.GameStats but uses enriched event types
-// for build, kill, and capture events.
+// EnrichedStats holds enriched events and time series from the stats file.
 type EnrichedStats struct {
-	Version int                `json:"version"`
-	Game    statsfile.GameInfo `json:"game"`
-	Players []statsfile.Player `json:"players"`
-
 	BuildEvents         []EnrichedBuildEvent         `json:"buildEvents"`
 	KillEvents          []EnrichedKillEvent          `json:"killEvents"`
 	CaptureEvents       []EnrichedCaptureEvent       `json:"captureEvents"`
@@ -90,9 +104,6 @@ func lookupObjectType(objectStore *iniparse.ObjectStore, name string) string {
 // enrichStats builds an EnrichedStats from a GameStats, looking up object types.
 func enrichStats(stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) *EnrichedStats {
 	es := &EnrichedStats{
-		Version:             stats.Version,
-		Game:                stats.Game,
-		Players:             stats.Players,
 		EnergyEvents:        stats.EnergyEvents,
 		RankEvents:          stats.RankEvents,
 		SkillPointsEvents:   stats.SkillPointsEvents,
@@ -138,6 +149,12 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 	v2 := &EnhancedReplayV2{
 		Header:  replay.Header,
 		Version: EnhancedReplayVersionV2,
+		GameInfo: &GameInfoV2{
+			Mode:             stats.Game.Mode,
+			FrameCount:       stats.Game.FrameCount,
+			PlayerCount:      stats.Game.PlayerCount,
+			SnapshotInterval: stats.Game.SnapshotInterval,
+		},
 		Stats:   enrichStats(stats, objectStore),
 		Body:    replay.Body,
 		Offset:  replay.Offset,
@@ -154,6 +171,25 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 			BuildingsBuilt: ps.BuildingsBuilt,
 			UpgradesBuilt:  ps.UpgradesBuilt,
 			PowersUsed:     ps.PowersUsed,
+		}
+	}
+
+	// Merge stats player data into summary entries
+	for _, sp := range stats.Players {
+		for _, p := range v2.Summary {
+			if sp.DisplayName == p.Name || sp.Side == p.Side {
+				p.Index = sp.Index
+				p.PlayerType = sp.Type
+				p.Color = sp.Color
+				p.Faction = sp.Faction
+				p.BaseSide = sp.BaseSide
+				p.Money = sp.Money
+				p.MoneyEarned = sp.MoneyEarned
+				p.MoneySpent = sp.MoneySpent
+				p.Score = sp.Score
+				p.Academy = sp.Academy
+				break
+			}
 		}
 	}
 
@@ -185,31 +221,14 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 		p.Win = false
 	}
 
-	// Build player index → team mapping from stats players
-	playerTeam := make(map[int]int)
-	for _, sp := range v2.Stats.Players {
-		// Find matching summary player by display name
-		for _, p := range v2.Summary {
-			if p.Team > 0 {
-				playerTeam[sp.Index] = p.Team
-			}
-		}
-	}
-
-	// Teams with all players dead lose; teams with at least one alive win
+	// Teams with at least one alive player win
 	teamAlive := make(map[int]bool)
 	for _, p := range v2.Summary {
 		if p.Side == "Observer" {
 			continue
 		}
-		// Find the stats player index for this summary player
-		for _, sp := range v2.Stats.Players {
-			if sp.DisplayName == p.Name || matchPlayerBySide(sp, p) {
-				if !deadPlayers[sp.Index] {
-					teamAlive[p.Team] = true
-				}
-				break
-			}
+		if !deadPlayers[p.Index] {
+			teamAlive[p.Team] = true
 		}
 	}
 
@@ -222,9 +241,4 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 			p.Win = true
 		}
 	}
-}
-
-// matchPlayerBySide is a fallback matcher when display names don't match
-func matchPlayerBySide(sp statsfile.Player, ps *PlayerSummaryV2) bool {
-	return sp.Side == ps.Side && sp.Index > 0
 }
