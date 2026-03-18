@@ -69,21 +69,17 @@ func (p *Player) GetColorName(colorStore *iniparse.ColorStore) string {
 }
 
 // GeneralsHeader represents the header structure of a Command & Conquer Generals replay file.
-// It contains metadata about the game session, including timestamps, version information,
-// and player details.
+// Field order and sizes match Recorder.cpp startRecording() / readReplayHeader().
 type GeneralsHeader struct {
-	GameType         string   `json:"gameType"`
-	TimeStampBegin   int      `json:"timeStampBegin"`
-	TimeStampEnd     int      `json:"timeStampEnd"`
-	NumTimeStamps    int      `json:"numTimeStamps"`
-	UnusedDesync     [2]byte  `json:"unusedDesync"`
-	Desync           [1]byte  `json:"desync"`
-	MoreUnusedDesync [1]byte  `json:"moreUnusedDesync"`
-	QuitEarly        [1]byte  `json:"quitEarly"`
-	Disconnect       [1]byte  `json:"disconnect"`
-	Filler           [6]byte  `json:"filler"`
-	FileName         string   `json:"fileName"`
-	Year             int      `json:"year"`
+	GameType         string   `json:"gameType"`         // 6 bytes: "GENREP"
+	TimeStampBegin   int      `json:"timeStampBegin"`   // int32 (replay_time_t)
+	TimeStampEnd     int      `json:"timeStampEnd"`     // int32 (replay_time_t)
+	FrameCount       int      `json:"frameCount"`       // uint32
+	Desync           bool     `json:"desync"`           // 1 byte Bool
+	QuitEarly        bool     `json:"quitEarly"`        // 1 byte Bool
+	PlayerDiscons    [8]bool  `json:"playerDiscons"`    // 8 × 1 byte Bool (MAX_SLOTS)
+	ReplayName       string   `json:"replayName"`       // UTF-16 null-terminated
+	Year             int      `json:"year"`             // SYSTEMTIME fields (8 × uint16)
 	Month            int      `json:"month"`
 	DOW              int      `json:"dow"`
 	Day              int      `json:"day"`
@@ -91,17 +87,17 @@ type GeneralsHeader struct {
 	Minute           int      `json:"minute"`
 	Second           int      `json:"second"`
 	Millisecond      int      `json:"millisecond"`
-	Version          string   `json:"version"`
-	BuildDate        string   `json:"buildDate"`
-	VersionMinor     int      `json:"versionMinor"`
-	VersionMajor     int      `json:"versionMajor"`
-	Hash             [8]byte  `json:"hash"`
-	Metadata         Metadata `json:"metadata"`
-	ReplayOwnerSlot  [2]byte  `json:"replayOwnerSlot"`
-	Unknown1         [4]byte  `json:"unknown1"`
-	Unknown2         [4]byte  `json:"unknown2"`
-	Unknown3         [4]byte  `json:"unknown3"`
-	GameSpeed        int      `json:"gameSpeed"`
+	Version          string   `json:"version"`          // UTF-16 null-terminated
+	BuildDate        string   `json:"buildDate"`        // UTF-16 null-terminated (versionTimeString)
+	VersionNumber    int      `json:"versionNumber"`    // uint32
+	ExeCRC           int      `json:"exeCRC"`           // uint32
+	IniCRC           int      `json:"iniCRC"`           // uint32
+	Metadata         Metadata `json:"metadata"`         // ASCII null-terminated (gameOptions)
+	LocalPlayerIndex int      `json:"localPlayerIndex"` // ASCII null-terminated int
+	Difficulty       int      `json:"difficulty"`       // int32 (GameDifficulty enum)
+	OriginalGameMode int      `json:"originalGameMode"` // int32
+	RankPoints       int      `json:"rankPoints"`       // int32
+	MaxFPS           int      `json:"maxFPS"`           // int32
 }
 
 // Helper functions for reading values with fallback error handling
@@ -134,21 +130,22 @@ func readBytesWithFallback(bp *bitparse.BitParser, reader func() ([]byte, error)
 }
 
 // NewHeader parses a Command & Conquer Generals replay file header from the provided BitParser.
-// It handles errors gracefully by providing fallback values and logging issues.
+// Layout matches Recorder.cpp startRecording() / readReplayHeader().
 func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
-	// Read all fields with error handling using the helper functions
 	gameType := readStringWithFallback(bp, func() (string, error) { return bp.ReadString(6) }, "", "GameType")
 	timeStampBegin := readIntWithFallback(bp, bp.ReadUInt32, 0, "TimeStampBegin")
 	timeStampEnd := readIntWithFallback(bp, bp.ReadUInt32, 0, "TimeStampEnd")
-	numTimeStamps := readIntWithFallback(bp, bp.ReadUInt16, 0, "NumTimeStamps")
+	frameCount := readIntWithFallback(bp, bp.ReadUInt32, 0, "FrameCount")
 
-	unusedDesync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(2) }, make([]byte, 2), "UnusedDesync")
-	desync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Desync")
-	MoreUnusedDesync := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "MoreUnusedDesync")
-	quitEarly := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "QuitEarly")
-	disconnect := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Disconnect")
-	FillerBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(6) }, make([]byte, 6), "Filler")
-	fileName := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "FileName")
+	desyncBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "Desync")
+	quitEarlyBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(1) }, make([]byte, 1), "QuitEarly")
+	playerDisconsBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(8) }, make([]byte, 8), "PlayerDiscons")
+	var playerDiscons [8]bool
+	for i := 0; i < 8; i++ {
+		playerDiscons[i] = playerDisconsBytes[i] != 0
+	}
+
+	replayName := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "ReplayName")
 	year := readIntWithFallback(bp, bp.ReadUInt16, 0, "Year")
 	month := readIntWithFallback(bp, bp.ReadUInt16, 0, "Month")
 	dow := readIntWithFallback(bp, bp.ReadUInt16, 0, "DOW")
@@ -160,34 +157,24 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 
 	version := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "Version")
 	buildDate := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf16") }, "", "BuildDate")
-	versionMinor := readIntWithFallback(bp, bp.ReadUInt16, 0, "VersionMinor")
-	versionMajor := readIntWithFallback(bp, bp.ReadUInt16, 0, "VersionMajor")
-
-	hashBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(8) }, make([]byte, 8), "Hash")
-	var hash [8]byte
-	copy(hash[:], hashBytes)
+	versionNumber := readIntWithFallback(bp, bp.ReadUInt32, 0, "VersionNumber")
+	exeCRC := readIntWithFallback(bp, bp.ReadUInt32, 0, "ExeCRC")
+	iniCRC := readIntWithFallback(bp, bp.ReadUInt32, 0, "IniCRC")
 
 	metadataStr := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf8") }, "", "Metadata")
 
-	replayOwnerSlotBytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(2) }, make([]byte, 2), "ReplayOwnerSlot")
-	var replayOwnerSlot [2]byte
-	copy(replayOwnerSlot[:], replayOwnerSlotBytes)
+	localPlayerIndexStr := readStringWithFallback(bp, func() (string, error) { return bp.ReadNullTermString("utf8") }, "0", "LocalPlayerIndex")
+	localPlayerIndex, err := strconv.Atoi(localPlayerIndexStr)
+	if err != nil {
+		log.WithError(err).Warn("failed to parse LocalPlayerIndex, defaulting to 0")
+		localPlayerIndex = 0
+	}
 
-	unknown1Bytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(4) }, make([]byte, 4), "Unknown1")
-	var unknown1 [4]byte
-	copy(unknown1[:], unknown1Bytes)
+	difficulty := readIntWithFallback(bp, bp.ReadUInt32, 0, "Difficulty")
+	originalGameMode := readIntWithFallback(bp, bp.ReadUInt32, 0, "OriginalGameMode")
+	rankPoints := readIntWithFallback(bp, bp.ReadUInt32, 0, "RankPoints")
+	maxFPS := readIntWithFallback(bp, bp.ReadUInt32, 0, "MaxFPS")
 
-	unknown2Bytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(4) }, make([]byte, 4), "Unknown2")
-	var unknown2 [4]byte
-	copy(unknown2[:], unknown2Bytes)
-
-	unknown3Bytes := readBytesWithFallback(bp, func() ([]byte, error) { return bp.ReadBytes(4) }, make([]byte, 4), "Unknown3")
-	var unknown3 [4]byte
-	copy(unknown3[:], unknown3Bytes)
-
-	gameSpeed := readIntWithFallback(bp, bp.ReadUInt32, 0, "GameSpeed")
-
-	// Validate parsed values
 	if year < MinYear || year > MaxYear {
 		log.Warnf("unusual year value: %d (expected %d-%d)", year, MinYear, MaxYear)
 	}
@@ -196,14 +183,11 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 		GameType:         gameType,
 		TimeStampBegin:   timeStampBegin,
 		TimeStampEnd:     timeStampEnd,
-		NumTimeStamps:    numTimeStamps,
-		UnusedDesync:     [2]byte{unusedDesync[0], unusedDesync[1]},
-		Desync:           [1]byte{desync[0]},
-		MoreUnusedDesync: [1]byte{MoreUnusedDesync[0]},
-		QuitEarly:        [1]byte{quitEarly[0]},
-		Disconnect:       [1]byte{disconnect[0]},
-		Filler:           [6]byte{FillerBytes[0], FillerBytes[1], FillerBytes[2], FillerBytes[3], FillerBytes[4], FillerBytes[5]},
-		FileName:         fileName,
+		FrameCount:       frameCount,
+		Desync:           desyncBytes[0] != 0,
+		QuitEarly:        quitEarlyBytes[0] != 0,
+		PlayerDiscons:    playerDiscons,
+		ReplayName:       replayName,
 		Year:             year,
 		Month:            month,
 		DOW:              dow,
@@ -214,15 +198,15 @@ func NewHeader(bp *bitparse.BitParser) *GeneralsHeader {
 		Millisecond:      millisecond,
 		Version:          version,
 		BuildDate:        buildDate,
-		VersionMinor:     versionMinor,
-		VersionMajor:     versionMajor,
-		Hash:             hash,
+		VersionNumber:    versionNumber,
+		ExeCRC:           exeCRC,
+		IniCRC:           iniCRC,
 		Metadata:         parseMetadata(metadataStr, bp.ColorStore),
-		ReplayOwnerSlot:  replayOwnerSlot, // 3000 = slot 0, 3100 = slot 1, etc
-		Unknown1:         unknown1,
-		Unknown2:         unknown2, // Changes when playing solo or maybe against computers
-		Unknown3:         unknown3,
-		GameSpeed:        gameSpeed,
+		LocalPlayerIndex: localPlayerIndex,
+		Difficulty:       difficulty,
+		OriginalGameMode: originalGameMode,
+		RankPoints:       rankPoints,
+		MaxFPS:           maxFPS,
 	}
 }
 

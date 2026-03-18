@@ -14,53 +14,47 @@ func TestNewReplay(t *testing.T) {
 	// Create minimal mock data for testing
 	// This is a simplified version - in reality this would be much more complex
 	input := []byte{
-		// Header data (simplified)
-		'G', 'E', 'N', 'E', 'R', 'A', // GameType
-		100, 0, 0, 0, // TimeStampBegin
-		200, 0, 0, 0, // TimeStampEnd
-		5, 0, // NumTimeStamps
-		// Filler (12 bytes)
-		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-		// FileName (UTF16 null-terminated)
+		// Header data (matches Recorder.cpp layout)
+		'G', 'E', 'N', 'R', 'E', 'P', // GameType (6 bytes)
+		100, 0, 0, 0, // TimeStampBegin (uint32)
+		200, 0, 0, 0, // TimeStampEnd (uint32)
+		5, 0, 0, 0, // FrameCount (uint32)
+		0,                         // Desync (1 byte Bool)
+		0,                         // QuitEarly (1 byte Bool)
+		0, 0, 0, 0, 0, 0, 0, 0,   // PlayerDiscons (8 bytes, Bool[MAX_SLOTS])
+		// ReplayName (UTF16 null-terminated)
 		'T', 0, 'e', 0, 's', 0, 't', 0, 0, 0,
-		// Year (2 bytes)
-		231, 7, // 2023
-		// Month (2 bytes)
-		12, 0,
-		// DOW (2 bytes)
-		1, 0,
-		// Day (2 bytes)
-		25, 0,
-		// Hour (2 bytes)
-		14, 0,
-		// Minute (2 bytes)
-		30, 0,
-		// Second (2 bytes)
-		45, 0,
-		// Millisecond (2 bytes)
-		244, 1, // 500
+		// SYSTEMTIME (8 x uint16)
+		231, 7, // Year: 2023
+		12, 0,  // Month
+		1, 0,   // DOW
+		25, 0,  // Day
+		14, 0,  // Hour
+		30, 0,  // Minute
+		45, 0,  // Second
+		244, 1, // Millisecond: 500
 		// Version (UTF16 null-terminated)
 		'1', 0, '.', 0, '0', 0, 0, 0,
 		// BuildDate (UTF16 null-terminated)
 		'2', 0, '0', 0, '2', 0, '3', 0, 0, 0,
-		// VersionMinor (2 bytes)
-		0, 0,
-		// VersionMajor (2 bytes)
-		1, 0,
-		// Hash (8 bytes)
-		1, 2, 3, 4, 5, 6, 7, 8,
-		// Metadata (UTF8 null-terminated)
-		'M', '=', 't', 'e', 's', 't', ';', 'S', '=', 'H', 'P', 'l', 'a', 'y', 'e', 'r', '1', ',', '1', '.', '2', '.', '3', '.', '4', ',', '8', '0', '8', '0', ',', 'F', 'T', ',', '1', ',', '0', ',', '0', ',', '0', ',', '1', 0,
-		// ReplayOwnerSlot (2 bytes)
-		0x30, 0x00,
-		// Unknown1 (4 bytes)
-		1, 2, 3, 4,
-		// Unknown2 (4 bytes)
-		5, 6, 7, 8,
-		// Unknown3 (4 bytes)
-		9, 10, 11, 12,
-		// GameSpeed (4 bytes)
+		// VersionNumber (uint32)
 		1, 0, 0, 0,
+		// ExeCRC (uint32)
+		0, 0, 0, 0,
+		// IniCRC (uint32)
+		0, 0, 0, 0,
+		// Metadata (ASCII null-terminated)
+		'M', '=', 't', 'e', 's', 't', ';', 'S', '=', 'H', 'P', 'l', 'a', 'y', 'e', 'r', '1', ',', '1', '.', '2', '.', '3', '.', '4', ',', '8', '0', '8', '0', ',', 'F', 'T', ',', '1', ',', '0', ',', '0', ',', '0', ',', '1', 0,
+		// LocalPlayerIndex (ASCII null-terminated)
+		'0', 0,
+		// Difficulty (int32)
+		0, 0, 0, 0,
+		// OriginalGameMode (int32)
+		0, 0, 0, 0,
+		// RankPoints (int32)
+		0, 0, 0, 0,
+		// MaxFPS (int32)
+		30, 0, 0, 0,
 		// Body data (simplified)
 		0, 0, 0, 0, // TimeCode: 0
 		0, 0, 0, 0, // OrderCode: 0
