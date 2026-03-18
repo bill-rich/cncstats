@@ -9,176 +9,9 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
-        "/player-money": {
-            "get": {
-                "description": "Retrieve player money data with optional pagination.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "player-money"
-                ],
-                "summary": "List player money data",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Maximum number of records to return",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of records to skip",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.PlayerMoneyListResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Store a new player money data snapshot.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "player-money"
-                ],
-                "summary": "Create player money data",
-                "parameters": [
-                    {
-                        "description": "Player money data",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/database.MoneyDataRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/player-money/{id}": {
-            "get": {
-                "description": "Retrieve a single player money data record by its ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "player-money"
-                ],
-                "summary": "Get player money data by ID",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Record ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/database.PlayerMoneyData"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Delete a single player money data record by its ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "player-money"
-                ],
-                "summary": "Delete player money data by ID",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Record ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/replay": {
             "post": {
-                "description": "Upload a .rep replay file and receive parsed replay data. Use format=v2 to get enhanced stats if a matching stats file exists.",
+                "description": "Upload a .rep replay file and receive parsed replay data. Returns enhanced v2 stats if a matching stats file exists, otherwise returns the basic parsed replay.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -196,15 +29,6 @@
                         "name": "file",
                         "in": "formData",
                         "required": true
-                    },
-                    {
-                        "enum": [
-                            "v2"
-                        ],
-                        "type": "string",
-                        "description": "Response format",
-                        "name": "format",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -321,308 +145,61 @@
                 }
             }
         },
-        "database.MoneyDataRequest": {
-            "type": "object",
-            "properties": {
-                "bombardment": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "buildings_built": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "buildings_killed": {
-                    "type": "array",
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer",
-                            "format": "int32"
-                        }
-                    }
-                },
-                "buildings_lost": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "faction_buildings_captured": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "generals_points_total": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "generals_points_used": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "hold_the_line": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "money": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "money_earned": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "power_total": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "power_used": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "radars_built": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "search_and_destroy": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "seed": {
-                    "type": "string"
-                },
-                "tech_buildings_captured": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "timecode": {
-                    "type": "integer"
-                },
-                "units_built": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "units_killed": {
-                    "type": "array",
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer",
-                            "format": "int32"
-                        }
-                    }
-                },
-                "units_lost": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "xp": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "xp_level": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "database.NullableInt32Array8": {
-            "type": "object",
-            "properties": {
-                "Int32Array8": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int32"
-                    }
-                },
-                "valid": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "database.NullableInt32Array8x8": {
-            "type": "object",
-            "properties": {
-                "Int32Array8x8": {
-                    "type": "array",
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer",
-                            "format": "int32"
-                        }
-                    }
-                },
-                "valid": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "database.PlayerMoneyData": {
-            "type": "object",
-            "properties": {
-                "bombardment": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "buildings_built": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "buildings_killed": {
-                    "$ref": "#/definitions/database.NullableInt32Array8x8"
-                },
-                "buildings_lost": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "faction_buildings_captured": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "generals_points_total": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "generals_points_used": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "hold_the_line": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "money_earned": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "player_money": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "power_total": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "power_used": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "radars_built": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "search_and_destroy": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "seed": {
-                    "type": "string"
-                },
-                "tech_buildings_captured": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "timecode": {
-                    "type": "integer"
-                },
-                "units_built": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "units_killed": {
-                    "$ref": "#/definitions/database.NullableInt32Array8x8"
-                },
-                "units_lost": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "xp": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                },
-                "xp_level": {
-                    "$ref": "#/definitions/database.NullableInt32Array8"
-                }
-            }
-        },
         "header.GeneralsHeader": {
             "type": "object",
             "properties": {
                 "buildDate": {
+                    "description": "UTF-16 null-terminated (versionTimeString)",
                     "type": "string"
                 },
                 "day": {
                     "type": "integer"
                 },
                 "desync": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "1 byte Bool",
+                    "type": "boolean"
                 },
-                "disconnect": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "difficulty": {
+                    "description": "int32 (GameDifficulty enum)",
+                    "type": "integer"
                 },
                 "dow": {
                     "type": "integer"
                 },
-                "fileName": {
-                    "type": "string"
+                "exeCRC": {
+                    "description": "uint32",
+                    "type": "integer"
                 },
-                "filler": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "gameSpeed": {
+                "frameCount": {
+                    "description": "uint32",
                     "type": "integer"
                 },
                 "gameType": {
+                    "description": "6 bytes: \"GENREP\"",
                     "type": "string"
-                },
-                "hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
                 },
                 "hour": {
                     "type": "integer"
                 },
+                "iniCRC": {
+                    "description": "uint32",
+                    "type": "integer"
+                },
+                "localPlayerIndex": {
+                    "description": "ASCII null-terminated int",
+                    "type": "integer"
+                },
+                "maxFPS": {
+                    "description": "int32",
+                    "type": "integer"
+                },
                 "metadata": {
-                    "$ref": "#/definitions/header.Metadata"
+                    "description": "ASCII null-terminated (gameOptions)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/header.Metadata"
+                        }
+                    ]
                 },
                 "millisecond": {
                     "type": "integer"
@@ -633,70 +210,50 @@
                 "month": {
                     "type": "integer"
                 },
-                "moreUnusedDesync": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "numTimeStamps": {
+                "originalGameMode": {
+                    "description": "int32",
                     "type": "integer"
                 },
-                "quitEarly": {
+                "playerDiscons": {
+                    "description": "8 × 1 byte Bool (MAX_SLOTS)",
                     "type": "array",
                     "items": {
-                        "type": "integer"
+                        "type": "boolean"
                     }
                 },
-                "replayOwnerSlot": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "quitEarly": {
+                    "description": "1 byte Bool",
+                    "type": "boolean"
+                },
+                "rankPoints": {
+                    "description": "int32",
+                    "type": "integer"
+                },
+                "replayName": {
+                    "description": "UTF-16 null-terminated",
+                    "type": "string"
                 },
                 "second": {
                     "type": "integer"
                 },
                 "timeStampBegin": {
+                    "description": "int32 (replay_time_t)",
                     "type": "integer"
                 },
                 "timeStampEnd": {
+                    "description": "int32 (replay_time_t)",
                     "type": "integer"
-                },
-                "unknown1": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "unknown2": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "unknown3": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "unusedDesync": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
                 },
                 "version": {
+                    "description": "UTF-16 null-terminated",
                     "type": "string"
                 },
-                "versionMajor": {
-                    "type": "integer"
-                },
-                "versionMinor": {
+                "versionNumber": {
+                    "description": "uint32",
                     "type": "integer"
                 },
                 "year": {
+                    "description": "SYSTEMTIME fields (8 × uint16)",
                     "type": "integer"
                 }
             }
@@ -704,24 +261,28 @@
         "header.Metadata": {
             "type": "object",
             "properties": {
-                "c": {
+                "crcInterval": {
                     "description": "C",
                     "type": "string"
                 },
                 "mapCRC": {
-                    "description": "MC",
+                    "description": "MC (hex)",
                     "type": "string"
                 },
-                "mapFile": {
-                    "description": "M",
+                "mapContentsMask": {
+                    "description": "M prefix (2 hex digits)",
+                    "type": "string"
+                },
+                "mapPath": {
+                    "description": "M remainder (map directory path)",
                     "type": "string"
                 },
                 "mapSize": {
                     "description": "MS",
                     "type": "string"
                 },
-                "o": {
-                    "description": "O",
+                "oldFactionsOnly": {
+                    "description": "O (ZH only: Y/N)",
                     "type": "string"
                 },
                 "players": {
@@ -732,15 +293,19 @@
                     }
                 },
                 "seed": {
-                    "description": "Seed",
+                    "description": "SD",
                     "type": "string"
                 },
-                "sr": {
-                    "description": "SR",
+                "startingCash": {
+                    "description": "SC (ZH only)",
                     "type": "string"
                 },
-                "startingCredits": {
-                    "description": "SC",
+                "superweaponRestriction": {
+                    "description": "SR (ZH only)",
+                    "type": "string"
+                },
+                "useStats": {
+                    "description": "US (ZH only: 1=yes, 0=no)",
                     "type": "string"
                 }
             }
@@ -749,33 +314,43 @@
             "type": "object",
             "properties": {
                 "color": {
+                    "description": "Color index (or name if ColorStore provided)",
                     "type": "string"
                 },
-                "faction": {
-                    "type": "string"
-                },
-                "ft": {
+                "flags": {
+                    "description": "Human: \u003caccepted\u003e\u003chasMap\u003e (e.g. \"TT\"); AI: difficulty (E/M/H)",
                     "type": "string"
                 },
                 "ip": {
+                    "description": "Human only (hex)",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Human only",
+                    "type": "string"
+                },
+                "natBehavior": {
+                    "description": "Human only: firewall behavior type",
+                    "type": "string"
+                },
+                "playerTemplate": {
+                    "description": "Index into player template store",
                     "type": "string"
                 },
                 "port": {
+                    "description": "Human only",
                     "type": "string"
                 },
                 "startingPosition": {
+                    "description": "Start position (-1 = random)",
                     "type": "string"
                 },
                 "team": {
+                    "description": "Team number (-1 = none)",
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
-                },
-                "unknown": {
+                    "description": "H=human, C=computer",
                     "type": "string"
                 }
             }
@@ -790,30 +365,6 @@
                 "error": {
                     "type": "string",
                     "example": "Something went wrong"
-                }
-            }
-        },
-        "main.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "example": "Player money data deleted successfully"
-                }
-            }
-        },
-        "main.PlayerMoneyListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer",
-                    "example": 5
-                },
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/database.PlayerMoneyData"
-                    }
                 }
             }
         },
@@ -1075,6 +626,9 @@
                 "version": {
                     "type": "integer"
                 },
+                "winEstimation": {
+                    "$ref": "#/definitions/zhreplay.WinEstimation"
+                },
                 "winMethod": {
                     "type": "string"
                 }
@@ -1329,6 +883,49 @@
                 },
                 "win": {
                     "type": "boolean"
+                }
+            }
+        },
+        "zhreplay.TeamFactors": {
+            "type": "object",
+            "properties": {
+                "builtValue": {
+                    "type": "integer"
+                },
+                "captureGain": {
+                    "type": "integer"
+                },
+                "captureLoss": {
+                    "type": "integer"
+                },
+                "destroyedValue": {
+                    "type": "integer"
+                },
+                "efficiency": {
+                    "type": "number"
+                },
+                "lostValue": {
+                    "type": "integer"
+                },
+                "netAssets": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.WinEstimation": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "teams": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/zhreplay.TeamFactors"
+                    }
                 }
             }
         }
