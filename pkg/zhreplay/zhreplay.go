@@ -107,21 +107,33 @@ func (r *Replay) GenerateData() {
 			if order.PlayerName != player.Name {
 				continue
 			}
-			name := order.Details.GetName()
-			cost := order.Details.GetCost()
 
 			switch order.OrderCode {
 			case 1047: // CreateUnit
+				if order.Details == nil {
+					continue
+				}
+				name := order.Details.GetName()
+				cost := order.Details.GetCost()
 				if side, ok := constructorMap[name]; ok && player.Side == "" {
 					player.Side = side
 				}
 				trackObject(player.UnitsCreated, player, name, cost)
 			case 1049: // BuildObject
-				trackObject(player.BuildingsBuilt, player, name, cost)
+				if order.Details == nil {
+					continue
+				}
+				trackObject(player.BuildingsBuilt, player, order.Details.GetName(), order.Details.GetCost())
 			case 1045: // BuildUpgrade
-				trackObject(player.UpgradesBuilt, player, name, cost)
+				if order.Details == nil {
+					continue
+				}
+				trackObject(player.UpgradesBuilt, player, order.Details.GetName(), order.Details.GetCost())
 			case 1041, 1042: // SpecialPower at location/object
-				player.PowersUsed[name]++
+				if order.Details == nil {
+					continue
+				}
+				player.PowersUsed[order.Details.GetName()]++
 			case 1093: // Surrender
 				player.Win = false
 			}
