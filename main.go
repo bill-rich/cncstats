@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
@@ -19,11 +20,42 @@ import (
 	"github.com/bill-rich/cncstats/proto/player_money"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"gorm.io/gorm"
 )
 
+// StatsUploadResponse represents the response for a successful stats upload.
+type StatsUploadResponse struct {
+	Message string `json:"message" example:"Stats stored successfully"`
+	Seed    string `json:"seed" example:"12345"`
+	Size    int    `json:"size" example:"8192"`
+}
+
+// ErrorResponse represents an error response.
+type ErrorResponse struct {
+	Error   string `json:"error" example:"Something went wrong"`
+	Details string `json:"details,omitempty" example:"underlying error message"`
+}
+
+// PlayerMoneyListResponse represents the response for listing player money data.
+type PlayerMoneyListResponse struct {
+	Data  []database.PlayerMoneyData `json:"data"`
+	Count int                        `json:"count" example:"5"`
+}
+
+// MessageResponse represents a simple message response.
+type MessageResponse struct {
+	Message string `json:"message" example:"Player money data deleted successfully"`
+}
+
+// @title CNC Stats API
+// @version 2.0
+// @description Replay parser and stats API for Command & Conquer Generals / Zero Hour
+// @host localhost:8080
+// @BasePath /
 func main() {
 	// Parse command line arguments
 	var (
@@ -294,6 +326,9 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 		deletePlayerMoneyHandler(c, playerMoneyService)
 	})
 
+	// Swagger UI
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	port := "8080"
 	if len(os.Getenv("PORT")) > 0 {
 		port = os.Getenv("PORT")
@@ -305,6 +340,18 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	}
 }
 
+// saveFileHandler parses an uploaded replay file.
+// @Summary Parse a replay file
+// @Description Upload a .rep replay file and receive parsed replay data. Use format=v2 to get enhanced stats if a matching stats file exists.
+// @Tags replay
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Replay file to parse"
+// @Param format query string false "Response format" Enums(v2)
+// @Success 200 {object} zhreplay.EnhancedReplayV2
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /replay [post]
 func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -359,6 +406,17 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 	c.JSON(http.StatusOK, enhancedReplay)
 }
 
+// uploadStatsHandler stores a gzip-compressed stats payload.
+// @Summary Upload game stats
+// @Description Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.
+// @Tags stats
+// @Accept octet-stream
+// @Produce json
+// @Param X-Game-Seed header string true "Game seed identifier"
+// @Success 200 {object} StatsUploadResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /stats [post]
 func uploadStatsHandler(c *gin.Context) {
 	seed := c.GetHeader("X-Game-Seed")
 	if seed == "" {
@@ -402,6 +460,17 @@ func uploadStatsHandler(c *gin.Context) {
 
 // Player money data handlers
 
+// createPlayerMoneyHandler creates a new player money record.
+// @Summary Create player money data
+// @Description Store a new player money data snapshot.
+// @Tags player-money
+// @Accept json
+// @Produce json
+// @Param body body database.MoneyDataRequest true "Player money data"
+// @Success 201
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /player-money [post]
 func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
 	var req database.MoneyDataRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -424,6 +493,16 @@ func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyServi
 	c.Status(http.StatusCreated)
 }
 
+// getPlayerMoneyHandler lists player money records.
+// @Summary List player money data
+// @Description Retrieve player money data with optional pagination.
+// @Tags player-money
+// @Produce json
+// @Param limit query int false "Maximum number of records to return"
+// @Param offset query int false "Number of records to skip"
+// @Success 200 {object} PlayerMoneyListResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /player-money [get]
 func getPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
 	// Parse query parameters
 	limit := 0
@@ -457,6 +536,17 @@ func getPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService)
 	})
 }
 
+// getPlayerMoneyByIDHandler retrieves a single player money record.
+// @Summary Get player money data by ID
+// @Description Retrieve a single player money data record by its ID.
+// @Tags player-money
+// @Produce json
+// @Param id path int true "Record ID"
+// @Success 200 {object} database.PlayerMoneyData
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /player-money/{id} [get]
 func getPlayerMoneyByIDHandler(c *gin.Context, service *database.PlayerMoneyService) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -486,6 +576,16 @@ func getPlayerMoneyByIDHandler(c *gin.Context, service *database.PlayerMoneyServ
 	c.JSON(http.StatusOK, result)
 }
 
+// deletePlayerMoneyHandler deletes a player money record.
+// @Summary Delete player money data by ID
+// @Description Delete a single player money data record by its ID.
+// @Tags player-money
+// @Produce json
+// @Param id path int true "Record ID"
+// @Success 200 {object} MessageResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /player-money/{id} [delete]
 func deletePlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

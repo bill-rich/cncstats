@@ -1,0 +1,888 @@
+basePath: /
+definitions:
+  body.ArgMetadata:
+    properties:
+      count:
+        type: integer
+      type:
+        type: integer
+    type: object
+  body.BodyChunk:
+    properties:
+      argMetadata:
+        items:
+          $ref: '#/definitions/body.ArgMetadata'
+        type: array
+      arguments:
+        items: {}
+        type: array
+      details: {}
+      numberOfArguments:
+        type: integer
+      orderCode:
+        type: integer
+      orderName:
+        type: string
+      playerID:
+        description: Starts at 2 for humans
+        type: integer
+      playerName:
+        type: string
+      timeCode:
+        type: integer
+    type: object
+  database.MoneyDataRequest:
+    properties:
+      bombardment:
+        items:
+          type: integer
+        type: array
+      buildings_built:
+        items:
+          type: integer
+        type: array
+      buildings_killed:
+        items:
+          items:
+            format: int32
+            type: integer
+          type: array
+        type: array
+      buildings_lost:
+        items:
+          type: integer
+        type: array
+      faction_buildings_captured:
+        items:
+          type: integer
+        type: array
+      generals_points_total:
+        items:
+          type: integer
+        type: array
+      generals_points_used:
+        items:
+          type: integer
+        type: array
+      hold_the_line:
+        items:
+          type: integer
+        type: array
+      money:
+        items:
+          type: integer
+        type: array
+      money_earned:
+        items:
+          type: integer
+        type: array
+      power_total:
+        items:
+          type: integer
+        type: array
+      power_used:
+        items:
+          type: integer
+        type: array
+      radars_built:
+        items:
+          type: integer
+        type: array
+      search_and_destroy:
+        items:
+          type: integer
+        type: array
+      seed:
+        type: string
+      tech_buildings_captured:
+        items:
+          type: integer
+        type: array
+      timecode:
+        type: integer
+      units_built:
+        items:
+          type: integer
+        type: array
+      units_killed:
+        items:
+          items:
+            format: int32
+            type: integer
+          type: array
+        type: array
+      units_lost:
+        items:
+          type: integer
+        type: array
+      xp:
+        items:
+          type: integer
+        type: array
+      xp_level:
+        items:
+          type: integer
+        type: array
+    type: object
+  database.NullableInt32Array8:
+    properties:
+      Int32Array8:
+        items:
+          format: int32
+          type: integer
+        type: array
+      valid:
+        type: boolean
+    type: object
+  database.NullableInt32Array8x8:
+    properties:
+      Int32Array8x8:
+        items:
+          items:
+            format: int32
+            type: integer
+          type: array
+        type: array
+      valid:
+        type: boolean
+    type: object
+  database.PlayerMoneyData:
+    properties:
+      bombardment:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      buildings_built:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      buildings_killed:
+        $ref: '#/definitions/database.NullableInt32Array8x8'
+      buildings_lost:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      created_at:
+        type: string
+      faction_buildings_captured:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      generals_points_total:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      generals_points_used:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      hold_the_line:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      id:
+        type: integer
+      money_earned:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      player_money:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      power_total:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      power_used:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      radars_built:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      search_and_destroy:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      seed:
+        type: string
+      tech_buildings_captured:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      timecode:
+        type: integer
+      units_built:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      units_killed:
+        $ref: '#/definitions/database.NullableInt32Array8x8'
+      units_lost:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      updated_at:
+        type: string
+      xp:
+        $ref: '#/definitions/database.NullableInt32Array8'
+      xp_level:
+        $ref: '#/definitions/database.NullableInt32Array8'
+    type: object
+  header.GeneralsHeader:
+    properties:
+      buildDate:
+        type: string
+      day:
+        type: integer
+      desync:
+        items:
+          type: integer
+        type: array
+      disconnect:
+        items:
+          type: integer
+        type: array
+      dow:
+        type: integer
+      fileName:
+        type: string
+      filler:
+        items:
+          type: integer
+        type: array
+      gameSpeed:
+        type: integer
+      gameType:
+        type: string
+      hash:
+        items:
+          type: integer
+        type: array
+      hour:
+        type: integer
+      metadata:
+        $ref: '#/definitions/header.Metadata'
+      millisecond:
+        type: integer
+      minute:
+        type: integer
+      month:
+        type: integer
+      moreUnusedDesync:
+        items:
+          type: integer
+        type: array
+      numTimeStamps:
+        type: integer
+      quitEarly:
+        items:
+          type: integer
+        type: array
+      replayOwnerSlot:
+        items:
+          type: integer
+        type: array
+      second:
+        type: integer
+      timeStampBegin:
+        type: integer
+      timeStampEnd:
+        type: integer
+      unknown1:
+        items:
+          type: integer
+        type: array
+      unknown2:
+        items:
+          type: integer
+        type: array
+      unknown3:
+        items:
+          type: integer
+        type: array
+      unusedDesync:
+        items:
+          type: integer
+        type: array
+      version:
+        type: string
+      versionMajor:
+        type: integer
+      versionMinor:
+        type: integer
+      year:
+        type: integer
+    type: object
+  header.Metadata:
+    properties:
+      c:
+        description: C
+        type: string
+      mapCRC:
+        description: MC
+        type: string
+      mapFile:
+        description: M
+        type: string
+      mapSize:
+        description: MS
+        type: string
+      o:
+        description: O
+        type: string
+      players:
+        description: S
+        items:
+          $ref: '#/definitions/header.Player'
+        type: array
+      seed:
+        description: Seed
+        type: string
+      sr:
+        description: SR
+        type: string
+      startingCredits:
+        description: SC
+        type: string
+    type: object
+  header.Player:
+    properties:
+      color:
+        type: string
+      faction:
+        type: string
+      ft:
+        type: string
+      ip:
+        type: string
+      name:
+        type: string
+      port:
+        type: string
+      startingPosition:
+        type: string
+      team:
+        type: string
+      type:
+        type: string
+      unknown:
+        type: string
+    type: object
+  main.ErrorResponse:
+    properties:
+      details:
+        example: underlying error message
+        type: string
+      error:
+        example: Something went wrong
+        type: string
+    type: object
+  main.MessageResponse:
+    properties:
+      message:
+        example: Player money data deleted successfully
+        type: string
+    type: object
+  main.PlayerMoneyListResponse:
+    properties:
+      count:
+        example: 5
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/database.PlayerMoneyData'
+        type: array
+    type: object
+  main.StatsUploadResponse:
+    properties:
+      message:
+        example: Stats stored successfully
+        type: string
+      seed:
+        example: "12345"
+        type: string
+      size:
+        example: 8192
+        type: integer
+    type: object
+  object.ObjectSummary:
+    properties:
+      count:
+        type: integer
+      totalSpent:
+        type: integer
+    type: object
+  statsfile.Academy:
+    properties:
+      clearedGarrisonedBuildings:
+        type: integer
+      controlGroupsUsed:
+        type: integer
+      doubleClickAttackMoveOrdersGiven:
+        type: integer
+      firestormsCreated:
+        type: integer
+      gatherersBuilt:
+        type: integer
+      generalsPointsSpent:
+        type: integer
+      guardAbilityUsedCount:
+        type: integer
+      heroesBuilt:
+        type: integer
+      minesCleared:
+        type: integer
+      peonsBuilt:
+        type: integer
+      salvageCollected:
+        type: integer
+      secondaryIncomeUnitsBuilt:
+        type: integer
+      specialPowersUsed:
+        type: integer
+      structuresCaptured:
+        type: integer
+      structuresGarrisoned:
+        type: integer
+      supplyCentersBuilt:
+        type: integer
+      upgradesPurchased:
+        type: integer
+      vehiclesDisguised:
+        type: integer
+    type: object
+  statsfile.BattlePlanEvent:
+    properties:
+      bombardment:
+        type: integer
+      frame:
+        type: integer
+      holdTheLine:
+        type: integer
+      player:
+        type: integer
+      searchAndDestroy:
+        type: integer
+    type: object
+  statsfile.DeathEvent:
+    properties:
+      frame:
+        type: integer
+      player:
+        type: integer
+    type: object
+  statsfile.EnergyEvent:
+    properties:
+      consumption:
+        type: integer
+      frame:
+        type: integer
+      player:
+        type: integer
+      production:
+        type: integer
+    type: object
+  statsfile.RadarEvent:
+    properties:
+      frame:
+        type: integer
+      hasRadar:
+        type: boolean
+      player:
+        type: integer
+    type: object
+  statsfile.RankEvent:
+    properties:
+      frame:
+        type: integer
+      player:
+        type: integer
+      rankLevel:
+        type: integer
+    type: object
+  statsfile.SciencePointsEvent:
+    properties:
+      frame:
+        type: integer
+      player:
+        type: integer
+      sciencePurchasePoints:
+        type: integer
+    type: object
+  statsfile.SkillPointsEvent:
+    properties:
+      frame:
+        type: integer
+      player:
+        type: integer
+      skillPoints:
+        type: integer
+    type: object
+  statsfile.TimeSeries:
+    properties:
+      players:
+        items:
+          $ref: '#/definitions/statsfile.TimeSeriesPlayer'
+        type: array
+    type: object
+  statsfile.TimeSeriesPlayer:
+    properties:
+      index:
+        type: integer
+      money:
+        items:
+          type: integer
+        type: array
+      moneyEarned:
+        items:
+          type: integer
+        type: array
+      moneySpent:
+        items:
+          type: integer
+        type: array
+    type: object
+  zhreplay.EnhancedReplayV2:
+    properties:
+      body:
+        items:
+          $ref: '#/definitions/body.BodyChunk'
+        type: array
+      gameInfo:
+        $ref: '#/definitions/zhreplay.GameInfoV2'
+      header:
+        $ref: '#/definitions/header.GeneralsHeader'
+      offset:
+        type: integer
+      stats:
+        $ref: '#/definitions/zhreplay.EnrichedStats'
+      summary:
+        items:
+          $ref: '#/definitions/zhreplay.PlayerSummaryV2'
+        type: array
+      version:
+        type: integer
+      winMethod:
+        type: string
+    type: object
+  zhreplay.EnrichedBuildEvent:
+    properties:
+      buildTime:
+        type: integer
+      cost:
+        type: integer
+      frame:
+        type: integer
+      object:
+        type: string
+      objectType:
+        type: string
+      player:
+        type: integer
+      producer:
+        type: string
+      producerType:
+        type: string
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+  zhreplay.EnrichedCaptureEvent:
+    properties:
+      frame:
+        type: integer
+      newOwner:
+        type: integer
+      object:
+        type: string
+      objectType:
+        type: string
+      oldOwner:
+        type: integer
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+  zhreplay.EnrichedKillEvent:
+    properties:
+      damageType:
+        type: string
+      frame:
+        type: integer
+      killer:
+        type: string
+      killerPlayer:
+        type: integer
+      killerType:
+        type: string
+      victim:
+        type: string
+      victimPlayer:
+        type: integer
+      victimType:
+        type: string
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+  zhreplay.EnrichedStats:
+    properties:
+      battlePlanEvents:
+        items:
+          $ref: '#/definitions/statsfile.BattlePlanEvent'
+        type: array
+      buildEvents:
+        items:
+          $ref: '#/definitions/zhreplay.EnrichedBuildEvent'
+        type: array
+      captureEvents:
+        items:
+          $ref: '#/definitions/zhreplay.EnrichedCaptureEvent'
+        type: array
+      deathEvents:
+        items:
+          $ref: '#/definitions/statsfile.DeathEvent'
+        type: array
+      energyEvents:
+        items:
+          $ref: '#/definitions/statsfile.EnergyEvent'
+        type: array
+      killEvents:
+        items:
+          $ref: '#/definitions/zhreplay.EnrichedKillEvent'
+        type: array
+      radarEvents:
+        items:
+          $ref: '#/definitions/statsfile.RadarEvent'
+        type: array
+      rankEvents:
+        items:
+          $ref: '#/definitions/statsfile.RankEvent'
+        type: array
+      sciencePointsEvents:
+        items:
+          $ref: '#/definitions/statsfile.SciencePointsEvent'
+        type: array
+      skillPointsEvents:
+        items:
+          $ref: '#/definitions/statsfile.SkillPointsEvent'
+        type: array
+      timeSeries:
+        $ref: '#/definitions/statsfile.TimeSeries'
+    type: object
+  zhreplay.GameInfoV2:
+    properties:
+      frameCount:
+        type: integer
+      mode:
+        type: string
+      playerCount:
+        type: integer
+      snapshotInterval:
+        type: integer
+    type: object
+  zhreplay.PlayerSummaryV2:
+    properties:
+      academy:
+        $ref: '#/definitions/statsfile.Academy'
+      baseSide:
+        type: string
+      buildingsBuilt:
+        additionalProperties:
+          $ref: '#/definitions/object.ObjectSummary'
+        type: object
+      color:
+        type: string
+      faction:
+        type: string
+      index:
+        type: integer
+      money:
+        type: integer
+      moneyEarned:
+        type: integer
+      moneySpent:
+        type: integer
+      name:
+        type: string
+      playerType:
+        type: string
+      powersUsed:
+        additionalProperties:
+          type: integer
+        type: object
+      score:
+        type: integer
+      side:
+        type: string
+      team:
+        type: integer
+      unitsCreated:
+        additionalProperties:
+          $ref: '#/definitions/object.ObjectSummary'
+        type: object
+      upgradesBuilt:
+        additionalProperties:
+          $ref: '#/definitions/object.ObjectSummary'
+        type: object
+      win:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Replay parser and stats API for Command & Conquer Generals / Zero Hour
+  title: CNC Stats API
+  version: "2.0"
+paths:
+  /player-money:
+    get:
+      description: Retrieve player money data with optional pagination.
+      parameters:
+      - description: Maximum number of records to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of records to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PlayerMoneyListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: List player money data
+      tags:
+      - player-money
+    post:
+      consumes:
+      - application/json
+      description: Store a new player money data snapshot.
+      parameters:
+      - description: Player money data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/database.MoneyDataRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Create player money data
+      tags:
+      - player-money
+  /player-money/{id}:
+    delete:
+      description: Delete a single player money data record by its ID.
+      parameters:
+      - description: Record ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Delete player money data by ID
+      tags:
+      - player-money
+    get:
+      description: Retrieve a single player money data record by its ID.
+      parameters:
+      - description: Record ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/database.PlayerMoneyData'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get player money data by ID
+      tags:
+      - player-money
+  /replay:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a .rep replay file and receive parsed replay data. Use format=v2
+        to get enhanced stats if a matching stats file exists.
+      parameters:
+      - description: Replay file to parse
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Response format
+        enum:
+        - v2
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/zhreplay.EnhancedReplayV2'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Parse a replay file
+      tags:
+      - replay
+  /stats:
+    post:
+      consumes:
+      - application/octet-stream
+      description: Receive gzip-compressed JSON stats from a Generals game and store
+        them keyed by seed.
+      parameters:
+      - description: Game seed identifier
+        in: header
+        name: X-Game-Seed
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.StatsUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Upload game stats
+      tags:
+      - stats
+swagger: "2.0"

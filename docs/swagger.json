@@ -1,0 +1,1336 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Replay parser and stats API for Command \u0026 Conquer Generals / Zero Hour",
+        "title": "CNC Stats API",
+        "contact": {},
+        "version": "2.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/player-money": {
+            "get": {
+                "description": "Retrieve player money data with optional pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player-money"
+                ],
+                "summary": "List player money data",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of records to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.PlayerMoneyListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Store a new player money data snapshot.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player-money"
+                ],
+                "summary": "Create player money data",
+                "parameters": [
+                    {
+                        "description": "Player money data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/database.MoneyDataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/player-money/{id}": {
+            "get": {
+                "description": "Retrieve a single player money data record by its ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player-money"
+                ],
+                "summary": "Get player money data by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Record ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/database.PlayerMoneyData"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a single player money data record by its ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "player-money"
+                ],
+                "summary": "Delete player money data by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Record ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/replay": {
+            "post": {
+                "description": "Upload a .rep replay file and receive parsed replay data. Use format=v2 to get enhanced stats if a matching stats file exists.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replay"
+                ],
+                "summary": "Parse a replay file",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Replay file to parse",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "v2"
+                        ],
+                        "type": "string",
+                        "description": "Response format",
+                        "name": "format",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/zhreplay.EnhancedReplayV2"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "post": {
+                "description": "Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.",
+                "consumes": [
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Upload game stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game seed identifier",
+                        "name": "X-Game-Seed",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.StatsUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "body.ArgMetadata": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
+        "body.BodyChunk": {
+            "type": "object",
+            "properties": {
+                "argMetadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/body.ArgMetadata"
+                    }
+                },
+                "arguments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "details": {},
+                "numberOfArguments": {
+                    "type": "integer"
+                },
+                "orderCode": {
+                    "type": "integer"
+                },
+                "orderName": {
+                    "type": "string"
+                },
+                "playerID": {
+                    "description": "Starts at 2 for humans",
+                    "type": "integer"
+                },
+                "playerName": {
+                    "type": "string"
+                },
+                "timeCode": {
+                    "type": "integer"
+                }
+            }
+        },
+        "database.MoneyDataRequest": {
+            "type": "object",
+            "properties": {
+                "bombardment": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "buildings_built": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "buildings_killed": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                },
+                "buildings_lost": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "faction_buildings_captured": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "generals_points_total": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "generals_points_used": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "hold_the_line": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "money": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "money_earned": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "power_total": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "power_used": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "radars_built": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "search_and_destroy": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "seed": {
+                    "type": "string"
+                },
+                "tech_buildings_captured": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "timecode": {
+                    "type": "integer"
+                },
+                "units_built": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "units_killed": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                },
+                "units_lost": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "xp": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "xp_level": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "database.NullableInt32Array8": {
+            "type": "object",
+            "properties": {
+                "Int32Array8": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "database.NullableInt32Array8x8": {
+            "type": "object",
+            "properties": {
+                "Int32Array8x8": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "database.PlayerMoneyData": {
+            "type": "object",
+            "properties": {
+                "bombardment": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "buildings_built": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "buildings_killed": {
+                    "$ref": "#/definitions/database.NullableInt32Array8x8"
+                },
+                "buildings_lost": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "faction_buildings_captured": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "generals_points_total": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "generals_points_used": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "hold_the_line": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "money_earned": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "player_money": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "power_total": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "power_used": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "radars_built": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "search_and_destroy": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "seed": {
+                    "type": "string"
+                },
+                "tech_buildings_captured": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "timecode": {
+                    "type": "integer"
+                },
+                "units_built": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "units_killed": {
+                    "$ref": "#/definitions/database.NullableInt32Array8x8"
+                },
+                "units_lost": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "xp": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                },
+                "xp_level": {
+                    "$ref": "#/definitions/database.NullableInt32Array8"
+                }
+            }
+        },
+        "header.GeneralsHeader": {
+            "type": "object",
+            "properties": {
+                "buildDate": {
+                    "type": "string"
+                },
+                "day": {
+                    "type": "integer"
+                },
+                "desync": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "disconnect": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "dow": {
+                    "type": "integer"
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "filler": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "gameSpeed": {
+                    "type": "integer"
+                },
+                "gameType": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "hour": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/header.Metadata"
+                },
+                "millisecond": {
+                    "type": "integer"
+                },
+                "minute": {
+                    "type": "integer"
+                },
+                "month": {
+                    "type": "integer"
+                },
+                "moreUnusedDesync": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "numTimeStamps": {
+                    "type": "integer"
+                },
+                "quitEarly": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "replayOwnerSlot": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "second": {
+                    "type": "integer"
+                },
+                "timeStampBegin": {
+                    "type": "integer"
+                },
+                "timeStampEnd": {
+                    "type": "integer"
+                },
+                "unknown1": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "unknown2": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "unknown3": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "unusedDesync": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                },
+                "versionMajor": {
+                    "type": "integer"
+                },
+                "versionMinor": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "header.Metadata": {
+            "type": "object",
+            "properties": {
+                "c": {
+                    "description": "C",
+                    "type": "string"
+                },
+                "mapCRC": {
+                    "description": "MC",
+                    "type": "string"
+                },
+                "mapFile": {
+                    "description": "M",
+                    "type": "string"
+                },
+                "mapSize": {
+                    "description": "MS",
+                    "type": "string"
+                },
+                "o": {
+                    "description": "O",
+                    "type": "string"
+                },
+                "players": {
+                    "description": "S",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/header.Player"
+                    }
+                },
+                "seed": {
+                    "description": "Seed",
+                    "type": "string"
+                },
+                "sr": {
+                    "description": "SR",
+                    "type": "string"
+                },
+                "startingCredits": {
+                    "description": "SC",
+                    "type": "string"
+                }
+            }
+        },
+        "header.Player": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "faction": {
+                    "type": "string"
+                },
+                "ft": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "string"
+                },
+                "startingPosition": {
+                    "type": "string"
+                },
+                "team": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "unknown": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string",
+                    "example": "underlying error message"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Something went wrong"
+                }
+            }
+        },
+        "main.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Player money data deleted successfully"
+                }
+            }
+        },
+        "main.PlayerMoneyListResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.PlayerMoneyData"
+                    }
+                }
+            }
+        },
+        "main.StatsUploadResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Stats stored successfully"
+                },
+                "seed": {
+                    "type": "string",
+                    "example": "12345"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 8192
+                }
+            }
+        },
+        "object.ObjectSummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "totalSpent": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.Academy": {
+            "type": "object",
+            "properties": {
+                "clearedGarrisonedBuildings": {
+                    "type": "integer"
+                },
+                "controlGroupsUsed": {
+                    "type": "integer"
+                },
+                "doubleClickAttackMoveOrdersGiven": {
+                    "type": "integer"
+                },
+                "firestormsCreated": {
+                    "type": "integer"
+                },
+                "gatherersBuilt": {
+                    "type": "integer"
+                },
+                "generalsPointsSpent": {
+                    "type": "integer"
+                },
+                "guardAbilityUsedCount": {
+                    "type": "integer"
+                },
+                "heroesBuilt": {
+                    "type": "integer"
+                },
+                "minesCleared": {
+                    "type": "integer"
+                },
+                "peonsBuilt": {
+                    "type": "integer"
+                },
+                "salvageCollected": {
+                    "type": "integer"
+                },
+                "secondaryIncomeUnitsBuilt": {
+                    "type": "integer"
+                },
+                "specialPowersUsed": {
+                    "type": "integer"
+                },
+                "structuresCaptured": {
+                    "type": "integer"
+                },
+                "structuresGarrisoned": {
+                    "type": "integer"
+                },
+                "supplyCentersBuilt": {
+                    "type": "integer"
+                },
+                "upgradesPurchased": {
+                    "type": "integer"
+                },
+                "vehiclesDisguised": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.BattlePlanEvent": {
+            "type": "object",
+            "properties": {
+                "bombardment": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "holdTheLine": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "searchAndDestroy": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.DeathEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.EnergyEvent": {
+            "type": "object",
+            "properties": {
+                "consumption": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "production": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.RadarEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "hasRadar": {
+                    "type": "boolean"
+                },
+                "player": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.RankEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "rankLevel": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.SciencePointsEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "sciencePurchasePoints": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.SkillPointsEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "skillPoints": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.TimeSeries": {
+            "type": "object",
+            "properties": {
+                "players": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.TimeSeriesPlayer"
+                    }
+                }
+            }
+        },
+        "statsfile.TimeSeriesPlayer": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "money": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "moneyEarned": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "moneySpent": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "zhreplay.EnhancedReplayV2": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/body.BodyChunk"
+                    }
+                },
+                "gameInfo": {
+                    "$ref": "#/definitions/zhreplay.GameInfoV2"
+                },
+                "header": {
+                    "$ref": "#/definitions/header.GeneralsHeader"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "stats": {
+                    "$ref": "#/definitions/zhreplay.EnrichedStats"
+                },
+                "summary": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.PlayerSummaryV2"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "winMethod": {
+                    "type": "string"
+                }
+            }
+        },
+        "zhreplay.EnrichedBuildEvent": {
+            "type": "object",
+            "properties": {
+                "buildTime": {
+                    "type": "integer"
+                },
+                "cost": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "object": {
+                    "type": "string"
+                },
+                "objectType": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "producer": {
+                    "type": "string"
+                },
+                "producerType": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedCaptureEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "newOwner": {
+                    "type": "integer"
+                },
+                "object": {
+                    "type": "string"
+                },
+                "objectType": {
+                    "type": "string"
+                },
+                "oldOwner": {
+                    "type": "integer"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedKillEvent": {
+            "type": "object",
+            "properties": {
+                "damageType": {
+                    "type": "string"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "killer": {
+                    "type": "string"
+                },
+                "killerPlayer": {
+                    "type": "integer"
+                },
+                "killerType": {
+                    "type": "string"
+                },
+                "victim": {
+                    "type": "string"
+                },
+                "victimPlayer": {
+                    "type": "integer"
+                },
+                "victimType": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedStats": {
+            "type": "object",
+            "properties": {
+                "battlePlanEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.BattlePlanEvent"
+                    }
+                },
+                "buildEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedBuildEvent"
+                    }
+                },
+                "captureEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedCaptureEvent"
+                    }
+                },
+                "deathEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.DeathEvent"
+                    }
+                },
+                "energyEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.EnergyEvent"
+                    }
+                },
+                "killEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedKillEvent"
+                    }
+                },
+                "radarEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.RadarEvent"
+                    }
+                },
+                "rankEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.RankEvent"
+                    }
+                },
+                "sciencePointsEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.SciencePointsEvent"
+                    }
+                },
+                "skillPointsEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.SkillPointsEvent"
+                    }
+                },
+                "timeSeries": {
+                    "$ref": "#/definitions/statsfile.TimeSeries"
+                }
+            }
+        },
+        "zhreplay.GameInfoV2": {
+            "type": "object",
+            "properties": {
+                "frameCount": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "playerCount": {
+                    "type": "integer"
+                },
+                "snapshotInterval": {
+                    "type": "integer"
+                }
+            }
+        },
+        "zhreplay.PlayerSummaryV2": {
+            "type": "object",
+            "properties": {
+                "academy": {
+                    "$ref": "#/definitions/statsfile.Academy"
+                },
+                "baseSide": {
+                    "type": "string"
+                },
+                "buildingsBuilt": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "color": {
+                    "type": "string"
+                },
+                "faction": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "money": {
+                    "type": "integer"
+                },
+                "moneyEarned": {
+                    "type": "integer"
+                },
+                "moneySpent": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "playerType": {
+                    "type": "string"
+                },
+                "powersUsed": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "side": {
+                    "type": "string"
+                },
+                "team": {
+                    "type": "integer"
+                },
+                "unitsCreated": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "upgradesBuilt": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "win": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}
