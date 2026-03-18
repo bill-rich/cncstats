@@ -916,6 +916,12 @@ const docTemplate = `{
                 "netAssets": {
                     "type": "integer"
                 },
+                "recentBuildValue": {
+                    "type": "integer"
+                },
+                "recentIncome": {
+                    "type": "integer"
+                },
                 "score": {
                     "type": "number"
                 }
@@ -924,6 +930,10 @@ const docTemplate = `{
         "zhreplay.WinEstimation": {
             "type": "object",
             "properties": {
+                "agreeCount": {
+                    "description": "how many of 3 factors pick the winner (1-3)",
+                    "type": "integer"
+                },
                 "confidence": {
                     "type": "number"
                 },

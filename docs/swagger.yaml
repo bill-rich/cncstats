@@ -547,11 +547,18 @@ definitions:
         type: integer
       netAssets:
         type: integer
+      recentBuildValue:
+        type: integer
+      recentIncome:
+        type: integer
       score:
         type: number
     type: object
   zhreplay.WinEstimation:
     properties:
+      agreeCount:
+        description: how many of 3 factors pick the winner (1-3)
+        type: integer
       confidence:
         type: number
       teams:
