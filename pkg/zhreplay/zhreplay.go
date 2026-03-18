@@ -15,11 +15,12 @@ import (
 )
 
 type Replay struct {
-	Header  *header.GeneralsHeader
-	Body    []*body.BodyChunk
-	Summary []*object.PlayerSummary
-	Offset  int
-	Version int
+	Header    *header.GeneralsHeader
+	Body      []*body.BodyChunk
+	Summary   []*object.PlayerSummary
+	Offset    int
+	Version   int
+	WinMethod string
 }
 
 type ReplayEasyUnmarshall struct {
@@ -229,6 +230,7 @@ func (r *Replay) determineWinnersByMoney() {
 			player.Win = true
 		}
 	}
+	r.WinMethod = "money"
 }
 
 // getPlayerIDFromName returns the player ID for a given player name
@@ -317,6 +319,9 @@ func (r *Replay) fallbackWinnerDetection() {
 				r.Summary[player].Win = true
 			}
 		}
+		r.WinMethod = "lastCommand"
+	} else {
+		r.WinMethod = "quitCommand"
 	}
 }
 

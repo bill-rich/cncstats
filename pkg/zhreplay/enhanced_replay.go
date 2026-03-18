@@ -160,11 +160,12 @@ func isAllZeros8x8(arr [8][8]int) bool {
 
 // EnhancedReplay represents a replay with enhanced data including player money
 type EnhancedReplay struct {
-	Header  *header.GeneralsHeader  `json:"Header"`
-	Version int                     `json:"Version"`
-	Body    []*EnhancedBodyChunk    `json:"Body"`
-	Summary []*object.PlayerSummary `json:"Summary"`
-	Offset  int                     `json:"Offset"`
+	Header    *header.GeneralsHeader  `json:"Header"`
+	Version   int                     `json:"Version"`
+	WinMethod string                  `json:"WinMethod"`
+	Body      []*EnhancedBodyChunk    `json:"Body"`
+	Summary   []*object.PlayerSummary `json:"Summary"`
+	Offset    int                     `json:"Offset"`
 }
 
 // ConvertToEnhancedReplay converts a regular replay to an enhanced replay
@@ -560,6 +561,7 @@ func (er *EnhancedReplay) DetermineWinnersByMoney() {
 			player.Win = true
 		}
 	}
+	er.WinMethod = "money"
 }
 
 // getPlayerIDFromName returns the player ID for a given player name
@@ -627,5 +629,8 @@ func (er *EnhancedReplay) fallbackWinnerDetection() {
 				er.Summary[player].Win = true
 			}
 		}
+		er.WinMethod = "lastCommand"
+	} else {
+		er.WinMethod = "quitCommand"
 	}
 }

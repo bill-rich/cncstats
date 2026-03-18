@@ -14,13 +14,14 @@ const (
 
 // EnhancedReplayV2 represents a replay with stats from the Generals JSON exporter
 type EnhancedReplayV2 struct {
-	Header   *header.GeneralsHeader `json:"Header"`
-	Version  int                    `json:"Version"`
-	GameInfo *GameInfoV2            `json:"GameInfo,omitempty"`
-	Stats    *EnrichedStats         `json:"Stats"`
-	Body     []*body.BodyChunk      `json:"Body"`
-	Summary  []*PlayerSummaryV2     `json:"Summary"`
-	Offset   int                    `json:"Offset"`
+	Header    *header.GeneralsHeader `json:"Header"`
+	Version   int                    `json:"Version"`
+	WinMethod string                 `json:"WinMethod"`
+	GameInfo  *GameInfoV2            `json:"GameInfo,omitempty"`
+	Stats     *EnrichedStats         `json:"Stats"`
+	Body      []*body.BodyChunk      `json:"Body"`
+	Summary   []*PlayerSummaryV2     `json:"Summary"`
+	Offset    int                    `json:"Offset"`
 }
 
 // GameInfoV2 holds non-duplicate game metadata from the stats file.
@@ -147,8 +148,9 @@ func enrichStats(stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) 
 // If objectStore is non-nil, events are enriched with object type classification.
 func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) *EnhancedReplayV2 {
 	v2 := &EnhancedReplayV2{
-		Header:  replay.Header,
-		Version: EnhancedReplayVersionV2,
+		Header:    replay.Header,
+		Version:   EnhancedReplayVersionV2,
+		WinMethod: replay.WinMethod,
 		GameInfo: &GameInfoV2{
 			Mode:             stats.Game.Mode,
 			FrameCount:       stats.Game.FrameCount,
@@ -241,4 +243,5 @@ func (v2 *EnhancedReplayV2) DetermineWinnersByDeathEvents() {
 			p.Win = true
 		}
 	}
+	v2.WinMethod = "deathEvents"
 }
