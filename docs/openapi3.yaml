@@ -1,0 +1,666 @@
+components:
+  schemas:
+    body.ArgMetadata:
+      properties:
+        count:
+          type: integer
+        type:
+          type: integer
+      type: object
+    body.BodyChunk:
+      properties:
+        argMetadata:
+          items:
+            $ref: "#/components/schemas/body.ArgMetadata"
+          type: array
+        arguments:
+          items:
+{}
+          type: array
+        details:
+{}
+        numberOfArguments:
+          type: integer
+        orderCode:
+          type: integer
+        orderName:
+          type: string
+        playerID:
+          description: Starts at 2 for humans
+          type: integer
+        playerName:
+          type: string
+        timeCode:
+          type: integer
+      type: object
+    header.GeneralsHeader:
+      properties:
+        buildDate:
+          description: UTF-16 null-terminated (versionTimeString)
+          type: string
+        day:
+          type: integer
+        desync:
+          description: 1 byte Bool
+          type: boolean
+        difficulty:
+          description: int32 (GameDifficulty enum)
+          type: integer
+        dow:
+          type: integer
+        exeCRC:
+          description: uint32
+          type: integer
+        frameCount:
+          description: uint32
+          type: integer
+        gameType:
+          description: "6 bytes: \"GENREP\""
+          type: string
+        hour:
+          type: integer
+        iniCRC:
+          description: uint32
+          type: integer
+        localPlayerIndex:
+          description: ASCII null-terminated int
+          type: integer
+        maxFPS:
+          description: int32
+          type: integer
+        metadata:
+          allOf:
+            - $ref: "#/components/schemas/header.Metadata"
+          description: ASCII null-terminated (gameOptions)
+        millisecond:
+          type: integer
+        minute:
+          type: integer
+        month:
+          type: integer
+        originalGameMode:
+          description: int32
+          type: integer
+        playerDiscons:
+          description: 8 × 1 byte Bool (MAX_SLOTS)
+          items:
+            type: boolean
+          type: array
+        quitEarly:
+          description: 1 byte Bool
+          type: boolean
+        rankPoints:
+          description: int32
+          type: integer
+        replayName:
+          description: UTF-16 null-terminated
+          type: string
+        second:
+          type: integer
+        timeStampBegin:
+          description: int32 (replay_time_t)
+          type: integer
+        timeStampEnd:
+          description: int32 (replay_time_t)
+          type: integer
+        version:
+          description: UTF-16 null-terminated
+          type: string
+        versionNumber:
+          description: uint32
+          type: integer
+        year:
+          description: SYSTEMTIME fields (8 × uint16)
+          type: integer
+      type: object
+    header.Metadata:
+      properties:
+        crcInterval:
+          description: C
+          type: string
+        mapCRC:
+          description: MC (hex)
+          type: string
+        mapContentsMask:
+          description: M prefix (2 hex digits)
+          type: string
+        mapPath:
+          description: M remainder (map directory path)
+          type: string
+        mapSize:
+          description: MS
+          type: string
+        oldFactionsOnly:
+          description: "O (ZH only: Y/N)"
+          type: string
+        players:
+          description: S
+          items:
+            $ref: "#/components/schemas/header.Player"
+          type: array
+        seed:
+          description: SD
+          type: string
+        startingCash:
+          description: SC (ZH only)
+          type: string
+        superweaponRestriction:
+          description: SR (ZH only)
+          type: string
+        useStats:
+          description: "US (ZH only: 1=yes, 0=no)"
+          type: string
+      type: object
+    header.Player:
+      properties:
+        color:
+          description: Color index (or name if ColorStore provided)
+          type: string
+        flags:
+          description: "Human: \u003caccepted\u003e\u003chasMap\u003e (e.g. \"TT\"); AI: difficulty (E/M/H)"
+          type: string
+        ip:
+          description: Human only (hex)
+          type: string
+        name:
+          description: Human only
+          type: string
+        natBehavior:
+          description: "Human only: firewall behavior type"
+          type: string
+        playerTemplate:
+          description: Index into player template store
+          type: string
+        port:
+          description: Human only
+          type: string
+        startingPosition:
+          description: Start position (-1 = random)
+          type: string
+        team:
+          description: Team number (-1 = none)
+          type: string
+        type:
+          description: "H=human, C=computer"
+          type: string
+      type: object
+    main.ErrorResponse:
+      properties:
+        details:
+          example: underlying error message
+          type: string
+        error:
+          example: Something went wrong
+          type: string
+      type: object
+    main.StatsUploadResponse:
+      properties:
+        message:
+          example: Stats stored successfully
+          type: string
+        seed:
+          example: 12345
+          type: string
+        size:
+          example: 8192
+          type: integer
+      type: object
+    object.ObjectSummary:
+      properties:
+        count:
+          type: integer
+        totalSpent:
+          type: integer
+      type: object
+    statsfile.Academy:
+      properties:
+        clearedGarrisonedBuildings:
+          type: integer
+        controlGroupsUsed:
+          type: integer
+        doubleClickAttackMoveOrdersGiven:
+          type: integer
+        firestormsCreated:
+          type: integer
+        gatherersBuilt:
+          type: integer
+        generalsPointsSpent:
+          type: integer
+        guardAbilityUsedCount:
+          type: integer
+        heroesBuilt:
+          type: integer
+        minesCleared:
+          type: integer
+        peonsBuilt:
+          type: integer
+        salvageCollected:
+          type: integer
+        secondaryIncomeUnitsBuilt:
+          type: integer
+        specialPowersUsed:
+          type: integer
+        structuresCaptured:
+          type: integer
+        structuresGarrisoned:
+          type: integer
+        supplyCentersBuilt:
+          type: integer
+        upgradesPurchased:
+          type: integer
+        vehiclesDisguised:
+          type: integer
+      type: object
+    statsfile.BattlePlanEvent:
+      properties:
+        bombardment:
+          type: integer
+        frame:
+          type: integer
+        holdTheLine:
+          type: integer
+        player:
+          type: integer
+        searchAndDestroy:
+          type: integer
+      type: object
+    statsfile.DeathEvent:
+      properties:
+        frame:
+          type: integer
+        player:
+          type: integer
+      type: object
+    statsfile.EnergyEvent:
+      properties:
+        consumption:
+          type: integer
+        frame:
+          type: integer
+        player:
+          type: integer
+        production:
+          type: integer
+      type: object
+    statsfile.RadarEvent:
+      properties:
+        frame:
+          type: integer
+        hasRadar:
+          type: boolean
+        player:
+          type: integer
+      type: object
+    statsfile.RankEvent:
+      properties:
+        frame:
+          type: integer
+        player:
+          type: integer
+        rankLevel:
+          type: integer
+      type: object
+    statsfile.SciencePointsEvent:
+      properties:
+        frame:
+          type: integer
+        player:
+          type: integer
+        sciencePurchasePoints:
+          type: integer
+      type: object
+    statsfile.SkillPointsEvent:
+      properties:
+        frame:
+          type: integer
+        player:
+          type: integer
+        skillPoints:
+          type: integer
+      type: object
+    statsfile.TimeSeries:
+      properties:
+        players:
+          items:
+            $ref: "#/components/schemas/statsfile.TimeSeriesPlayer"
+          type: array
+      type: object
+    statsfile.TimeSeriesPlayer:
+      properties:
+        index:
+          type: integer
+        money:
+          items:
+            type: integer
+          type: array
+        moneyEarned:
+          items:
+            type: integer
+          type: array
+        moneySpent:
+          items:
+            type: integer
+          type: array
+      type: object
+    zhreplay.EnhancedReplayV2:
+      properties:
+        body:
+          items:
+            $ref: "#/components/schemas/body.BodyChunk"
+          type: array
+        gameInfo:
+          $ref: "#/components/schemas/zhreplay.GameInfoV2"
+        header:
+          $ref: "#/components/schemas/header.GeneralsHeader"
+        offset:
+          type: integer
+        stats:
+          $ref: "#/components/schemas/zhreplay.EnrichedStats"
+        summary:
+          items:
+            $ref: "#/components/schemas/zhreplay.PlayerSummaryV2"
+          type: array
+        version:
+          type: integer
+        winEstimation:
+          $ref: "#/components/schemas/zhreplay.WinEstimation"
+        winMethod:
+          type: string
+      type: object
+    zhreplay.EnrichedBuildEvent:
+      properties:
+        buildTime:
+          type: integer
+        cost:
+          type: integer
+        frame:
+          type: integer
+        object:
+          type: string
+        objectType:
+          type: string
+        player:
+          type: integer
+        producer:
+          type: string
+        producerType:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+      type: object
+    zhreplay.EnrichedCaptureEvent:
+      properties:
+        frame:
+          type: integer
+        newOwner:
+          type: integer
+        object:
+          type: string
+        objectType:
+          type: string
+        oldOwner:
+          type: integer
+        x:
+          type: number
+        y:
+          type: number
+      type: object
+    zhreplay.EnrichedKillEvent:
+      properties:
+        damageType:
+          type: string
+        frame:
+          type: integer
+        killer:
+          type: string
+        killerPlayer:
+          type: integer
+        killerType:
+          type: string
+        victim:
+          type: string
+        victimPlayer:
+          type: integer
+        victimType:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+      type: object
+    zhreplay.EnrichedStats:
+      properties:
+        battlePlanEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.BattlePlanEvent"
+          type: array
+        buildEvents:
+          items:
+            $ref: "#/components/schemas/zhreplay.EnrichedBuildEvent"
+          type: array
+        captureEvents:
+          items:
+            $ref: "#/components/schemas/zhreplay.EnrichedCaptureEvent"
+          type: array
+        deathEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.DeathEvent"
+          type: array
+        energyEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.EnergyEvent"
+          type: array
+        killEvents:
+          items:
+            $ref: "#/components/schemas/zhreplay.EnrichedKillEvent"
+          type: array
+        radarEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.RadarEvent"
+          type: array
+        rankEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.RankEvent"
+          type: array
+        sciencePointsEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.SciencePointsEvent"
+          type: array
+        skillPointsEvents:
+          items:
+            $ref: "#/components/schemas/statsfile.SkillPointsEvent"
+          type: array
+        timeSeries:
+          $ref: "#/components/schemas/statsfile.TimeSeries"
+      type: object
+    zhreplay.GameInfoV2:
+      properties:
+        frameCount:
+          type: integer
+        mode:
+          type: string
+        playerCount:
+          type: integer
+        snapshotInterval:
+          type: integer
+      type: object
+    zhreplay.PlayerSummaryV2:
+      properties:
+        academy:
+          $ref: "#/components/schemas/statsfile.Academy"
+        baseSide:
+          type: string
+        buildingsBuilt:
+          additionalProperties:
+            $ref: "#/components/schemas/object.ObjectSummary"
+          type: object
+        color:
+          type: string
+        faction:
+          type: string
+        index:
+          type: integer
+        money:
+          type: integer
+        moneyEarned:
+          type: integer
+        moneySpent:
+          type: integer
+        name:
+          type: string
+        playerType:
+          type: string
+        powersUsed:
+          additionalProperties:
+            type: integer
+          type: object
+        score:
+          type: integer
+        side:
+          type: string
+        team:
+          type: integer
+        unitsCreated:
+          additionalProperties:
+            $ref: "#/components/schemas/object.ObjectSummary"
+          type: object
+        upgradesBuilt:
+          additionalProperties:
+            $ref: "#/components/schemas/object.ObjectSummary"
+          type: object
+        win:
+          type: boolean
+      type: object
+    zhreplay.TeamFactors:
+      properties:
+        builtValue:
+          type: integer
+        captureGain:
+          type: integer
+        captureLoss:
+          type: integer
+        destroyedValue:
+          type: integer
+        efficiency:
+          type: number
+        lostValue:
+          type: integer
+        moneyEarned:
+          type: integer
+        netAssets:
+          type: integer
+        playerScore:
+          type: integer
+        playersAlive:
+          type: integer
+        playersDead:
+          type: integer
+        recentIncome:
+          type: integer
+        score:
+          type: number
+      type: object
+    zhreplay.WinEstimation:
+      properties:
+        agreeCount:
+          description: how many factors pick the winner
+          type: integer
+        confidence:
+          type: number
+        teams:
+          additionalProperties:
+            $ref: "#/components/schemas/zhreplay.TeamFactors"
+          type: object
+        totalFactors:
+          description: total active factors (3 or 4)
+          type: integer
+      type: object
+info:
+  contact:
+{}
+  description: "Replay parser and stats API for Command \u0026 Conquer Generals / Zero Hour"
+  title: CNC Stats API
+  version: 2.0
+openapi: 3.0.3
+paths:
+  /replay:
+    post:
+      description: "Upload a .rep replay file and receive parsed replay data. Returns enhanced v2 stats if a matching stats file exists, otherwise returns the basic parsed replay."
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: Replay file to parse
+                  format: binary
+                  type: string
+              required:
+                - file
+              type: object
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/zhreplay.EnhancedReplayV2"
+          description: OK
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Bad Request
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Internal Server Error
+      summary: Parse a replay file
+      tags:
+        - replay
+  /stats:
+    post:
+      description: Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.
+      parameters:
+        - description: Game seed identifier
+          in: header
+          name: X-Game-Seed
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              format: binary
+              type: string
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.StatsUploadResponse"
+          description: OK
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Bad Request
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Internal Server Error
+      summary: Upload game stats
+      tags:
+        - stats
+servers:
+  - url: "http://localhost:8080/"

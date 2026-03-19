@@ -235,8 +235,16 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 		uploadStatsHandler(c)
 	})
 
-	// Swagger UI
+	// Swagger UI (serves Swagger 2.0 interactive docs)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// OpenAPI v3 spec (JSON and YAML)
+	router.GET("/openapi3.json", func(c *gin.Context) {
+		c.File("docs/openapi3.json")
+	})
+	router.GET("/openapi3.yaml", func(c *gin.Context) {
+		c.File("docs/openapi3.yaml")
+	})
 
 	port := "8080"
 	if len(os.Getenv("PORT")) > 0 {
