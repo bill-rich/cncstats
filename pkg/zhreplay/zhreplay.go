@@ -55,11 +55,22 @@ func (r *Replay) AdjustPlayerIDOffset() {
 }
 
 func (r *Replay) CreatePlayerList() {
+	nextSoloTeam := 100 // FFA players get unique team IDs starting at 100
 	for _, playerMd := range r.Header.Metadata.Players {
 		team, _ := strconv.Atoi(playerMd.Team)
+		team++ // header is 0-indexed, we use 1-indexed
+
+		// In FFA games, team is 0 (header value "-1" + 1). Assign each
+		// teamless player their own unique team so winner detection
+		// treats them individually.
+		if team == 0 {
+			team = nextSoloTeam
+			nextSoloTeam++
+		}
+
 		player := &object.PlayerSummary{
 			Name:           playerMd.Name,
-			Team:           team + 1,
+			Team:           team,
 			Win:            true,
 			BuildingsBuilt: map[string]*object.ObjectSummary{},
 			UnitsCreated:   map[string]*object.ObjectSummary{},
