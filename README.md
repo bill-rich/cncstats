@@ -130,6 +130,30 @@ Upload a replay file:
 curl -X POST -F "file=@replay.rep" http://localhost:8080/replay
 ```
 
+## Docker
+
+Build the image:
+```bash
+docker build -t onethree111/cncstats .
+```
+
+Push it:
+```bash
+docker push onethree111/cncstats
+```
+
+Pull and run it elsewhere:
+```bash
+docker pull onethree111/cncstats
+docker run -p 8080:8080 onethree111/cncstats
+```
+
+To tag a specific version:
+```bash
+docker build -t onethree111/cncstats:v1.0 .
+docker push onethree111/cncstats:v1.0
+```
+
 ## Examples
 
 See `examples/example_streaming.go` for a complete example of streaming replay parsing.
