@@ -610,6 +610,35 @@ func (v2 *EnhancedReplayV2) estimateWinner(objectStore *iniparse.ObjectStore) {
 	}
 }
 
+// ConvertToBasicEnhancedReplayV2 creates a v2 response from replay data alone,
+// without any stats file. Stats-dependent fields are left nil/zero.
+func ConvertToBasicEnhancedReplayV2(replay *Replay) *EnhancedReplayV2 {
+	v2 := &EnhancedReplayV2{
+		Header:         replay.Header,
+		Version:        EnhancedReplayVersionV2,
+		WinMethod:      replay.WinMethod,
+		Body:           replay.Body,
+		PlayerIDOffset: replay.PlayerIDOffset,
+		Summary:        make([]*PlayerSummaryV2, len(replay.Summary)),
+	}
+
+	for i, ps := range replay.Summary {
+		v2.Summary[i] = &PlayerSummaryV2{
+			Name:           ps.Name,
+			Side:           ps.Side,
+			Team:           ps.Team,
+			Win:            ps.Win,
+			MoneySpent:     ps.MoneySpent,
+			UnitsCreated:   ps.UnitsCreated,
+			BuildingsBuilt: ps.BuildingsBuilt,
+			UpgradesBuilt:  ps.UpgradesBuilt,
+			PowersUsed:     ps.PowersUsed,
+		}
+	}
+
+	return v2
+}
+
 // teamWithHighest returns the team ID with the highest value for the given
 // metric, or -1 if no team has a positive value.
 func teamWithHighest(factors map[int]*TeamFactors, metric func(*TeamFactors) float64) int {

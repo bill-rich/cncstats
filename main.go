@@ -214,7 +214,8 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	}
 
 	replay := zhreplay.NewReplay(bp)
-	um, err := json.Marshal(replay)
+	v2 := zhreplay.ConvertToBasicEnhancedReplayV2(replay)
+	um, err := json.Marshal(v2)
 	if err != nil {
 		log.WithError(err).Fatal("could not marshal replay data")
 	}
@@ -259,7 +260,7 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 
 // saveFileHandler parses an uploaded replay file.
 // @Summary Parse a replay file
-// @Description Upload a .rep replay file and receive parsed replay data. Returns enhanced v2 stats if a matching stats file exists, otherwise returns the basic parsed replay.
+// @Description Upload a .rep replay file and receive parsed replay data in v2 format. Stats fields are populated when a matching stats file exists.
 // @Tags replay
 // @Accept multipart/form-data
 // @Produce json
@@ -301,7 +302,9 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 	if seed != "" && statsfile.Exists(seed) {
 		stats, err := statsfile.Load(seed)
 		if err != nil {
-			log.WithError(err).Warn("Failed to load stats file, returning basic replay")
+			log.WithError(err).Warn("Failed to load stats file, returning replay-only v2")
+			c.JSON(http.StatusOK, zhreplay.ConvertToBasicEnhancedReplayV2(replay))
+			return
 		} else {
 			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats, objectStore)
 			c.JSON(http.StatusOK, v2Replay)
@@ -309,8 +312,8 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 		}
 	}
 
-	// No stats file — return basic parsed replay
-	c.JSON(http.StatusOK, replay)
+	// No stats file, return v2 with replay data only
+	c.JSON(http.StatusOK, zhreplay.ConvertToBasicEnhancedReplayV2(replay))
 }
 
 // uploadStatsHandler stores a gzip-compressed stats payload.
