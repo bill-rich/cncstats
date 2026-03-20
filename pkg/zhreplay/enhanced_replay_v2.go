@@ -352,7 +352,7 @@ func (v2 *EnhancedReplayV2) estimateWinner(objectStore *iniparse.ObjectStore) {
 			lastFrame = ev.Frame
 		}
 	}
-	const minGameLength = framesPerMinute * 10 // 10 minutes minimum
+	const minGameLength = framesPerMinute * 5 // 5 minutes minimum
 	if lastFrame < minGameLength {
 		return
 	}
