@@ -154,28 +154,6 @@ func TestConvertArg(t *testing.T) {
 				} else {
 					t.Errorf("expected ScreenRectangle, got %T", result)
 				}
-			case Position:
-				if pos, ok := result.(Position); ok {
-					if pos.X != expected.X || pos.Y != expected.Y || pos.Z != expected.Z {
-						t.Errorf("expected: %+v, got: %+v", expected, pos)
-					}
-				} else {
-					t.Errorf("expected Position, got %T", result)
-				}
-			case Rectangle:
-				if rect, ok := result.(Rectangle); ok {
-					if len(rect) != len(expected) {
-						t.Errorf("expected rectangle length %d, got %d", len(expected), len(rect))
-					} else {
-						for i, pos := range expected {
-							if rect[i].X != pos.X || rect[i].Y != pos.Y || rect[i].Z != pos.Z {
-								t.Errorf("expected rectangle[%d]: %+v, got: %+v", i, pos, rect[i])
-							}
-						}
-					}
-				} else {
-					t.Errorf("expected Rectangle, got %T", result)
-				}
 			case []byte:
 				if resultBytes, ok := result.([]byte); ok {
 					if !bytes.Equal(resultBytes, expected) {
@@ -240,37 +218,6 @@ func TestCommandType(t *testing.T) {
 	}
 }
 
-func TestPosition(t *testing.T) {
-	pos := Position{
-		X: 10,
-		Y: 20,
-		Z: 30,
-	}
-
-	if pos.X != 10 || pos.Y != 20 || pos.Z != 30 {
-		t.Errorf("Position not initialized correctly: %+v", pos)
-	}
-}
-
-func TestRectangle(t *testing.T) {
-	rect := Rectangle{
-		Position{X: 0, Y: 0},
-		Position{X: 100, Y: 100},
-	}
-
-	if len(rect) != 2 {
-		t.Errorf("Rectangle should have 2 positions, got %d", len(rect))
-	}
-
-	if rect[0].X != 0 || rect[0].Y != 0 {
-		t.Errorf("First position incorrect: %+v", rect[0])
-	}
-
-	if rect[1].X != 100 || rect[1].Y != 100 {
-		t.Errorf("Second position incorrect: %+v", rect[1])
-	}
-}
-
 func TestArgMetadata(t *testing.T) {
 	metadata := &ArgMetadata{
 		Type:  ArgInt,
@@ -315,49 +262,6 @@ func TestBodyChunk(t *testing.T) {
 	}
 }
 
-func TestBodyChunkEasyUnmarshall(t *testing.T) {
-	chunk := BodyChunkEasyUnmarshall{
-		TimeCode:          2000,
-		OrderCode:         1049,
-		OrderName:         "BuildObject",
-		PlayerID:          3,
-		PlayerName:        "Player2",
-		NumberOfArguments: 1,
-		Details: GeneralDetail{
-			Cost: 500,
-			Name: "Barracks",
-		},
-		ArgMetadata: []*ArgMetadata{},
-		Arguments:   []interface{}{},
-	}
-
-	if chunk.TimeCode != 2000 {
-		t.Errorf("expected TimeCode %d, got %d", 2000, chunk.TimeCode)
-	}
-
-	if chunk.Details.Cost != 500 {
-		t.Errorf("expected Details.Cost %d, got %d", 500, chunk.Details.Cost)
-	}
-
-	if chunk.Details.Name != "Barracks" {
-		t.Errorf("expected Details.Name %s, got %s", "Barracks", chunk.Details.Name)
-	}
-}
-
-func TestGeneralDetail(t *testing.T) {
-	detail := GeneralDetail{
-		Cost: 1000,
-		Name: "Tank",
-	}
-
-	if detail.Cost != 1000 {
-		t.Errorf("expected Cost %d, got %d", 1000, detail.Cost)
-	}
-
-	if detail.Name != "Tank" {
-		t.Errorf("expected Name %s, got %s", "Tank", detail.Name)
-	}
-}
 
 func TestParseBody(t *testing.T) {
 	// Create mock data for a simple body chunk
@@ -399,9 +303,7 @@ func TestParseBody(t *testing.T) {
 		},
 	}
 
-	playerList := []*object.PlayerSummary{}
-
-	body := ParseBody(parser, playerList, objectStore, powerStore, upgradeStore)
+	body := ParseBody(parser, objectStore, powerStore, upgradeStore)
 
 	if len(body) != 1 {
 		t.Errorf("expected 1 body chunk, got %d", len(body))
@@ -459,7 +361,7 @@ func TestParseBodyEmpty(t *testing.T) {
 		Source: bytes.NewReader(input),
 	}
 
-	body := ParseBody(parser, []*object.PlayerSummary{}, &iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
+	body := ParseBody(parser,&iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
 
 	if len(body) != 0 {
 		t.Errorf("expected 0 body chunks, got %d", len(body))
@@ -515,7 +417,7 @@ func TestParseBodyMultipleChunks(t *testing.T) {
 		},
 	}
 
-	body := ParseBody(parser, []*object.PlayerSummary{}, objectStore, powerStore, upgradeStore)
+	body := ParseBody(parser,objectStore, powerStore, upgradeStore)
 
 	if len(body) != 2 {
 		t.Errorf("expected 2 body chunks, got %d", len(body))
@@ -751,7 +653,7 @@ func TestEdgeCases(t *testing.T) {
 		}
 
 		// This should not panic and should return empty or partial results
-		body := ParseBody(parser, []*object.PlayerSummary{}, &iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
+		body := ParseBody(parser,&iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
 
 		// The exact behavior depends on the implementation, but it shouldn't panic
 		_ = body // Use the result to avoid unused variable warning
@@ -806,7 +708,7 @@ func TestIntegrationScenarios(t *testing.T) {
 			Source: bytes.NewReader(input),
 		}
 
-		body := ParseBody(parser, []*object.PlayerSummary{}, &iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
+		body := ParseBody(parser,&iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
 
 		if len(body) != 1 {
 			t.Errorf("expected 1 body chunk, got %d", len(body))
@@ -852,7 +754,7 @@ func TestIntegrationScenarios(t *testing.T) {
 			Source: bytes.NewReader(input),
 		}
 
-		body := ParseBody(parser, []*object.PlayerSummary{}, &iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
+		body := ParseBody(parser,&iniparse.ObjectStore{}, &iniparse.PowerStore{}, &iniparse.UpgradeStore{})
 
 		if len(body) != 1 {
 			t.Errorf("expected 1 body chunk, got %d", len(body))

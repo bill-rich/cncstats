@@ -62,7 +62,7 @@ func main() {
 
 	// Print header information
 	fmt.Printf("Replay Header:\n")
-	fmt.Printf("  Map: %s\n", streamingReplay.Header.Metadata.MapFile)
+	fmt.Printf("  Map: %s\n", streamingReplay.Header.Metadata.MapPath)
 	fmt.Printf("  Players: %d\n", len(streamingReplay.Header.Metadata.Players))
 	for i, player := range streamingReplay.Header.Metadata.Players {
 		fmt.Printf("    Player %d: %s (Team %s)\n", i+1, player.Name, player.Team)
@@ -78,18 +78,18 @@ func main() {
 				fmt.Printf("\nStreaming completed. Processed %d events.\n", eventCount)
 				return
 			}
-			
+
 			eventCount++
-			
+
 			// Print event information
-			fmt.Printf("Event %d: Time=%d, Order=%s, PlayerID=%d", 
+			fmt.Printf("Event %d: Time=%d, Order=%s, PlayerID=%d",
 				eventCount, chunk.TimeCode, chunk.OrderName, chunk.PlayerID)
-			
+
 			// Add player name if available
 			if chunk.PlayerName != "" {
 				fmt.Printf(", Player=%s", chunk.PlayerName)
 			}
-			
+
 			// Add details for specific order types
 			if chunk.Details != nil {
 				switch chunk.OrderCode {
@@ -103,14 +103,14 @@ func main() {
 					fmt.Printf(", Power=%s", chunk.Details.GetName())
 				}
 			}
-			
+
 			fmt.Println()
-			
+
 			// Check for EndReplay command
 			if chunk.OrderCode == 27 {
 				fmt.Println("EndReplay command detected - streaming will stop.")
 			}
-			
+
 		case <-ctx.Done():
 			fmt.Printf("\nContext cancelled. Processed %d events before timeout.\n", eventCount)
 			return

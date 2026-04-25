@@ -1,0 +1,956 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Replay parser and stats API for Command \u0026 Conquer Generals / Zero Hour",
+        "title": "CNC Stats API",
+        "contact": {},
+        "version": "2.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/replay": {
+            "post": {
+                "description": "Upload a .rep replay file and receive parsed replay data. Returns enhanced v2 stats if a matching stats file exists, otherwise returns the basic parsed replay.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replay"
+                ],
+                "summary": "Parse a replay file",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Replay file to parse",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/zhreplay.EnhancedReplayV2"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "post": {
+                "description": "Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.",
+                "consumes": [
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Upload game stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game seed identifier",
+                        "name": "X-Game-Seed",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.StatsUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "body.ArgMetadata": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
+        "body.BodyChunk": {
+            "type": "object",
+            "properties": {
+                "argMetadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/body.ArgMetadata"
+                    }
+                },
+                "arguments": {
+                    "type": "array",
+                    "items": {}
+                },
+                "details": {},
+                "numberOfArguments": {
+                    "type": "integer"
+                },
+                "orderCode": {
+                    "type": "integer"
+                },
+                "orderName": {
+                    "type": "string"
+                },
+                "playerID": {
+                    "description": "Starts at 2 for humans",
+                    "type": "integer"
+                },
+                "playerName": {
+                    "type": "string"
+                },
+                "timeCode": {
+                    "type": "integer"
+                }
+            }
+        },
+        "header.GeneralsHeader": {
+            "type": "object",
+            "properties": {
+                "buildDate": {
+                    "description": "UTF-16 null-terminated (versionTimeString)",
+                    "type": "string"
+                },
+                "day": {
+                    "type": "integer"
+                },
+                "desync": {
+                    "description": "1 byte Bool",
+                    "type": "boolean"
+                },
+                "difficulty": {
+                    "description": "int32 (GameDifficulty enum)",
+                    "type": "integer"
+                },
+                "dow": {
+                    "type": "integer"
+                },
+                "exeCRC": {
+                    "description": "uint32",
+                    "type": "integer"
+                },
+                "frameCount": {
+                    "description": "uint32",
+                    "type": "integer"
+                },
+                "gameType": {
+                    "description": "6 bytes: \"GENREP\"",
+                    "type": "string"
+                },
+                "hour": {
+                    "type": "integer"
+                },
+                "iniCRC": {
+                    "description": "uint32",
+                    "type": "integer"
+                },
+                "localPlayerIndex": {
+                    "description": "ASCII null-terminated int",
+                    "type": "integer"
+                },
+                "maxFPS": {
+                    "description": "int32",
+                    "type": "integer"
+                },
+                "metadata": {
+                    "description": "ASCII null-terminated (gameOptions)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/header.Metadata"
+                        }
+                    ]
+                },
+                "millisecond": {
+                    "type": "integer"
+                },
+                "minute": {
+                    "type": "integer"
+                },
+                "month": {
+                    "type": "integer"
+                },
+                "originalGameMode": {
+                    "description": "int32",
+                    "type": "integer"
+                },
+                "playerDiscons": {
+                    "description": "8 × 1 byte Bool (MAX_SLOTS)",
+                    "type": "array",
+                    "items": {
+                        "type": "boolean"
+                    }
+                },
+                "quitEarly": {
+                    "description": "1 byte Bool",
+                    "type": "boolean"
+                },
+                "rankPoints": {
+                    "description": "int32",
+                    "type": "integer"
+                },
+                "replayName": {
+                    "description": "UTF-16 null-terminated",
+                    "type": "string"
+                },
+                "second": {
+                    "type": "integer"
+                },
+                "timeStampBegin": {
+                    "description": "int32 (replay_time_t)",
+                    "type": "integer"
+                },
+                "timeStampEnd": {
+                    "description": "int32 (replay_time_t)",
+                    "type": "integer"
+                },
+                "version": {
+                    "description": "UTF-16 null-terminated",
+                    "type": "string"
+                },
+                "versionNumber": {
+                    "description": "uint32",
+                    "type": "integer"
+                },
+                "year": {
+                    "description": "SYSTEMTIME fields (8 × uint16)",
+                    "type": "integer"
+                }
+            }
+        },
+        "header.Metadata": {
+            "type": "object",
+            "properties": {
+                "crcInterval": {
+                    "description": "C",
+                    "type": "string"
+                },
+                "mapCRC": {
+                    "description": "MC (hex)",
+                    "type": "string"
+                },
+                "mapContentsMask": {
+                    "description": "M prefix (2 hex digits)",
+                    "type": "string"
+                },
+                "mapPath": {
+                    "description": "M remainder (map directory path)",
+                    "type": "string"
+                },
+                "mapSize": {
+                    "description": "MS",
+                    "type": "string"
+                },
+                "oldFactionsOnly": {
+                    "description": "O (ZH only: Y/N)",
+                    "type": "string"
+                },
+                "players": {
+                    "description": "S",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/header.Player"
+                    }
+                },
+                "seed": {
+                    "description": "SD",
+                    "type": "string"
+                },
+                "startingCash": {
+                    "description": "SC (ZH only)",
+                    "type": "string"
+                },
+                "superweaponRestriction": {
+                    "description": "SR (ZH only)",
+                    "type": "string"
+                },
+                "useStats": {
+                    "description": "US (ZH only: 1=yes, 0=no)",
+                    "type": "string"
+                }
+            }
+        },
+        "header.Player": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "description": "Color index (or name if ColorStore provided)",
+                    "type": "string"
+                },
+                "flags": {
+                    "description": "Human: \u003caccepted\u003e\u003chasMap\u003e (e.g. \"TT\"); AI: difficulty (E/M/H)",
+                    "type": "string"
+                },
+                "ip": {
+                    "description": "Human only (hex)",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Human only",
+                    "type": "string"
+                },
+                "natBehavior": {
+                    "description": "Human only: firewall behavior type",
+                    "type": "string"
+                },
+                "playerTemplate": {
+                    "description": "Index into player template store",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "Human only",
+                    "type": "string"
+                },
+                "startingPosition": {
+                    "description": "Start position (-1 = random)",
+                    "type": "string"
+                },
+                "team": {
+                    "description": "Team number (-1 = none)",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "H=human, C=computer",
+                    "type": "string"
+                }
+            }
+        },
+        "main.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string",
+                    "example": "underlying error message"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Something went wrong"
+                }
+            }
+        },
+        "main.StatsUploadResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Stats stored successfully"
+                },
+                "seed": {
+                    "type": "string",
+                    "example": "12345"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 8192
+                }
+            }
+        },
+        "object.ObjectSummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "totalSpent": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.Academy": {
+            "type": "object",
+            "properties": {
+                "clearedGarrisonedBuildings": {
+                    "type": "integer"
+                },
+                "controlGroupsUsed": {
+                    "type": "integer"
+                },
+                "doubleClickAttackMoveOrdersGiven": {
+                    "type": "integer"
+                },
+                "firestormsCreated": {
+                    "type": "integer"
+                },
+                "gatherersBuilt": {
+                    "type": "integer"
+                },
+                "generalsPointsSpent": {
+                    "type": "integer"
+                },
+                "guardAbilityUsedCount": {
+                    "type": "integer"
+                },
+                "heroesBuilt": {
+                    "type": "integer"
+                },
+                "minesCleared": {
+                    "type": "integer"
+                },
+                "peonsBuilt": {
+                    "type": "integer"
+                },
+                "salvageCollected": {
+                    "type": "integer"
+                },
+                "secondaryIncomeUnitsBuilt": {
+                    "type": "integer"
+                },
+                "specialPowersUsed": {
+                    "type": "integer"
+                },
+                "structuresCaptured": {
+                    "type": "integer"
+                },
+                "structuresGarrisoned": {
+                    "type": "integer"
+                },
+                "supplyCentersBuilt": {
+                    "type": "integer"
+                },
+                "upgradesPurchased": {
+                    "type": "integer"
+                },
+                "vehiclesDisguised": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.BattlePlanEvent": {
+            "type": "object",
+            "properties": {
+                "bombardment": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "holdTheLine": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "searchAndDestroy": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.DeathEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.EnergyEvent": {
+            "type": "object",
+            "properties": {
+                "consumption": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "production": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.RadarEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "hasRadar": {
+                    "type": "boolean"
+                },
+                "player": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.RankEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "rankLevel": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.SciencePointsEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "sciencePurchasePoints": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.SkillPointsEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "skillPoints": {
+                    "type": "integer"
+                }
+            }
+        },
+        "statsfile.TimeSeries": {
+            "type": "object",
+            "properties": {
+                "players": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.TimeSeriesPlayer"
+                    }
+                }
+            }
+        },
+        "statsfile.TimeSeriesPlayer": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "money": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "moneyEarned": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "moneySpent": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "zhreplay.EnhancedReplayV2": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/body.BodyChunk"
+                    }
+                },
+                "gameInfo": {
+                    "$ref": "#/definitions/zhreplay.GameInfoV2"
+                },
+                "header": {
+                    "$ref": "#/definitions/header.GeneralsHeader"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "stats": {
+                    "$ref": "#/definitions/zhreplay.EnrichedStats"
+                },
+                "summary": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.PlayerSummaryV2"
+                    }
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "winEstimation": {
+                    "$ref": "#/definitions/zhreplay.WinEstimation"
+                },
+                "winMethod": {
+                    "type": "string"
+                }
+            }
+        },
+        "zhreplay.EnrichedBuildEvent": {
+            "type": "object",
+            "properties": {
+                "buildTime": {
+                    "type": "integer"
+                },
+                "cost": {
+                    "type": "integer"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "object": {
+                    "type": "string"
+                },
+                "objectType": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "producer": {
+                    "type": "string"
+                },
+                "producerType": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedCaptureEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "newOwner": {
+                    "type": "integer"
+                },
+                "object": {
+                    "type": "string"
+                },
+                "objectType": {
+                    "type": "string"
+                },
+                "oldOwner": {
+                    "type": "integer"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedKillEvent": {
+            "type": "object",
+            "properties": {
+                "damageType": {
+                    "type": "string"
+                },
+                "frame": {
+                    "type": "integer"
+                },
+                "killer": {
+                    "type": "string"
+                },
+                "killerPlayer": {
+                    "type": "integer"
+                },
+                "killerType": {
+                    "type": "string"
+                },
+                "victim": {
+                    "type": "string"
+                },
+                "victimPlayer": {
+                    "type": "integer"
+                },
+                "victimType": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.EnrichedStats": {
+            "type": "object",
+            "properties": {
+                "battlePlanEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.BattlePlanEvent"
+                    }
+                },
+                "buildEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedBuildEvent"
+                    }
+                },
+                "captureEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedCaptureEvent"
+                    }
+                },
+                "deathEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.DeathEvent"
+                    }
+                },
+                "energyEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.EnergyEvent"
+                    }
+                },
+                "killEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zhreplay.EnrichedKillEvent"
+                    }
+                },
+                "radarEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.RadarEvent"
+                    }
+                },
+                "rankEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.RankEvent"
+                    }
+                },
+                "sciencePointsEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.SciencePointsEvent"
+                    }
+                },
+                "skillPointsEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.SkillPointsEvent"
+                    }
+                },
+                "timeSeries": {
+                    "$ref": "#/definitions/statsfile.TimeSeries"
+                }
+            }
+        },
+        "zhreplay.GameInfoV2": {
+            "type": "object",
+            "properties": {
+                "frameCount": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "playerCount": {
+                    "type": "integer"
+                },
+                "snapshotInterval": {
+                    "type": "integer"
+                }
+            }
+        },
+        "zhreplay.PlayerSummaryV2": {
+            "type": "object",
+            "properties": {
+                "academy": {
+                    "$ref": "#/definitions/statsfile.Academy"
+                },
+                "baseSide": {
+                    "type": "string"
+                },
+                "buildingsBuilt": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "color": {
+                    "type": "string"
+                },
+                "faction": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "money": {
+                    "type": "integer"
+                },
+                "moneyEarned": {
+                    "type": "integer"
+                },
+                "moneySpent": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "playerType": {
+                    "type": "string"
+                },
+                "powersUsed": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "side": {
+                    "type": "string"
+                },
+                "team": {
+                    "type": "integer"
+                },
+                "unitsCreated": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "upgradesBuilt": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/object.ObjectSummary"
+                    }
+                },
+                "win": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "zhreplay.TeamFactors": {
+            "type": "object",
+            "properties": {
+                "builtValue": {
+                    "type": "integer"
+                },
+                "captureGain": {
+                    "type": "integer"
+                },
+                "captureLoss": {
+                    "type": "integer"
+                },
+                "destroyedValue": {
+                    "type": "integer"
+                },
+                "efficiency": {
+                    "type": "number"
+                },
+                "lostValue": {
+                    "type": "integer"
+                },
+                "moneyEarned": {
+                    "type": "integer"
+                },
+                "netAssets": {
+                    "type": "integer"
+                },
+                "playerScore": {
+                    "type": "integer"
+                },
+                "playersAlive": {
+                    "type": "integer"
+                },
+                "playersDead": {
+                    "type": "integer"
+                },
+                "recentIncome": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "zhreplay.WinEstimation": {
+            "type": "object",
+            "properties": {
+                "agreeCount": {
+                    "description": "how many factors pick the winner",
+                    "type": "integer"
+                },
+                "confidence": {
+                    "type": "number"
+                },
+                "teams": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/zhreplay.TeamFactors"
+                    }
+                },
+                "totalFactors": {
+                    "description": "total active factors (3 or 4)",
+                    "type": "integer"
+                }
+            }
+        }
+    }
+}

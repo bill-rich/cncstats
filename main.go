@@ -4,24 +4,39 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
 	"os"
-	"strconv"
-	"time"
 
+	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
-	"github.com/bill-rich/cncstats/pkg/database"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
-	"github.com/bill-rich/cncstats/proto/player_money"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-	"gorm.io/gorm"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// StatsUploadResponse represents the response for a successful stats upload.
+type StatsUploadResponse struct {
+	Message string `json:"message" example:"Stats stored successfully"`
+	Seed    string `json:"seed" example:"12345"`
+	Size    int    `json:"size" example:"8192"`
+}
+
+// ErrorResponse represents an error response.
+type ErrorResponse struct {
+	Error   string `json:"error" example:"Something went wrong"`
+	Details string `json:"details,omitempty" example:"underlying error message"`
+}
+
+// @title CNC Stats API
+// @version 2.0
+// @description Replay parser and stats API for Command & Conquer Generals / Zero Hour
+// @host localhost:8080
+// @BasePath /
 func main() {
 	// Parse command line arguments
 	var (
@@ -60,7 +75,7 @@ func main() {
 
 	log.Info("CNC Stats application starting...")
 
-	// Handle local mode - skip database operations
+	// Handle local mode
 	if *local || len(os.Getenv("LOCAL")) > 0 {
 		var objectStore *iniparse.ObjectStore
 		var powerStore *iniparse.PowerStore
@@ -80,21 +95,6 @@ func main() {
 		return
 	}
 
-	// Initialize database (only for server mode)
-	log.Info("Connecting to database...")
-	if err := database.Connect(); err != nil {
-		log.WithError(err).Fatal("could not connect to database")
-	}
-	log.Info("Database connected successfully")
-	defer database.Close()
-
-	// Run database migrations
-	log.Info("Running database migrations...")
-	if err := database.Migrate(); err != nil {
-		log.WithError(err).Fatal("could not migrate database")
-	}
-	log.Info("Database migrations completed")
-
 	// Initialize stores for server mode unless no-stores flag is set
 	var objectStore *iniparse.ObjectStore
 	var powerStore *iniparse.PowerStore
@@ -113,9 +113,8 @@ func main() {
 		log.Info("Running without INI stores")
 	}
 
-	// Start web server and gRPC server
-	log.Info("Starting web server and gRPC server...")
-	go startGRPCServer()
+	// Start web server
+	log.Info("Starting web server...")
 	startWebServer(objectStore, powerStore, upgradeStore, colorStore)
 }
 
@@ -191,9 +190,9 @@ func initializeStores(objDataPath string) (*iniparse.ObjectStore, *iniparse.Powe
 }
 
 func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
-	// Use command line argument or fall back to os.Args[1] for backward compatibility
-	if replayFile == "" && len(os.Args) > 1 {
-		replayFile = os.Args[1]
+	// Use command line argument or fall back to first non-flag argument
+	if replayFile == "" && flag.NArg() > 0 {
+		replayFile = flag.Arg(0)
 	}
 
 	if replayFile == "" {
@@ -215,7 +214,8 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	}
 
 	replay := zhreplay.NewReplay(bp)
-	um, err := json.Marshal(replay)
+	v2 := zhreplay.ConvertToBasicEnhancedReplayV2(replay)
+	um, err := json.Marshal(v2)
 	if err != nil {
 		log.WithError(err).Fatal("could not marshal replay data")
 	}
@@ -223,68 +223,28 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	fmt.Printf("%+v\n", string(um))
 }
 
-func startGRPCServer() {
-	grpcPort := "9090"
-	if len(os.Getenv("GRPC_PORT")) > 0 {
-		grpcPort = os.Getenv("GRPC_PORT")
-	}
-
-	lis, err := net.Listen("tcp", ":"+grpcPort)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to listen for gRPC")
-	}
-
-	grpcServer := grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle:     5 * time.Minute,
-			MaxConnectionAge:      30 * time.Minute,
-			MaxConnectionAgeGrace: 10 * time.Second,
-			Time:                  1 * time.Minute,
-			Timeout:               20 * time.Second,
-		}),
-		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             10 * time.Second,
-			PermitWithoutStream: true,
-		}),
-	)
-	playerMoneyGRPCServer := database.NewPlayerMoneyGRPCServer()
-	player_money.RegisterPlayerMoneyServiceServer(grpcServer, playerMoneyGRPCServer)
-
-	log.WithField("port", grpcPort).Info("gRPC server starting")
-	if err := grpcServer.Serve(lis); err != nil {
-		log.WithError(err).Fatal("Failed to start gRPC server")
-	}
-}
-
 func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	router := gin.Default()
 
-	// Existing replay endpoint
+	// Replay endpoint
 	router.POST("/replay", func(c *gin.Context) {
 		saveFileHandler(c, objectStore, powerStore, upgradeStore, colorStore)
 	})
 
-	// New player money data endpoints
-	playerMoneyService := database.NewPlayerMoneyService()
-
-	// POST /player-money - Create new player money data
-	router.POST("/player-money", func(c *gin.Context) {
-		createPlayerMoneyHandler(c, playerMoneyService)
+	// Stats upload endpoint - receives gzip-compressed JSON stats from Generals
+	router.POST("/stats", func(c *gin.Context) {
+		uploadStatsHandler(c)
 	})
 
-	// GET /player-money - Get player money data with optional query parameters
-	router.GET("/player-money", func(c *gin.Context) {
-		getPlayerMoneyHandler(c, playerMoneyService)
-	})
+	// Swagger UI (serves Swagger 2.0 interactive docs)
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// GET /player-money/:id - Get specific player money data by ID
-	router.GET("/player-money/:id", func(c *gin.Context) {
-		getPlayerMoneyByIDHandler(c, playerMoneyService)
+	// OpenAPI v3 spec (JSON and YAML)
+	router.GET("/openapi3.json", func(c *gin.Context) {
+		c.File("docs/openapi3.json")
 	})
-
-	// DELETE /player-money/:id - Delete player money data by ID
-	router.DELETE("/player-money/:id", func(c *gin.Context) {
-		deletePlayerMoneyHandler(c, playerMoneyService)
+	router.GET("/openapi3.yaml", func(c *gin.Context) {
+		c.File("docs/openapi3.yaml")
 	})
 
 	port := "8080"
@@ -298,6 +258,17 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	}
 }
 
+// saveFileHandler parses an uploaded replay file.
+// @Summary Parse a replay file
+// @Description Upload a .rep replay file and receive parsed replay data in v2 format. Stats fields are populated when a matching stats file exists.
+// @Tags replay
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Replay file to parse"
+// @Success 200 {object} zhreplay.EnhancedReplayV2
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /replay [post]
 func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -326,122 +297,73 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	replay := zhreplay.NewReplay(bp)
 
-	// Convert to enhanced replay and add money and stats change events
-	enhancedReplay := zhreplay.ConvertToEnhancedReplay(replay)
-	enhancedReplay.AddMoneyChangeEvents()
-	enhancedReplay.AddStatsChangeEvents()
-
-	// Use money-based winner detection after money events are merged
-	enhancedReplay.DetermineWinnersByMoney()
-
-	c.JSON(http.StatusOK, enhancedReplay)
-}
-
-// Player money data handlers
-
-func createPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	var req database.MoneyDataRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	_, err := service.CreatePlayerMoneyData(&req)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to create player money data",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.Status(http.StatusCreated)
-}
-
-func getPlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	// Parse query parameters
-	limit := 0
-	offset := 0
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
-
-	if offsetStr := c.Query("offset"); offsetStr != "" {
-		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-			offset = o
-		}
-	}
-
-	// Get player money data
-	results, err := service.GetAllPlayerMoneyData(limit, offset)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to retrieve player money data",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data":  results,
-		"count": len(results),
-	})
-}
-
-func getPlayerMoneyByIDHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid ID format",
-		})
-		return
-	}
-
-	// Get single record by ID
-	var result database.PlayerMoneyData
-	if err := database.DB.First(&result, uint(id)).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-				"error": "Player money data not found",
-			})
+	// If a stats file exists for this seed, return enhanced v2 replay
+	seed := replay.Header.Metadata.Seed
+	if seed != "" && statsfile.Exists(seed) {
+		stats, err := statsfile.Load(seed)
+		if err != nil {
+			log.WithError(err).Warn("Failed to load stats file, returning replay-only v2")
+			c.JSON(http.StatusOK, zhreplay.ConvertToBasicEnhancedReplayV2(replay))
+			return
 		} else {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":   "Failed to retrieve player money data",
-				"details": err.Error(),
-			})
+			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats, objectStore)
+			c.JSON(http.StatusOK, v2Replay)
+			return
 		}
-		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	// No stats file, return v2 with replay data only
+	c.JSON(http.StatusOK, zhreplay.ConvertToBasicEnhancedReplayV2(replay))
 }
 
-func deletePlayerMoneyHandler(c *gin.Context, service *database.PlayerMoneyService) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
+// uploadStatsHandler stores a gzip-compressed stats payload.
+// @Summary Upload game stats
+// @Description Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.
+// @Tags stats
+// @Accept octet-stream
+// @Produce json
+// @Param X-Game-Seed header string true "Game seed identifier"
+// @Success 200 {object} StatsUploadResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /stats [post]
+func uploadStatsHandler(c *gin.Context) {
+	seed := c.GetHeader("X-Game-Seed")
+	if seed == "" {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid ID format",
+			"error": "X-Game-Seed header is required",
 		})
 		return
 	}
 
-	if err := service.DeletePlayerMoneyData(uint(id)); err != nil {
+	data, err := io.ReadAll(c.Request.Body)
+	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete player money data",
+			"error":   "Failed to read request body",
 			"details": err.Error(),
 		})
 		return
 	}
 
+	if len(data) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Empty request body",
+		})
+		return
+	}
+
+	if err := statsfile.Store(seed, data); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to store stats file",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	log.WithField("seed", seed).WithField("size", len(data)).Info("Stats file stored")
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Player money data deleted successfully",
+		"message": "Stats stored successfully",
+		"seed":    seed,
+		"size":    len(data),
 	})
 }

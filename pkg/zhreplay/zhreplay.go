@@ -1,6 +1,7 @@
 package zhreplay
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -15,28 +16,21 @@ import (
 )
 
 type Replay struct {
-	Header  *header.GeneralsHeader
-	Body    []*body.BodyChunk
-	Summary []*object.PlayerSummary
-	Offset  int
-	Version int
-}
-
-type ReplayEasyUnmarshall struct {
-	Header  *header.GeneralsHeader
-	Body    []*body.BodyChunkEasyUnmarshall
-	Summary []*object.PlayerSummary
-	Offset  int
+	Header         *header.GeneralsHeader
+	Body           []*body.BodyChunk
+	Summary        []*object.PlayerSummary
+	PlayerIDOffset int
+	WinMethod      string
 }
 
 func NewReplay(bp *bitparse.BitParser) *Replay {
 	replay := &Replay{
-		Offset: 2,
+		PlayerIDOffset: 2,
 	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
-	replay.Body = body.ParseBody(bp, replay.Summary, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
-	replay.AdjustOffset()
+	replay.Body = body.ParseBody(bp, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
+	replay.AdjustPlayerIDOffset()
 	replay.AddUserNames()
 	replay.GenerateData()
 	return replay
@@ -44,35 +38,46 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 
 func (r *Replay) AddUserNames() {
 	for _, chunk := range r.Body {
-		if chunk.PlayerID >= r.Offset && chunk.PlayerID-r.Offset < len(r.Summary) {
-			chunk.PlayerName = r.Summary[chunk.PlayerID-r.Offset].Name
+		if chunk.PlayerID >= r.PlayerIDOffset && chunk.PlayerID-r.PlayerIDOffset < len(r.Summary) {
+			chunk.PlayerName = r.Summary[chunk.PlayerID-r.PlayerIDOffset].Name
 		}
 	}
 }
 
-func (r *Replay) AdjustOffset() {
+func (r *Replay) AdjustPlayerIDOffset() {
 	lowest := 1000
 	for _, chunk := range r.Body {
 		if chunk.PlayerID < lowest {
 			lowest = chunk.PlayerID
 		}
 	}
-	r.Offset = lowest
+	r.PlayerIDOffset = lowest
 }
 
 func (r *Replay) CreatePlayerList() {
+	nextSoloTeam := 100 // FFA players get unique team IDs starting at 100
 	for _, playerMd := range r.Header.Metadata.Players {
 		team, _ := strconv.Atoi(playerMd.Team)
+		team++ // header is 0-indexed, we use 1-indexed
+
+		// In FFA games, team is 0 (header value "-1" + 1). Assign each
+		// teamless player their own unique team so winner detection
+		// treats them individually.
+		if team == 0 {
+			team = nextSoloTeam
+			nextSoloTeam++
+		}
+
 		player := &object.PlayerSummary{
 			Name:           playerMd.Name,
-			Team:           team + 1,
+			Team:           team,
 			Win:            true,
 			BuildingsBuilt: map[string]*object.ObjectSummary{},
 			UnitsCreated:   map[string]*object.ObjectSummary{},
 			UpgradesBuilt:  map[string]*object.ObjectSummary{},
 			PowersUsed:     map[string]int{},
 		}
-		if playerMd.Faction == "-2" {
+		if playerMd.PlayerTemplate == "-2" {
 			player.Side = "Observer"
 			player.Team = -1
 		}
@@ -80,7 +85,7 @@ func (r *Replay) CreatePlayerList() {
 	}
 }
 
-var ConstructorMap = map[string]string{
+var constructorMap = map[string]string{
 	"GLAInfantryWorker":        "GLA",
 	"Slth_GLAInfantryWorker":   "GLA Stealth",
 	"Chem_GLAInfantryWorker":   "GLA Toxin",
@@ -95,235 +100,132 @@ var ConstructorMap = map[string]string{
 	"Tank_ChinaVehicleDozer":   "China Tank",
 }
 
+// trackObject increments the count and cost in the given summary map and updates player spend.
+func trackObject(summaryMap map[string]*object.ObjectSummary, player *object.PlayerSummary, name string, cost int) {
+	summary, ok := summaryMap[name]
+	if !ok {
+		summary = &object.ObjectSummary{}
+		summaryMap[name] = summary
+	}
+	summary.Count++
+	summary.TotalSpent += cost
+	player.MoneySpent += cost
+}
+
 func (r *Replay) GenerateData() {
 	for _, player := range r.Summary {
 		for _, order := range r.Body {
 			if order.PlayerName != player.Name {
 				continue
 			}
-			if order.OrderCode == 1047 {
-				if side, ok := ConstructorMap[order.Details.GetName()]; ok {
-					if player.Side == "" {
-						player.Side = side
-					}
-				}
-				unit := object.Unit{
-					Name: order.Details.GetName(),
-					Cost: order.Details.GetCost(),
-				}
-				summary, ok := player.UnitsCreated[order.Details.GetName()]
-				if !ok {
-					summary = &object.ObjectSummary{}
-					player.UnitsCreated[order.Details.GetName()] = summary
-				}
-				summary.Count++
-				summary.TotalSpent += unit.Cost
-				player.MoneySpent += unit.Cost
-			}
-			if order.OrderCode == 1049 {
-				building := object.Building{
-					Name: order.Details.GetName(),
-					Cost: order.Details.GetCost(),
-				}
-				summary, ok := player.BuildingsBuilt[order.Details.GetName()]
-				if !ok {
-					summary = &object.ObjectSummary{}
-					player.BuildingsBuilt[order.Details.GetName()] = summary
-				}
-				summary.Count++
-				summary.TotalSpent += building.Cost
-				player.MoneySpent += building.Cost
-			}
-			if order.OrderCode == 1045 {
-				upgrade := object.Upgrade{
-					Name: order.Details.GetName(),
-					Cost: order.Details.GetCost(),
-				}
-				summary, ok := player.UpgradesBuilt[order.Details.GetName()]
-				if !ok {
-					summary = &object.ObjectSummary{}
-					player.UpgradesBuilt[order.Details.GetName()] = summary
-				}
-				summary.Count++
-				summary.TotalSpent += upgrade.Cost
-				player.MoneySpent += upgrade.Cost
 
-			}
-			if order.OrderCode == 1041 || order.OrderCode == 1042 {
+			switch order.OrderCode {
+			case 1047: // CreateUnit
+				if order.Details == nil {
+					continue
+				}
+				name := order.Details.GetName()
+				cost := order.Details.GetCost()
+				if side, ok := constructorMap[name]; ok && player.Side == "" {
+					player.Side = side
+				}
+				trackObject(player.UnitsCreated, player, name, cost)
+			case 1049: // BuildObject
+				if order.Details == nil {
+					continue
+				}
+				trackObject(player.BuildingsBuilt, player, order.Details.GetName(), order.Details.GetCost())
+			case 1045: // BuildUpgrade
+				if order.Details == nil {
+					continue
+				}
+				trackObject(player.UpgradesBuilt, player, order.Details.GetName(), order.Details.GetCost())
+			case 1041, 1042: // SpecialPower at location/object
+				if order.Details == nil {
+					continue
+				}
 				player.PowersUsed[order.Details.GetName()]++
-
-			}
-			if order.OrderCode == 1093 {
+			case 1093: // Surrender
 				player.Win = false
 			}
 		}
 	}
 
-	// Use money information to determine winners
-	r.determineWinnersByMoney()
+	r.fallbackWinnerDetection()
 }
 
-// determineWinnersByMoney determines winners based on money information from the last money event
-func (r *Replay) determineWinnersByMoney() {
-	// Find the last money event (order code 2000)
-	var lastMoneyEvent *body.BodyChunk
-	for i := len(r.Body) - 1; i >= 0; i-- {
-		if r.Body[i].OrderCode == 2000 { // MoneyValueChange
-			lastMoneyEvent = r.Body[i]
-			break
-		}
-	}
-
-	// If no money event found, fall back to original logic
-	if lastMoneyEvent == nil {
-		r.fallbackWinnerDetection()
-		return
-	}
-
-	// Reset all players to not winning initially
-	for _, player := range r.Summary {
-		player.Win = false
-	}
-
-	// Create a map to track which teams have players with money
-	teamWins := make(map[int]bool)
-
-	// Check each player's money at the last money event
-	// We need to access the money data from the database or enhanced replay
-	// For now, we'll use a simplified approach that checks if we can get money data
-	for _, player := range r.Summary {
-		// Get player ID (PlayerID starts at 2, so we need to map to the correct player index)
-		playerID := r.getPlayerIDFromName(player.Name)
-		if playerID == 0 {
-			continue // Skip if we can't find the player ID
-		}
-
-		// Try to get money data for this player
-		// This would need to be implemented to access the actual money data
-		// from the database or enhanced replay structure
-		playerMoney := r.getPlayerMoneyFromLastEvent(playerID, lastMoneyEvent)
-
-		// Player wins if they still have money (money > 0)
-		if playerMoney > 0 {
-			teamWins[player.Team] = true
-		}
-	}
-
-	// Check if more than one team would win - if so, fall back to original logic
-	winningTeams := 0
-	for _, teamWon := range teamWins {
-		if teamWon {
-			winningTeams++
-		}
-	}
-
-	if winningTeams > 1 {
-		// More than one team would win, fall back to original logic
-		r.fallbackWinnerDetection()
-		return
-	}
-
-	// Apply team win logic - any player on a winning team also wins
-	for _, player := range r.Summary {
-		if teamWins[player.Team] {
-			player.Win = true
-		}
-	}
-}
-
-// getPlayerIDFromName returns the player ID for a given player name
-func (r *Replay) getPlayerIDFromName(playerName string) int {
-	for _, chunk := range r.Body {
-		if chunk.PlayerName == playerName {
-			return chunk.PlayerID
-		}
-	}
-	return 0
-}
-
-// getPlayerMoneyFromLastEvent gets the money amount for a player from the last money event
-// This implementation works with the enhanced replay structure that includes money data
-func (r *Replay) getPlayerMoneyFromLastEvent(playerID int, lastMoneyEvent *body.BodyChunk) int {
-	// This method should be called on an EnhancedReplay, not a regular Replay
-	// The regular Replay doesn't have access to money data
-	// For now, we'll return 0 to indicate no money data available
-	// In practice, this should be called on an EnhancedReplay instance
-	return 0
-}
-
-// fallbackWinnerDetection provides the original winner detection logic as a fallback
+// fallbackWinnerDetection determines the winner from replay commands.
+// Strategy 1 (quitCommand): A player who surrendered (order 1093) has Win=false.
+//   If exactly one team has all members still winning, that team wins.
+// Strategy 2 (lastCommand): If no team quit, the team that issued the last
+//   non-passive command (attack, build, etc.) is assumed to have won.
 func (r *Replay) fallbackWinnerDetection() {
-	// Original hacky way to check results. Both players losing by selling or getting fully destroyed will break detection.
 	teamWins := map[int]bool{}
 
-	// All of this first part is based off if one of the players quit. If someone quits, there is a good chance the team lost.
-	// Set all teams to winning initially
-	for _, player := range r.Summary {
-		teamWins[player.Team] = true
+	// Start by assuming every team wins; mark a team as lost if any member surrendered.
+	for _, p := range r.Summary {
+		teamWins[p.Team] = true
 	}
-
-	// If any player on a team lost, the whole team loses
-	for player := range r.Summary {
-		if !r.Summary[player].Win {
-			teamWins[r.Summary[player].Team] = false
+	for _, p := range r.Summary {
+		if !p.Win {
+			teamWins[p.Team] = false
 		}
 	}
 
-	// Apply team win status to players
-	for player := range r.Summary {
-		if !teamWins[r.Summary[player].Team] {
-			r.Summary[player].Win = false
+	// Propagate team result to individual players.
+	for _, p := range r.Summary {
+		if !teamWins[p.Team] {
+			p.Win = false
 		}
 	}
 
-	// Check if more than one team is winning
+	// Count winning teams.
 	winners := 0
-	for _, teamWon := range teamWins {
-		if teamWon {
+	for _, won := range teamWins {
+		if won {
 			winners++
 		}
 	}
 
-	if winners > 1 {
-		// Uh oh. Hack it up real bad
-		for teamID := range teamWins {
-			teamWins[teamID] = false
-		}
-
-		// Reset all players to not winning initially
-		for player := range r.Summary {
-			r.Summary[player].Win = false
-		}
-
-		// Look for the last non-quit, non-passive command to determine the winner
-		for i := len(r.Body) - 1; i >= 0; i-- {
-			chunk := r.Body[i]
-			if body.PassiveCommands[chunk.OrderCode] == false {
-				teamID := 0
-				for _, player := range r.Summary {
-					if player.Name == chunk.PlayerName {
-						teamID = player.Team
-					}
-				}
-				if teamID != 0 {
-					teamWins[teamID] = true
-					break
-				}
-			}
-		}
-
-		for player := range r.Summary {
-			if teamWins[r.Summary[player].Team] {
-				r.Summary[player].Win = true
-			}
-		}
+	// If exactly one team won via quit detection, we're done.
+	if winners <= 1 {
+		r.WinMethod = "quitCommand"
+		return
 	}
+
+	// Multiple teams still winning — fall back to last-command heuristic.
+	// Reset everyone to losing, then find the team of the last active command.
+	for _, p := range r.Summary {
+		p.Win = false
+	}
+	for id := range teamWins {
+		teamWins[id] = false
+	}
+
+	for i := len(r.Body) - 1; i >= 0; i-- {
+		chunk := r.Body[i]
+		if body.PassiveCommands[chunk.OrderCode] {
+			continue
+		}
+		for _, p := range r.Summary {
+			if p.Name == chunk.PlayerName {
+				teamWins[p.Team] = true
+				break
+			}
+		}
+		break
+	}
+
+	for _, p := range r.Summary {
+		p.Win = teamWins[p.Team]
+	}
+	r.WinMethod = "lastCommand"
 }
 
 // StreamingReplay represents a streaming replay parser
 type StreamingReplay struct {
-	Header *header.GeneralsHeader
-	Offset int
+	Header         *header.GeneralsHeader
+	PlayerIDOffset int
 }
 
 // StreamReplayOptions contains options for streaming replay parsing
@@ -376,7 +278,7 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 	header := header.NewHeader(bp)
 	streamingReplay := &StreamingReplay{
 		Header: header,
-		Offset: 2, // Default offset, will be adjusted as we read body chunks
+		PlayerIDOffset: 2,
 	}
 
 	// Create channel for body events
@@ -404,7 +306,7 @@ func streamWithPolling(ctx context.Context, file *os.File, bodyChan chan<- *body
 	lastActivity := time.Now()
 
 	// Track the last processed timestamp to filter out old chunks
-	var lastProcessedTimestamp int = 0
+	var lastProcessedTimestamp int
 
 	for {
 		select {
@@ -452,7 +354,7 @@ func streamWithPolling(ctx context.Context, file *os.File, bodyChan chan<- *body
 					// Update offset if we found a lower player ID
 					if chunk.PlayerID < lowestPlayerID {
 						lowestPlayerID = chunk.PlayerID
-						streamingReplay.Offset = lowestPlayerID
+						streamingReplay.PlayerIDOffset = lowestPlayerID
 					}
 
 					// Send chunk through channel
@@ -518,8 +420,11 @@ func readStreamingBodyChunk(bp *bitparse.BitParser, objectStore *iniparse.Object
 	for i := 0; i < chunk.NumberOfArguments; i++ {
 		argType, err1 := bp.ReadUInt8()
 		argCount, err2 := bp.ReadUInt8()
-		if err1 != nil || err2 != nil {
+		if err1 != nil {
 			return nil, err1
+		}
+		if err2 != nil {
+			return nil, err2
 		}
 		// Validate argument type and count
 		if !body.ValidateArgType(int(argType)) || !body.ValidateArgCount(int(argCount)) {
@@ -557,7 +462,7 @@ func parseNewData(data []byte, objectStore *iniparse.ObjectStore, powerStore *in
 
 	// Create a BitParser from the raw data
 	bp := &bitparse.BitParser{
-		Source:       &bytesReader{data: data},
+		Source:       bytes.NewReader(data),
 		ObjectStore:  objectStore,
 		PowerStore:   powerStore,
 		UpgradeStore: upgradeStore,
@@ -589,17 +494,3 @@ func parseNewData(data []byte, objectStore *iniparse.ObjectStore, powerStore *in
 	return chunks
 }
 
-// bytesReader implements io.Reader for a byte slice
-type bytesReader struct {
-	data []byte
-	pos  int
-}
-
-func (r *bytesReader) Read(p []byte) (n int, err error) {
-	if r.pos >= len(r.data) {
-		return 0, io.EOF
-	}
-	n = copy(p, r.data[r.pos:])
-	r.pos += n
-	return n, nil
-}
