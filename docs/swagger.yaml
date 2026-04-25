@@ -582,13 +582,115 @@ info:
   title: CNC Stats API
   version: "2.0"
 paths:
+  /add_map:
+    post:
+      consumes:
+      - application/octet-stream
+      description: Stores one of the two assets that make up a map (the .map file
+        or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently.
+        Two calls (one per asset kind) are expected per map.
+      parameters:
+      - description: Map CRC (decimal); identifies the map
+        in: header
+        name: X-Map-CRC
+        required: true
+        type: string
+      - description: Original map path/name from the game (e.g. \
+        in: header
+        name: X-Map-Name
+        type: string
+      - description: 'Asset kind: \'
+        in: header
+        name: X-Map-File
+        required: true
+        type: string
+      - description: Game seed for telemetry correlation
+        in: header
+        name: X-Game-Seed
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Upload a map asset (.map or .tga preview)
+      tags:
+      - maps
+  /get_map:
+    get:
+      description: Returns a zip archive whose entries are the .map file and (if available)
+        the .tga preview, named after the original map basename. Suitable for direct
+        extraction into a Generals Maps/ subdirectory.
+      parameters:
+      - description: Map CRC (decimal)
+        in: query
+        name: crc
+        required: true
+        type: string
+      produces:
+      - application/zip
+      responses:
+        "200":
+          description: Zip archive (application/zip)
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Download the map and preview as a zip
+      tags:
+      - maps
+  /map_exists:
+    get:
+      description: Returns plain-text "true" if a .map file is already stored under
+        MAPS_DIR for the given crc, "false" otherwise. Used by the Generals client
+        right after a game ends to decide whether to upload its played map.
+      parameters:
+      - description: Map CRC (decimal, as emitted by MapMetaData::m_CRC)
+        in: query
+        name: crc
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: \"true\" or \"false\
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Check whether a map exists on the server
+      tags:
+      - maps
   /replay:
     post:
       consumes:
       - multipart/form-data
-      description: Upload a .rep replay file and receive parsed replay data. Returns
-        enhanced v2 stats if a matching stats file exists, otherwise returns the basic
-        parsed replay.
+      description: Upload a .rep replay file and receive parsed replay data in v2
+        format. Stats fields are populated when a matching stats file exists.
       parameters:
       - description: Replay file to parse
         in: formData

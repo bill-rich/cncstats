@@ -15,9 +15,155 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/add_map": {
+            "post": {
+                "description": "Stores one of the two assets that make up a map (the .map file or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently. Two calls (one per asset kind) are expected per map.",
+                "consumes": [
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "Upload a map asset (.map or .tga preview)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map CRC (decimal); identifies the map",
+                        "name": "X-Map-CRC",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Original map path/name from the game (e.g. \\",
+                        "name": "X-Map-Name",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Asset kind: \\",
+                        "name": "X-Map-File",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Game seed for telemetry correlation",
+                        "name": "X-Game-Seed",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/get_map": {
+            "get": {
+                "description": "Returns a zip archive whose entries are the .map file and (if available) the .tga preview, named after the original map basename. Suitable for direct extraction into a Generals Maps/ subdirectory.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "Download the map and preview as a zip",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map CRC (decimal)",
+                        "name": "crc",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Zip archive (application/zip)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/map_exists": {
+            "get": {
+                "description": "Returns plain-text \"true\" if a .map file is already stored under MAPS_DIR for the given crc, \"false\" otherwise. Used by the Generals client right after a game ends to decide whether to upload its played map.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "Check whether a map exists on the server",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map CRC (decimal, as emitted by MapMetaData::m_CRC)",
+                        "name": "crc",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "\\\"true\\\" or \\\"false\\",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/replay": {
             "post": {
-                "description": "Upload a .rep replay file and receive parsed replay data. Returns enhanced v2 stats if a matching stats file exists, otherwise returns the basic parsed replay.",
+                "description": "Upload a .rep replay file and receive parsed replay data in v2 format. Stats fields are populated when a matching stats file exists.",
                 "consumes": [
                     "multipart/form-data"
                 ],
