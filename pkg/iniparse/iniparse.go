@@ -412,8 +412,18 @@ func (c *ColorStore) GetColorName(i int) (string, error) {
 }
 
 func (c *ColorStore) loadColors(dir string) error {
-	file, err := os.Open(dir + "/multiplayer.ini")
+	if err := c.loadColorFile(dir+"/multiplayer.ini", true); err != nil {
+		return err
+	}
+	return c.loadColorFile(dir+"/ZuluColors.ini", false)
+}
+
+func (c *ColorStore) loadColorFile(path string, required bool) error {
+	file, err := os.Open(path)
 	if err != nil {
+		if !required && os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 	defer file.Close()
