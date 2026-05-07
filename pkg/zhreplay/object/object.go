@@ -34,6 +34,7 @@ type PlayerSummary struct {
 	Side           string                    `json:"side"`
 	Team           int                       `json:"team"`
 	Win            bool                      `json:"win"`
+	IsAI           bool                      `json:"isAI"`
 	MoneySpent     int                       `json:"moneySpent"`
 	UnitsCreated   map[string]*ObjectSummary `json:"unitsCreated"`
 	BuildingsBuilt map[string]*ObjectSummary `json:"buildingsBuilt"`

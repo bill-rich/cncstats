@@ -72,6 +72,7 @@ func (r *Replay) CreatePlayerList() {
 			Name:           playerMd.Name,
 			Team:           team,
 			Win:            true,
+			IsAI:           playerMd.Type == "C",
 			BuildingsBuilt: map[string]*object.ObjectSummary{},
 			UnitsCreated:   map[string]*object.ObjectSummary{},
 			UpgradesBuilt:  map[string]*object.ObjectSummary{},
@@ -152,6 +153,93 @@ func (r *Replay) GenerateData() {
 	}
 
 	r.fallbackWinnerDetection()
+	r.applyHumansVsCPUFlip()
+}
+
+// applyHumansVsCPUFlip credits an all-human team with the win when the
+// apparent winning team is a mix of humans and CPUs whose humans were all
+// defeated (or surrendered) before the all-human opposing team surrendered.
+// People surrender in this situation because fighting an all-CPU remnant is
+// boring, so the humans should not be marked as losers for giving up.
+func (r *Replay) applyHumansVsCPUFlip() {
+	teamMembers := map[int][]*object.PlayerSummary{}
+	for _, p := range r.Summary {
+		if p.Team == -1 {
+			continue
+		}
+		teamMembers[p.Team] = append(teamMembers[p.Team], p)
+	}
+
+	winningTeam := -1
+	for team, members := range teamMembers {
+		if len(members) > 0 && members[0].Win {
+			if winningTeam != -1 {
+				return
+			}
+			winningTeam = team
+		}
+	}
+	if winningTeam == -1 {
+		return
+	}
+
+	var winningHumans []*object.PlayerSummary
+	winnersHaveCPU := false
+	for _, p := range teamMembers[winningTeam] {
+		if p.IsAI {
+			winnersHaveCPU = true
+		} else {
+			winningHumans = append(winningHumans, p)
+		}
+	}
+	if !winnersHaveCPU || len(winningHumans) == 0 {
+		return
+	}
+
+	for team, members := range teamMembers {
+		if team == winningTeam {
+			continue
+		}
+		for _, p := range members {
+			if p.IsAI {
+				return
+			}
+		}
+	}
+
+	earliestSurrender := -1
+	lastActivity := map[string]int{}
+	for _, c := range r.Body {
+		if c.OrderCode == 1093 {
+			for _, p := range r.Summary {
+				if p.Name == c.PlayerName && p.Team != winningTeam && p.Team != -1 {
+					if earliestSurrender == -1 || c.TimeCode < earliestSurrender {
+						earliestSurrender = c.TimeCode
+					}
+					break
+				}
+			}
+		}
+		if !body.PassiveCommands[c.OrderCode] && c.TimeCode > lastActivity[c.PlayerName] {
+			lastActivity[c.PlayerName] = c.TimeCode
+		}
+	}
+	if earliestSurrender == -1 {
+		return
+	}
+	for _, p := range winningHumans {
+		if lastActivity[p.Name] >= earliestSurrender {
+			return
+		}
+	}
+
+	for _, p := range r.Summary {
+		if p.Team == -1 {
+			continue
+		}
+		p.Win = p.Team != winningTeam
+	}
+	r.WinMethod = "humansVsCPU"
 }
 
 // fallbackWinnerDetection determines the winner from replay commands.

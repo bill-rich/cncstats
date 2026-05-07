@@ -269,8 +269,106 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 
 	// Determine winners using death events from stats
 	v2.DetermineWinnersByDeathEvents(objectStore)
+	v2.applyHumansVsCPUFlip()
 
 	return v2
+}
+
+// isAI reports whether a v2 player slot is an AI.
+func (p *PlayerSummaryV2) isAI() bool {
+	return p.PlayerType == "C" || p.PlayerType == "Computer"
+}
+
+// applyHumansVsCPUFlip credits an all-human team with the win when the
+// apparent winning team is a mix of humans and CPUs whose humans were all
+// dead before the all-human opposing team surrendered. Mirrors the logic in
+// (*Replay).applyHumansVsCPUFlip but uses death events from the stats file
+// in addition to surrender commands from the body.
+func (v2 *EnhancedReplayV2) applyHumansVsCPUFlip() {
+	teamMembers := map[int][]*PlayerSummaryV2{}
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		teamMembers[p.Team] = append(teamMembers[p.Team], p)
+	}
+
+	winningTeam := -1
+	for team, members := range teamMembers {
+		if len(members) > 0 && members[0].Win {
+			if winningTeam != -1 {
+				return
+			}
+			winningTeam = team
+		}
+	}
+	if winningTeam == -1 {
+		return
+	}
+
+	var winningHumans []*PlayerSummaryV2
+	winnersHaveCPU := false
+	for _, p := range teamMembers[winningTeam] {
+		if p.isAI() {
+			winnersHaveCPU = true
+		} else {
+			winningHumans = append(winningHumans, p)
+		}
+	}
+	if !winnersHaveCPU || len(winningHumans) == 0 {
+		return
+	}
+
+	for team, members := range teamMembers {
+		if team == winningTeam {
+			continue
+		}
+		for _, p := range members {
+			if p.isAI() {
+				return
+			}
+		}
+	}
+
+	deadPlayers := map[int]bool{}
+	if v2.Stats != nil {
+		for _, de := range v2.Stats.DeathEvents {
+			deadPlayers[de.Player] = true
+		}
+	}
+	for _, p := range winningHumans {
+		if !deadPlayers[p.Index] {
+			return
+		}
+	}
+
+	losingHuman := map[string]bool{}
+	for team, members := range teamMembers {
+		if team == winningTeam {
+			continue
+		}
+		for _, p := range members {
+			losingHuman[p.Name] = true
+		}
+	}
+	losingSurrendered := false
+	for _, c := range v2.Body {
+		if c.OrderCode == 1093 && losingHuman[c.PlayerName] {
+			losingSurrendered = true
+			break
+		}
+	}
+	if !losingSurrendered {
+		return
+	}
+
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		p.Win = p.Team != winningTeam
+	}
+	v2.WinMethod = "humansVsCPU"
 }
 
 // DetermineWinnersByDeathEvents uses the stats death events to determine winners.
