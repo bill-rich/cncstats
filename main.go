@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/bill-rich/cncstats/pkg/mapfile"
 	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
 	"github.com/gin-gonic/gin"
@@ -236,6 +239,11 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 		uploadStatsHandler(c)
 	})
 
+	// Map endpoints
+	router.GET("/map_exists", mapExistsHandler)
+	router.POST("/add_map", addMapHandler)
+	router.GET("/get_map", getMapHandler)
+
 	// Swagger UI (serves Swagger 2.0 interactive docs)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
@@ -366,4 +374,174 @@ func uploadStatsHandler(c *gin.Context) {
 		"seed":    seed,
 		"size":    len(data),
 	})
+}
+
+// mapExistsHandler reports whether the server already has a map for the
+// given CRC.
+// @Summary Check whether a map exists on the server
+// @Description Returns plain-text "true" if a .map file is already stored under MAPS_DIR for the given crc, "false" otherwise. Used by the Generals client right after a game ends to decide whether to upload its played map.
+// @Tags maps
+// @Produce plain
+// @Param crc query string true "Map CRC (decimal, as emitted by MapMetaData::m_CRC)"
+// @Success 200 {string} string "\"true\" or \"false\""
+// @Failure 400 {object} ErrorResponse
+// @Router /map_exists [get]
+func mapExistsHandler(c *gin.Context) {
+	crc := c.Query("crc")
+	if crc == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "crc query parameter is required",
+		})
+		return
+	}
+
+	answer := "false"
+	if mapfile.Exists(crc) {
+		answer = "true"
+	}
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.String(http.StatusOK, answer)
+}
+
+// addMapHandler ingests one map asset (either the .map file or its .tga
+// preview) and writes it into MAPS_DIR/<crc>/. The Generals client makes
+// two POST requests per map — one with X-Map-File: map and one with
+// X-Map-File: preview — both carrying the same X-Map-CRC.
+// @Summary Upload a map asset (.map or .tga preview)
+// @Description Stores one of the two assets that make up a map (the .map file or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently. Two calls (one per asset kind) are expected per map.
+// @Tags maps
+// @Accept octet-stream
+// @Produce json
+// @Param X-Map-CRC header string true "Map CRC (decimal); identifies the map"
+// @Param X-Map-Name header string false "Original map path/name from the game (e.g. \"Maps\\Tournament Desert\\Tournament Desert.map\")"
+// @Param X-Map-File header string true "Asset kind: \"map\" or \"preview\""
+// @Param X-Game-Seed header string false "Game seed for telemetry correlation"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /add_map [post]
+func addMapHandler(c *gin.Context) {
+	crc := c.GetHeader("X-Map-CRC")
+	if crc == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "X-Map-CRC header is required",
+		})
+		return
+	}
+	kind := c.GetHeader("X-Map-File")
+	if kind != mapfile.KindMap && kind != mapfile.KindPreview {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error":   "X-Map-File header must be \"map\" or \"preview\"",
+			"details": fmt.Sprintf("got %q", kind),
+		})
+		return
+	}
+	mapName := c.GetHeader("X-Map-Name")
+
+	data, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to read request body",
+			"details": err.Error(),
+		})
+		return
+	}
+	if len(data) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Empty request body",
+		})
+		return
+	}
+
+	if err := mapfile.Store(crc, mapName, kind, data); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to store map asset",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"crc":  crc,
+		"kind": kind,
+		"size": len(data),
+		"name": mapName,
+	}).Info("Map asset stored")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Map asset stored successfully",
+		"crc":     crc,
+		"kind":    kind,
+		"size":    len(data),
+	})
+}
+
+// getMapHandler returns a zip archive containing the .map file and (if
+// stored) the .tga preview for the given CRC. Entries inside the zip are
+// renamed to use the basename from the original X-Map-Name so the zip
+// can be extracted directly into a Maps/<dir>/ folder.
+// @Summary Download the map and preview as a zip
+// @Description Returns a zip archive whose entries are the .map file and (if available) the .tga preview, named after the original map basename. Suitable for direct extraction into a Generals Maps/ subdirectory.
+// @Tags maps
+// @Produce application/zip
+// @Param crc query string true "Map CRC (decimal)"
+// @Success 200 {file} file "Zip archive (application/zip)"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /get_map [get]
+func getMapHandler(c *gin.Context) {
+	crc := c.Query("crc")
+	if crc == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "crc query parameter is required",
+		})
+		return
+	}
+
+	mapName, mapData, previewData, err := mapfile.Load(crc)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "no map stored for that crc",
+				"crc":   crc,
+			})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to load map",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Build the zip in memory; map files plus a preview are typically a
+	// few hundred KB at most, so streaming buys nothing here.
+	base := mapfile.BaseName(mapName)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	mapEntry, err := zw.Create(base + ".map")
+	if err == nil {
+		_, err = mapEntry.Write(mapData)
+	}
+	if err == nil && previewData != nil {
+		var previewEntry io.Writer
+		previewEntry, err = zw.Create(base + ".tga")
+		if err == nil {
+			_, err = previewEntry.Write(previewData)
+		}
+	}
+	if err == nil {
+		err = zw.Close()
+	}
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to build zip archive",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".zip"))
+	c.Data(http.StatusOK, "application/zip", buf.Bytes())
 }

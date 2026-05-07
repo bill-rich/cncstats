@@ -14,6 +14,34 @@ const (
 	EnhancedReplayVersionV2 = 2
 )
 
+// sideToFriendly translates the machine-readable Side values from the stats
+// JSON (PlayerTemplate.ini's Side field) to the friendly forms previously
+// produced by constructorMap during replay-only parsing.
+var sideToFriendly = map[string]string{
+	"America":                   "USA",
+	"AmericaAirForceGeneral":    "USA Airforce",
+	"AmericaLaserGeneral":       "USA Lazr",
+	"AmericaSuperWeaponGeneral": "USA Superweapon",
+	"China":                     "China",
+	"ChinaInfantryGeneral":      "China Infantry",
+	"ChinaNukeGeneral":          "China Nuke",
+	"ChinaTankGeneral":          "China Tank",
+	"GLA":                       "GLA",
+	"GLADemolitionGeneral":      "GLA Demo",
+	"GLAStealthGeneral":         "GLA Stealth",
+	"GLAToxinGeneral":           "GLA Toxin",
+	"Boss":                      "Boss",
+	"Observer":                  "Observer",
+	"Civilian":                  "Civilian",
+}
+
+func friendlySide(s string) string {
+	if friendly, ok := sideToFriendly[s]; ok {
+		return friendly
+	}
+	return s
+}
+
 // WinEstimation holds the estimated winner result and per-team breakdown.
 type WinEstimation struct {
 	Confidence   float64              `json:"confidence"`
@@ -204,29 +232,143 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 		}
 	}
 
-	// Merge stats player data into summary entries
-	for _, sp := range stats.Players {
-		for _, p := range v2.Summary {
-			if sp.DisplayName == p.Name || sp.Side == p.Side {
-				p.Index = sp.Index
-				p.PlayerType = sp.Type
-				p.Color = sp.Color
-				p.Faction = sp.Faction
-				p.BaseSide = sp.BaseSide
-				p.Money = sp.Money
-				p.MoneyEarned = sp.MoneyEarned
-				p.MoneySpent = sp.MoneySpent
-				p.Score = sp.Score
-				p.Academy = sp.Academy
-				break
-			}
+	// Merge stats player data into summary entries by positional index.
+	// stats.Players uses 1-based indices that line up with non-observer
+	// slots in v2.Summary (which preserves header.Metadata.Players order).
+	// Positional matching is reliable for both humans and AI; AI players
+	// have no Name in the replay header, so name/side joins don't work.
+	nonObservers := make([]*PlayerSummaryV2, 0, len(v2.Summary))
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
 		}
+		nonObservers = append(nonObservers, p)
+	}
+
+	for _, sp := range stats.Players {
+		idx := sp.Index - 1
+		if idx < 0 || idx >= len(nonObservers) {
+			continue
+		}
+		p := nonObservers[idx]
+		if p.Name == "" {
+			p.Name = sp.DisplayName
+		}
+		p.Side = friendlySide(sp.Side)
+		p.BaseSide = sp.BaseSide
+		p.Index = sp.Index
+		p.PlayerType = sp.Type
+		p.Color = sp.Color
+		p.Faction = sp.Faction
+		p.Money = sp.Money
+		p.MoneyEarned = sp.MoneyEarned
+		p.MoneySpent = sp.MoneySpent
+		p.Score = sp.Score
+		p.Academy = sp.Academy
 	}
 
 	// Determine winners using death events from stats
 	v2.DetermineWinnersByDeathEvents(objectStore)
+	v2.applyHumansVsCPUFlip()
 
 	return v2
+}
+
+// isAI reports whether a v2 player slot is an AI.
+func (p *PlayerSummaryV2) isAI() bool {
+	return p.PlayerType == "C" || p.PlayerType == "Computer"
+}
+
+// applyHumansVsCPUFlip credits an all-human team with the win when the
+// apparent winning team is a mix of humans and CPUs whose humans were all
+// dead before the all-human opposing team surrendered. Mirrors the logic in
+// (*Replay).applyHumansVsCPUFlip but uses death events from the stats file
+// in addition to surrender commands from the body.
+func (v2 *EnhancedReplayV2) applyHumansVsCPUFlip() {
+	teamMembers := map[int][]*PlayerSummaryV2{}
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		teamMembers[p.Team] = append(teamMembers[p.Team], p)
+	}
+
+	winningTeam := -1
+	for team, members := range teamMembers {
+		if len(members) > 0 && members[0].Win {
+			if winningTeam != -1 {
+				return
+			}
+			winningTeam = team
+		}
+	}
+	if winningTeam == -1 {
+		return
+	}
+
+	var winningHumans []*PlayerSummaryV2
+	winnersHaveCPU := false
+	for _, p := range teamMembers[winningTeam] {
+		if p.isAI() {
+			winnersHaveCPU = true
+		} else {
+			winningHumans = append(winningHumans, p)
+		}
+	}
+	if !winnersHaveCPU || len(winningHumans) == 0 {
+		return
+	}
+
+	for team, members := range teamMembers {
+		if team == winningTeam {
+			continue
+		}
+		for _, p := range members {
+			if p.isAI() {
+				return
+			}
+		}
+	}
+
+	deadPlayers := map[int]bool{}
+	if v2.Stats != nil {
+		for _, de := range v2.Stats.DeathEvents {
+			deadPlayers[de.Player] = true
+		}
+	}
+	for _, p := range winningHumans {
+		if !deadPlayers[p.Index] {
+			return
+		}
+	}
+
+	losingHuman := map[string]bool{}
+	for team, members := range teamMembers {
+		if team == winningTeam {
+			continue
+		}
+		for _, p := range members {
+			losingHuman[p.Name] = true
+		}
+	}
+	losingSurrendered := false
+	for _, c := range v2.Body {
+		if c.OrderCode == 1093 && losingHuman[c.PlayerName] {
+			losingSurrendered = true
+			break
+		}
+	}
+	if !losingSurrendered {
+		return
+	}
+
+	for _, p := range v2.Summary {
+		if p.Side == "Observer" {
+			continue
+		}
+		p.Win = p.Team != winningTeam
+	}
+	v2.WinMethod = "humansVsCPU"
 }
 
 // DetermineWinnersByDeathEvents uses the stats death events to determine winners.

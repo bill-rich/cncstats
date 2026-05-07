@@ -5,8 +5,11 @@ services:
       - "8080:8080"
     environment:
       - STATS_DIR=/app/stats
+      - MAPS_DIR=/app/maps
     volumes:
       - stats_data:/app/stats
+      - maps_data:/app/maps
 
 volumes:
   stats_data:
+  maps_data:
