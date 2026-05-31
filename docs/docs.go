@@ -17,7 +17,15 @@ const docTemplate = `{
     "paths": {
         "/add_map": {
             "post": {
-                "description": "Stores one of the two assets that make up a map (the .map file or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently. Two calls (one per asset kind) are expected per map.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Stores one asset that makes up a map, keyed by X-Map-CRC. Supported X-Map-File values: \"map\", \"preview\", \"ini\", \"str\", \"solo\", \"assets\", \"readme\". Identical CRCs overwrite silently.",
                 "consumes": [
                     "application/octet-stream"
                 ],
@@ -27,7 +35,7 @@ const docTemplate = `{
                 "tags": [
                     "maps"
                 ],
-                "summary": "Upload a map asset (.map or .tga preview)",
+                "summary": "Upload a map asset (.map / .tga / sidecar)",
                 "parameters": [
                     {
                         "type": "string",
@@ -66,6 +74,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
@@ -126,6 +140,96 @@ const docTemplate = `{
                 }
             }
         },
+        "/get_map_file": {
+            "get": {
+                "description": "Returns raw bytes for one stored asset kind. 404 if either the CRC isn't known or that kind wasn't uploaded.",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "Download a single map asset",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map CRC (decimal)",
+                        "name": "crc",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Asset kind: \\",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Raw asset bytes (application/octet-stream)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/list_map_assets": {
+            "get": {
+                "description": "Returns JSON: {\"crc\": \"...\", \"name\": \"...\", \"kinds\": [\"map\",\"preview\",\"ini\",...]}. Empty kinds array if the CRC is unknown.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "List stored asset kinds for a CRC",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map CRC (decimal)",
+                        "name": "crc",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/map_exists": {
             "get": {
                 "description": "Returns plain-text \"true\" if a .map file is already stored under MAPS_DIR for the given crc, \"false\" otherwise. Used by the Generals client right after a game ends to decide whether to upload its played map.",
@@ -163,6 +267,14 @@ const docTemplate = `{
         },
         "/replay": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "description": "Upload a .rep replay file and receive parsed replay data in v2 format. Stats fields are populated when a matching stats file exists.",
                 "consumes": [
                     "multipart/form-data"
@@ -196,6 +308,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -207,6 +325,14 @@ const docTemplate = `{
         },
         "/stats": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "description": "Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.",
                 "consumes": [
                     "application/octet-stream"
@@ -236,6 +362,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
@@ -1103,6 +1235,20 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "API key supplied in the X-API-Key header. Alternative to the Authorization header.",
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        },
+        "BearerAuth": {
+            "description": "API key supplied as \"Bearer \u003ckey\u003e\". Required on write endpoints when CNC_AUTH_REQUIRED is true.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

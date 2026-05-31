@@ -577,6 +577,17 @@ components:
           description: total active factors (3 or 4)
           type: integer
       type: object
+  securitySchemes:
+    ApiKeyAuth:
+      description: API key supplied in the X-API-Key header. Alternative to the Authorization header.
+      in: header
+      name: X-API-Key
+      type: apiKey
+    BearerAuth:
+      description: "API key supplied as \"Bearer \u003ckey\u003e\". Required on write endpoints when CNC_AUTH_REQUIRED is true."
+      in: header
+      name: Authorization
+      type: apiKey
 info:
   contact:
 {}
@@ -587,7 +598,7 @@ openapi: 3.0.3
 paths:
   /add_map:
     post:
-      description: Stores one of the two assets that make up a map (the .map file or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently. Two calls (one per asset kind) are expected per map.
+      description: "Stores one asset that makes up a map, keyed by X-Map-CRC. Supported X-Map-File values: \"map\", \"preview\", \"ini\", \"str\", \"solo\", \"assets\", \"readme\". Identical CRCs overwrite silently."
       parameters:
         - description: Map CRC (decimal); identifies the map
           in: header
@@ -632,13 +643,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Bad Request
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Unauthorized
         500:
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Internal Server Error
-      summary: Upload a map asset (.map or .tga preview)
+      security:
+        - BearerAuth:
+            []
+        - ApiKeyAuth:
+            []
+      summary: Upload a map asset (.map / .tga / sidecar)
       tags:
         - maps
   /get_map:
@@ -677,6 +699,77 @@ paths:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Internal Server Error
       summary: Download the map and preview as a zip
+      tags:
+        - maps
+  /get_map_file:
+    get:
+      description: "Returns raw bytes for one stored asset kind. 404 if either the CRC isn't known or that kind wasn't uploaded."
+      parameters:
+        - description: Map CRC (decimal)
+          in: query
+          name: crc
+          required: true
+          schema:
+            type: string
+        - description: "Asset kind: \\"
+          in: query
+          name: kind
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: file
+          description: Raw asset bytes (application/octet-stream)
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Bad Request
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Not Found
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Internal Server Error
+      summary: Download a single map asset
+      tags:
+        - maps
+  /list_map_assets:
+    get:
+      description: "Returns JSON: {\"crc\": \"...\", \"name\": \"...\", \"kinds\": [\"map\",\"preview\",\"ini\",...]}. Empty kinds array if the CRC is unknown."
+      parameters:
+        - description: Map CRC (decimal)
+          in: query
+          name: crc
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+          description: OK
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Bad Request
+      summary: List stored asset kinds for a CRC
       tags:
         - maps
   /map_exists:
@@ -734,12 +827,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Bad Request
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Unauthorized
         500:
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Internal Server Error
+      security:
+        - BearerAuth:
+            []
+        - ApiKeyAuth:
+            []
       summary: Parse a replay file
       tags:
         - replay
@@ -773,12 +877,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Bad Request
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Unauthorized
         500:
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/main.ErrorResponse"
           description: Internal Server Error
+      security:
+        - BearerAuth:
+            []
+        - ApiKeyAuth:
+            []
       summary: Upload game stats
       tags:
         - stats

@@ -73,15 +73,23 @@ func convert(swagger map[string]interface{}) map[string]interface{} {
 		openapi["paths"] = convertPaths(paths)
 	}
 
-	// Convert definitions → components/schemas
+	// Convert definitions → components/schemas and securityDefinitions →
+	// components/securitySchemes. Both live under components in OpenAPI v3.
+	components := map[string]interface{}{}
 	if defs, ok := swagger["definitions"].(map[string]interface{}); ok {
 		schemas := make(map[string]interface{})
 		for name, schema := range defs {
 			schemas[name] = convertSchema(schema)
 		}
-		openapi["components"] = map[string]interface{}{
-			"schemas": schemas,
-		}
+		components["schemas"] = schemas
+	}
+	if secDefs, ok := swagger["securityDefinitions"].(map[string]interface{}); ok {
+		// apiKey schemes are identical between Swagger 2.0 and OpenAPI 3, so
+		// copy them through as-is.
+		components["securitySchemes"] = secDefs
+	}
+	if len(components) > 0 {
+		openapi["components"] = components
 	}
 
 	return openapi
@@ -111,8 +119,9 @@ func convertOperation(op interface{}) map[string]interface{} {
 
 	result := make(map[string]interface{})
 
-	// Copy simple fields
-	for _, key := range []string{"summary", "description", "tags", "operationId"} {
+	// Copy simple fields. The security requirement format is unchanged
+	// between Swagger 2.0 and OpenAPI 3, so it passes through as-is.
+	for _, key := range []string{"summary", "description", "tags", "operationId", "security"} {
 		if v, ok := opMap[key]; ok {
 			result[key] = v
 		}
