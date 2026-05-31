@@ -130,6 +130,57 @@ Upload a replay file:
 curl -X POST -F "file=@replay.rep" http://localhost:8080/replay
 ```
 
+### Authentication
+
+The **write** endpoints (`POST /replay`, `POST /stats`, `POST /add_map`) can be
+protected with API keys. The **read** endpoints (`/map_exists`, `/get_map`,
+`/get_map_file`, `/list_map_assets`) and the docs are always open, since game
+peers need them mid-lobby.
+
+Auth is controlled by two environment variables:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `CNC_AUTH_REQUIRED` | Whether write endpoints require a key. Set to `false`/`0` to disable; any other value (or unset) enforces auth. | `true` |
+| `CNC_API_KEYS` | Comma-separated list of `name:key` pairs. The name is for logging only; the key is the secret. | — |
+
+Configure one key per client. Add, replace, or remove clients by editing
+`CNC_API_KEYS` and restarting — no code change required:
+
+```bash
+export CNC_AUTH_REQUIRED=true
+export CNC_API_KEYS="zulu:$(openssl rand -hex 32),radarvan:$(openssl rand -hex 32),dev:dev-local-key"
+./cncstats
+```
+
+When `CNC_AUTH_REQUIRED` is `true` but `CNC_API_KEYS` has no valid entries, the
+server refuses to start (nobody could authenticate). Malformed entries (missing
+`:`, empty name or key) are logged and skipped.
+
+Clients send the key as a bearer token or in the `X-API-Key` header:
+
+```bash
+# Authorization: Bearer
+curl -X POST -F "file=@replay.rep" \
+  -H "Authorization: Bearer <key>" \
+  http://localhost:8080/replay
+
+# X-API-Key
+curl -X POST --data-binary @stats.json.gz \
+  -H "X-API-Key: <key>" \
+  -H "X-Game-Seed: 12345" \
+  http://localhost:8080/stats
+```
+
+Requests with a missing or invalid key get `401 {"error":"invalid or missing API key"}`.
+
+For local development, disable auth entirely:
+
+```bash
+export CNC_AUTH_REQUIRED=false
+./cncstats
+```
+
 ## Docker
 
 Build the image:

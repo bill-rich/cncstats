@@ -43,6 +43,14 @@ type ErrorResponse struct {
 // @description Replay parser and stats API for Command & Conquer Generals / Zero Hour
 // @host localhost:8080
 // @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description API key supplied as "Bearer <key>". Required on write endpoints when CNC_AUTH_REQUIRED is true.
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @description API key supplied in the X-API-Key header. Alternative to the Authorization header.
 func main() {
 	// Parse command line arguments
 	var (
@@ -313,6 +321,15 @@ func apiKeyAuth(keys apiKeyStore) gin.HandlerFunc {
 	}
 }
 
+// clientName returns the authenticated client name set by apiKeyAuth, or
+// "anonymous" when auth is disabled and no client was matched.
+func clientName(c *gin.Context) string {
+	if name := c.GetString("client"); name != "" {
+		return name
+	}
+	return "anonymous"
+}
+
 // extractAPIKey pulls the API key from the Authorization or X-API-Key header.
 func extractAPIKey(c *gin.Context) string {
 	if h := c.GetHeader("Authorization"); h != "" {
@@ -390,7 +407,10 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 // @Param file formData file true "Replay file to parse"
 // @Success 200 {object} zhreplay.EnhancedReplayV2
 // @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
+// @Security BearerAuth
+// @Security ApiKeyAuth
 // @Router /replay [post]
 func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	file, err := c.FormFile("file")
@@ -422,6 +442,12 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 	// If a stats file exists for this seed, return enhanced v2 replay
 	seed := replay.Header.Metadata.Seed
+
+	log.WithFields(log.Fields{
+		"seed":   seed,
+		"map":    replay.Header.Metadata.MapPath,
+		"client": clientName(c),
+	}).Info("Replay parsed")
 	if seed != "" && statsfile.Exists(seed) {
 		stats, err := statsfile.Load(seed)
 		if err != nil {
@@ -448,7 +474,10 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 // @Param X-Game-Seed header string true "Game seed identifier"
 // @Success 200 {object} StatsUploadResponse
 // @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
+// @Security BearerAuth
+// @Security ApiKeyAuth
 // @Router /stats [post]
 func uploadStatsHandler(c *gin.Context) {
 	seed := c.GetHeader("X-Game-Seed")
@@ -483,7 +512,7 @@ func uploadStatsHandler(c *gin.Context) {
 		return
 	}
 
-	log.WithField("seed", seed).WithField("size", len(data)).Info("Stats file stored")
+	log.WithField("seed", seed).WithField("size", len(data)).WithField("client", clientName(c)).Info("Stats file stored")
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Stats stored successfully",
 		"seed":    seed,
@@ -532,7 +561,10 @@ func mapExistsHandler(c *gin.Context) {
 // @Param X-Game-Seed header string false "Game seed for telemetry correlation"
 // @Success 200 {object} map[string]any
 // @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
+// @Security BearerAuth
+// @Security ApiKeyAuth
 // @Router /add_map [post]
 func addMapHandler(c *gin.Context) {
 	crc := c.GetHeader("X-Map-CRC")
@@ -576,10 +608,11 @@ func addMapHandler(c *gin.Context) {
 	}
 
 	log.WithFields(log.Fields{
-		"crc":  crc,
-		"kind": kind,
-		"size": len(data),
-		"name": mapName,
+		"crc":    crc,
+		"kind":   kind,
+		"size":   len(data),
+		"name":   mapName,
+		"client": clientName(c),
 	}).Info("Map asset stored")
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Map asset stored successfully",

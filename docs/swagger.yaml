@@ -586,9 +586,9 @@ paths:
     post:
       consumes:
       - application/octet-stream
-      description: Stores one of the two assets that make up a map (the .map file
-        or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently.
-        Two calls (one per asset kind) are expected per map.
+      description: 'Stores one asset that makes up a map, keyed by X-Map-CRC. Supported
+        X-Map-File values: "map", "preview", "ini", "str", "solo", "assets", "readme".
+        Identical CRCs overwrite silently.'
       parameters:
       - description: Map CRC (decimal); identifies the map
         in: header
@@ -620,11 +620,18 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/main.ErrorResponse'
-      summary: Upload a map asset (.map or .tga preview)
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Upload a map asset (.map / .tga / sidecar)
       tags:
       - maps
   /get_map:
@@ -658,6 +665,68 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Download the map and preview as a zip
+      tags:
+      - maps
+  /get_map_file:
+    get:
+      description: Returns raw bytes for one stored asset kind. 404 if either the
+        CRC isn't known or that kind wasn't uploaded.
+      parameters:
+      - description: Map CRC (decimal)
+        in: query
+        name: crc
+        required: true
+        type: string
+      - description: 'Asset kind: \'
+        in: query
+        name: kind
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Raw asset bytes (application/octet-stream)
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Download a single map asset
+      tags:
+      - maps
+  /list_map_assets:
+    get:
+      description: 'Returns JSON: {"crc": "...", "name": "...", "kinds": ["map","preview","ini",...]}.
+        Empty kinds array if the CRC is unknown.'
+      parameters:
+      - description: Map CRC (decimal)
+        in: query
+        name: crc
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: List stored asset kinds for a CRC
       tags:
       - maps
   /map_exists:
@@ -708,10 +777,17 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Parse a replay file
       tags:
       - replay
@@ -738,11 +814,31 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Upload game stats
       tags:
       - stats
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key supplied in the X-API-Key header. Alternative to the Authorization
+      header.
+    in: header
+    name: X-API-Key
+    type: apiKey
+  BearerAuth:
+    description: API key supplied as "Bearer <key>". Required on write endpoints when
+      CNC_AUTH_REQUIRED is true.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
