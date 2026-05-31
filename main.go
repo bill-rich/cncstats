@@ -243,6 +243,8 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	router.GET("/map_exists", mapExistsHandler)
 	router.POST("/add_map", addMapHandler)
 	router.GET("/get_map", getMapHandler)
+	router.GET("/get_map_file", getMapFileHandler)
+	router.GET("/list_map_assets", listMapAssetsHandler)
 
 	// Swagger UI (serves Swagger 2.0 interactive docs)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -403,18 +405,17 @@ func mapExistsHandler(c *gin.Context) {
 	c.String(http.StatusOK, answer)
 }
 
-// addMapHandler ingests one map asset (either the .map file or its .tga
-// preview) and writes it into MAPS_DIR/<crc>/. The Generals client makes
-// two POST requests per map — one with X-Map-File: map and one with
-// X-Map-File: preview — both carrying the same X-Map-CRC.
-// @Summary Upload a map asset (.map or .tga preview)
-// @Description Stores one of the two assets that make up a map (the .map file or its .tga preview) keyed by X-Map-CRC. Identical CRCs overwrite silently. Two calls (one per asset kind) are expected per map.
+// addMapHandler ingests one map asset and writes it into MAPS_DIR/<crc>/.
+// The Generals client makes one POST per asset (X-Map-File: map, preview,
+// ini, str, solo, assets, readme), all sharing the same X-Map-CRC.
+// @Summary Upload a map asset (.map / .tga / sidecar)
+// @Description Stores one asset that makes up a map, keyed by X-Map-CRC. Supported X-Map-File values: "map", "preview", "ini", "str", "solo", "assets", "readme". Identical CRCs overwrite silently.
 // @Tags maps
 // @Accept octet-stream
 // @Produce json
 // @Param X-Map-CRC header string true "Map CRC (decimal); identifies the map"
 // @Param X-Map-Name header string false "Original map path/name from the game (e.g. \"Maps\\Tournament Desert\\Tournament Desert.map\")"
-// @Param X-Map-File header string true "Asset kind: \"map\" or \"preview\""
+// @Param X-Map-File header string true "Asset kind: \"map\", \"preview\", \"ini\", \"str\", \"solo\", \"assets\", \"readme\""
 // @Param X-Game-Seed header string false "Game seed for telemetry correlation"
 // @Success 200 {object} map[string]any
 // @Failure 400 {object} ErrorResponse
@@ -429,9 +430,9 @@ func addMapHandler(c *gin.Context) {
 		return
 	}
 	kind := c.GetHeader("X-Map-File")
-	if kind != mapfile.KindMap && kind != mapfile.KindPreview {
+	if !mapfile.IsValidKind(kind) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error":   "X-Map-File header must be \"map\" or \"preview\"",
+			"error":   fmt.Sprintf("X-Map-File header must be one of %v", mapfile.AllKinds),
 			"details": fmt.Sprintf("got %q", kind),
 		})
 		return
@@ -498,50 +499,127 @@ func getMapHandler(c *gin.Context) {
 		return
 	}
 
-	mapName, mapData, previewData, err := mapfile.Load(crc)
-	if err != nil {
-		if os.IsNotExist(err) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-				"error": "no map stored for that crc",
-				"crc":   crc,
-			})
-			return
-		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to load map",
-			"details": err.Error(),
+	if !mapfile.Exists(crc) {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "no map stored for that crc",
+			"crc":   crc,
 		})
 		return
 	}
 
-	// Build the zip in memory; map files plus a preview are typically a
-	// few hundred KB at most, so streaming buys nothing here.
+	mapName := mapfile.LoadName(crc)
 	base := mapfile.BaseName(mapName)
+
+	// Build the zip in memory; map plus sidecars top out around a MB.
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
-	mapEntry, err := zw.Create(base + ".map")
-	if err == nil {
-		_, err = mapEntry.Write(mapData)
-	}
-	if err == nil && previewData != nil {
-		var previewEntry io.Writer
-		previewEntry, err = zw.Create(base + ".tga")
-		if err == nil {
-			_, err = previewEntry.Write(previewData)
+	var zipErr error
+	for _, kind := range mapfile.AvailableKinds(crc) {
+		data, err := mapfile.LoadAsset(crc, kind)
+		if err != nil {
+			// AvailableKinds said it's there; if LoadAsset disagrees,
+			// race with concurrent deletion. Skip rather than abort.
+			continue
+		}
+		entry, err := zw.Create(mapfile.ZipEntryName(base, kind))
+		if err != nil {
+			zipErr = err
+			break
+		}
+		if _, err := entry.Write(data); err != nil {
+			zipErr = err
+			break
 		}
 	}
-	if err == nil {
-		err = zw.Close()
+	if zipErr == nil {
+		zipErr = zw.Close()
 	}
-	if err != nil {
+	if zipErr != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to build zip archive",
-			"details": err.Error(),
+			"details": zipErr.Error(),
 		})
 		return
 	}
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".zip"))
 	c.Data(http.StatusOK, "application/zip", buf.Bytes())
+}
+
+// getMapFileHandler returns the raw bytes of one stored asset. Used by
+// game peers who download maps mid-lobby and don't want to ship a zip
+// parser in the client.
+// @Summary Download a single map asset
+// @Description Returns raw bytes for one stored asset kind. 404 if either the CRC isn't known or that kind wasn't uploaded.
+// @Tags maps
+// @Produce octet-stream
+// @Param crc query string true "Map CRC (decimal)"
+// @Param kind query string true "Asset kind: \"map\", \"preview\", \"ini\", \"str\", \"solo\", \"assets\", \"readme\""
+// @Success 200 {file} file "Raw asset bytes (application/octet-stream)"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /get_map_file [get]
+func getMapFileHandler(c *gin.Context) {
+	crc := c.Query("crc")
+	if crc == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "crc query parameter is required",
+		})
+		return
+	}
+	kind := c.Query("kind")
+	if !mapfile.IsValidKind(kind) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error":   fmt.Sprintf("kind query parameter must be one of %v", mapfile.AllKinds),
+			"details": fmt.Sprintf("got %q", kind),
+		})
+		return
+	}
+
+	data, err := mapfile.LoadAsset(crc, kind)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "asset not stored",
+				"crc":   crc,
+				"kind":  kind,
+			})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to load asset",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.Data(http.StatusOK, "application/octet-stream", data)
+}
+
+// listMapAssetsHandler returns the set of asset kinds present on disk
+// for a given CRC, plus the stored map name. Lets a peer fetch only
+// what's actually available without probing every kind with a HEAD/GET.
+// @Summary List stored asset kinds for a CRC
+// @Description Returns JSON: {"crc": "...", "name": "...", "kinds": ["map","preview","ini",...]}. Empty kinds array if the CRC is unknown.
+// @Tags maps
+// @Produce json
+// @Param crc query string true "Map CRC (decimal)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} ErrorResponse
+// @Router /list_map_assets [get]
+func listMapAssetsHandler(c *gin.Context) {
+	crc := c.Query("crc")
+	if crc == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "crc query parameter is required",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"crc":   crc,
+		"name":  mapfile.LoadName(crc),
+		"kinds": mapfile.AvailableKinds(crc),
+	})
 }
