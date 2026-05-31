@@ -3,12 +3,15 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
@@ -226,22 +229,132 @@ func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, power
 	fmt.Printf("%+v\n", string(um))
 }
 
+// apiKeyStore maps a valid API key to the name of the client it belongs to.
+// Names are used for logging only; keys are the secret.
+type apiKeyStore map[string]string
+
+// loadAPIKeys parses CNC_API_KEYS, a comma-separated list of "name:key" pairs
+// (e.g. "zulu:abc123,radarvan:def456,dev:ghi789"). Add, replace, or remove
+// clients by editing the env var; no code change is needed. Malformed entries
+// are logged and skipped.
+func loadAPIKeys(raw string) apiKeyStore {
+	store := apiKeyStore{}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		name, key, ok := strings.Cut(pair, ":")
+		name = strings.TrimSpace(name)
+		key = strings.TrimSpace(key)
+		if !ok || name == "" || key == "" {
+			log.WithField("entry", pair).Warn("ignoring malformed CNC_API_KEYS entry; expected name:key")
+			continue
+		}
+		store[key] = name
+	}
+	return store
+}
+
+// match returns the client name for a provided key, or "" if none match. All
+// entries are checked with a constant-time compare and without an early exit
+// so response timing doesn't reveal which (or whether a) key matched.
+func (s apiKeyStore) match(provided string) string {
+	got := []byte(provided)
+	matched := ""
+	for key, name := range s {
+		if subtle.ConstantTimeCompare(got, []byte(key)) == 1 {
+			matched = name
+		}
+	}
+	return matched
+}
+
+// names returns the configured client names (no keys), for startup logging.
+func (s apiKeyStore) names() []string {
+	out := make([]string, 0, len(s))
+	for _, name := range s {
+		out = append(out, name)
+	}
+	return out
+}
+
+// authIsRequired reports whether write endpoints should enforce API keys. It
+// reads CNC_AUTH_REQUIRED and defaults to true (secure by default) when unset
+// or unparseable.
+func authIsRequired() bool {
+	v := os.Getenv("CNC_AUTH_REQUIRED")
+	if v == "" {
+		return true
+	}
+	required, err := strconv.ParseBool(v)
+	if err != nil {
+		log.WithField("value", v).Warn("could not parse CNC_AUTH_REQUIRED; defaulting to true")
+		return true
+	}
+	return required
+}
+
+// apiKeyAuth returns Gin middleware that requires a valid API key on the
+// request. The key may be supplied as "Authorization: Bearer <key>" or in the
+// "X-API-Key" header. On success the matched client name is stored on the
+// context under "client".
+func apiKeyAuth(keys apiKeyStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		name := keys.match(extractAPIKey(c))
+		if name == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{
+				Error: "invalid or missing API key",
+			})
+			return
+		}
+		c.Set("client", name)
+		c.Next()
+	}
+}
+
+// extractAPIKey pulls the API key from the Authorization or X-API-Key header.
+func extractAPIKey(c *gin.Context) string {
+	if h := c.GetHeader("Authorization"); h != "" {
+		if after, ok := strings.CutPrefix(h, "Bearer "); ok {
+			return after
+		}
+		return h
+	}
+	return c.GetHeader("X-API-Key")
+}
+
 func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	router := gin.Default()
 
+	// Write endpoints are grouped behind a shared API key. Read endpoints
+	// (map downloads, docs) stay open because game peers need them mid-lobby
+	// and they're not destructive.
+	writes := router.Group("/")
+	if authIsRequired() {
+		keys := loadAPIKeys(os.Getenv("CNC_API_KEYS"))
+		if len(keys) == 0 {
+			log.Fatal("CNC_AUTH_REQUIRED is true but no valid keys found in CNC_API_KEYS")
+		}
+		writes.Use(apiKeyAuth(keys))
+		log.WithField("clients", keys.names()).Info("API key auth enabled for write endpoints")
+	} else {
+		log.Warn("authentication disabled (CNC_AUTH_REQUIRED=false); write endpoints (/replay, /stats, /add_map) are UNAUTHENTICATED")
+	}
+
 	// Replay endpoint
-	router.POST("/replay", func(c *gin.Context) {
+	writes.POST("/replay", func(c *gin.Context) {
 		saveFileHandler(c, objectStore, powerStore, upgradeStore, colorStore)
 	})
 
 	// Stats upload endpoint - receives gzip-compressed JSON stats from Generals
-	router.POST("/stats", func(c *gin.Context) {
+	writes.POST("/stats", func(c *gin.Context) {
 		uploadStatsHandler(c)
 	})
 
 	// Map endpoints
 	router.GET("/map_exists", mapExistsHandler)
-	router.POST("/add_map", addMapHandler)
+	writes.POST("/add_map", addMapHandler)
 	router.GET("/get_map", getMapHandler)
 	router.GET("/get_map_file", getMapFileHandler)
 	router.GET("/list_map_assets", listMapAssetsHandler)
