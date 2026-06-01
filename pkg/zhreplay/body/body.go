@@ -1,10 +1,17 @@
 package body
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/zhreplay/object"
 )
+
+// zuluMagic is the 4-byte marker the Zulu mod writes between the replay
+// header and the first body chunk. It is followed by a uint32 version.
+const zuluMagic = "ZULU"
 
 const (
 	ArgInt = iota
@@ -294,8 +301,26 @@ var CommandType = map[int]string{
 	2019: "PowerUsedChange",
 }
 
+// skipZuluMagic consumes the optional "ZULU" + uint32 version prefix that
+// the Zulu mod writes at the start of the body. If the prefix is absent the
+// bytes already read are pushed back onto the source so the body parser can
+// consume them as the first chunk's timeCode.
+func skipZuluMagic(bp *bitparse.BitParser) {
+	magic, err := bp.ReadBytes(4)
+	if err != nil {
+		return
+	}
+	if string(magic) == zuluMagic {
+		_, _ = bp.ReadUInt32()
+		return
+	}
+	bp.Source = io.MultiReader(bytes.NewReader(magic), bp.Source)
+}
+
 func ParseBody(bp *bitparse.BitParser, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore) []*BodyChunk {
 	body := []*BodyChunk{}
+
+	skipZuluMagic(bp)
 
 	for {
 		// Read basic chunk data with error handling
