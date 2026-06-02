@@ -321,6 +321,19 @@ func apiKeyAuth(keys apiKeyStore) gin.HandlerFunc {
 	}
 }
 
+// apiKeyIdentify returns middleware that matches a provided API key and sets
+// the client name on the context, but never aborts. Used in dry-run mode
+// (CNC_AUTH_REQUIRED=false with CNC_API_KEYS set) to verify clients are
+// sending keys correctly before enforcing auth.
+func apiKeyIdentify(keys apiKeyStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if name := keys.match(extractAPIKey(c)); name != "" {
+			c.Set("client", name)
+		}
+		c.Next()
+	}
+}
+
 // clientName returns the authenticated client name set by apiKeyAuth, or
 // "anonymous" when auth is disabled and no client was matched.
 func clientName(c *gin.Context) string {
@@ -356,7 +369,13 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 		writes.Use(apiKeyAuth(keys))
 		log.WithField("clients", keys.names()).Info("API key auth enabled for write endpoints")
 	} else {
-		log.Warn("authentication disabled (CNC_AUTH_REQUIRED=false); write endpoints (/replay, /stats, /add_map) are UNAUTHENTICATED")
+		keys := loadAPIKeys(os.Getenv("CNC_API_KEYS"))
+		if len(keys) > 0 {
+			writes.Use(apiKeyIdentify(keys))
+			log.WithField("clients", keys.names()).Warn("authentication disabled (CNC_AUTH_REQUIRED=false); identifying clients for logging only. Write endpoints (/replay, /stats, /add_map) are UNAUTHENTICATED")
+		} else {
+			log.Warn("authentication disabled (CNC_AUTH_REQUIRED=false); write endpoints (/replay, /stats, /add_map) are UNAUTHENTICATED")
+		}
 	}
 
 	// Replay endpoint
