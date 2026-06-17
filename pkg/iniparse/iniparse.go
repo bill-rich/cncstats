@@ -430,6 +430,24 @@ func (c *ColorStore) loadColorFile(path string, required bool) error {
 	return c.parseFile(file)
 }
 
+// commitColor adds a parsed color to the store, replicating the engine's
+// override behavior (INI::parseMultiplayerColorDefinition): if the block's
+// name matches an existing color's TooltipName, overwrite that entry in place
+// rather than appending a duplicate. The original Name is preserved so the
+// color's reported identity and index are unchanged; only the swatch values
+// are updated. This is how the Zulu "Color:Purple" block re-tints the built-in
+// Purple without shifting later indices.
+func (c *ColorStore) commitColor(color *MultiplayerColor) {
+	for i := range c.Color {
+		if c.Color[i].TooltipName == color.Name {
+			c.Color[i].RGBColor = color.RGBColor
+			c.Color[i].RGBNightColor = color.RGBNightColor
+			return
+		}
+	}
+	c.Color = append(c.Color, *color)
+}
+
 func (c *ColorStore) parseFile(file io.Reader) error {
 	scanner := bufio.NewScanner(file)
 	var color *MultiplayerColor
@@ -438,7 +456,7 @@ func (c *ColorStore) parseFile(file io.Reader) error {
 		switch matchKey(line) {
 		case "MultiplayerColor":
 			if color != nil {
-				c.Color = append(c.Color, *color)
+				c.commitColor(color)
 			}
 			name, err := parseNameFromLine(line)
 			if err != nil {
@@ -479,7 +497,7 @@ func (c *ColorStore) parseFile(file io.Reader) error {
 		}
 	}
 	if color != nil {
-		c.Color = append(c.Color, *color)
+		c.commitColor(color)
 	}
 	return nil
 }
