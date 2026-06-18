@@ -103,6 +103,7 @@ type PlayerSummaryV2 struct {
 	Money          uint                             `json:"money"`
 	MoneyEarned    int                              `json:"moneyEarned"`
 	MoneySpent     int                              `json:"moneySpent"`
+	IncomeBySource map[string]int                   `json:"incomeBySource,omitempty"`
 	Score          int                              `json:"score"`
 	Academy        *statsfile.Academy               `json:"academy,omitempty"`
 	UnitsCreated   map[string]*object.ObjectSummary `json:"unitsCreated"`
@@ -263,6 +264,7 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 		p.Money = sp.Money
 		p.MoneyEarned = sp.MoneyEarned
 		p.MoneySpent = sp.MoneySpent
+		p.IncomeBySource = sp.IncomeBySource
 		p.Score = sp.Score
 		p.Academy = sp.Academy
 	}

@@ -50,7 +50,11 @@ type Player struct {
 	MoneyEarned int      `json:"moneyEarned"`
 	MoneySpent  int      `json:"moneySpent"`
 	Score       int      `json:"score"`
-	Academy     *Academy `json:"academy,omitempty"`
+	// IncomeBySource breaks moneyEarned down by source (supply, hacker,
+	// blackMarket, supplyDrop, oilDerrick, bounty, salvage, crate, theft,
+	// other). Present for stats JSON version >= 2; nil for older uploads.
+	IncomeBySource map[string]int `json:"incomeBySource,omitempty"`
+	Academy        *Academy       `json:"academy,omitempty"`
 }
 
 type Academy struct {
@@ -158,6 +162,10 @@ type TimeSeriesPlayer struct {
 	Money       []uint `json:"money"`
 	MoneyEarned []int  `json:"moneyEarned"`
 	MoneySpent  []int  `json:"moneySpent"`
+	// IncomeBySource holds one cumulative-income series per source, keyed by
+	// the same source names as Player.IncomeBySource. Present for stats JSON
+	// version >= 2; nil for older uploads.
+	IncomeBySource map[string][]int `json:"incomeBySource,omitempty"`
 }
 
 // StatsDir is the directory where stats files are stored.
