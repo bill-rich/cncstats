@@ -19,6 +19,7 @@ import (
 	"github.com/bill-rich/cncstats/pkg/mapfile"
 	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
@@ -356,6 +357,14 @@ func extractAPIKey(c *gin.Context) string {
 
 func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
 	router := gin.Default()
+
+	// Transparently gzip JSON responses (notably the large /replay payload:
+	// events + per-snapshot time series). Honors Accept-Encoding, so clients
+	// that don't request gzip still get plain JSON. Already-compressed binary
+	// endpoints (map files, zips) are excluded to avoid wasting CPU
+	// recompressing them.
+	router.Use(gzip.Gzip(gzip.DefaultCompression,
+		gzip.WithExcludedPaths([]string{"/get_map_file", "/get_map", "/zip"})))
 
 	// Write endpoints are grouped behind a shared API key. Read endpoints
 	// (map downloads, docs) stay open because game peers need them mid-lobby
