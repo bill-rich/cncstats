@@ -71,6 +71,11 @@ type TeamFactors struct {
 type EnhancedReplayV2 struct {
 	Header        *header.GeneralsHeader `json:"header"`
 	Version       int                    `json:"version"`
+	// StatsVersion is the schema version of the stats JSON the game uploaded
+	// (the "version" field the exporter stamps), surfaced so consumers can see
+	// which stats format produced this replay. Omitted when no stats file was
+	// available (basic replay-only responses).
+	StatsVersion  int                    `json:"statsVersion,omitempty"`
 	WinMethod     string                 `json:"winMethod"`
 	WinEstimation *WinEstimation         `json:"winEstimation,omitempty"`
 	GameInfo      *GameInfoV2            `json:"gameInfo,omitempty"`
@@ -205,9 +210,10 @@ func enrichStats(stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) 
 // If objectStore is non-nil, events are enriched with object type classification.
 func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) *EnhancedReplayV2 {
 	v2 := &EnhancedReplayV2{
-		Header:    replay.Header,
-		Version:   EnhancedReplayVersionV2,
-		WinMethod: replay.WinMethod,
+		Header:       replay.Header,
+		Version:      EnhancedReplayVersionV2,
+		StatsVersion: stats.Version,
+		WinMethod:    replay.WinMethod,
 		GameInfo: &GameInfoV2{
 			Mode:             stats.Game.Mode,
 			FrameCount:       stats.Game.FrameCount,
