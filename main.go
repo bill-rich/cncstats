@@ -483,6 +483,14 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 			c.JSON(http.StatusOK, zhreplay.ConvertToBasicEnhancedReplayV2(replay))
 			return
 		} else {
+			if status := stats.CheckVersion(); status != statsfile.VersionOK {
+				log.WithFields(log.Fields{
+					"seed":           seed,
+					"statsVersion":   stats.Version,
+					"serverSupports": statsfile.CurrentStatsVersion,
+					"status":         status.String(),
+				}).Warn("Stats file schema version not fully supported; parsing best-effort")
+			}
 			v2Replay := zhreplay.ConvertToEnhancedReplayV2(replay, stats, objectStore)
 			c.JSON(http.StatusOK, v2Replay)
 			return

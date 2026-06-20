@@ -9,6 +9,68 @@ import (
 	"path/filepath"
 )
 
+const (
+	// CurrentStatsVersion is the stats JSON schema version this server is
+	// written against. The Generals stats exporter stamps "version" at the
+	// root of every upload (see StatsExporter.cpp in GeneralsGameCode). Bump
+	// this in lockstep whenever the exporter's schema changes and the server
+	// is updated to match.
+	CurrentStatsVersion = 2
+
+	// MinStatsVersion is the oldest schema version this server can still parse
+	// without dropping data. Files at or above this version are read normally;
+	// older ones are handled best-effort and flagged by CheckVersion.
+	MinStatsVersion = 1
+)
+
+// VersionStatus describes how a loaded stats file's schema version relates to
+// the range this server understands.
+type VersionStatus int
+
+const (
+	// VersionOK means the version is within [MinStatsVersion, CurrentStatsVersion].
+	VersionOK VersionStatus = iota
+	// VersionMissing means no version field was present (0): a pre-versioning
+	// export or a corrupt/truncated file.
+	VersionMissing
+	// VersionTooOld means the version is below MinStatsVersion.
+	VersionTooOld
+	// VersionNewer means the version is above CurrentStatsVersion: the client
+	// is ahead of this server, which may not understand newer fields.
+	VersionNewer
+)
+
+func (s VersionStatus) String() string {
+	switch s {
+	case VersionOK:
+		return "ok"
+	case VersionMissing:
+		return "missing"
+	case VersionTooOld:
+		return "too-old"
+	case VersionNewer:
+		return "newer-than-server"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(s))
+	}
+}
+
+// CheckVersion reports whether the stats file's schema version is one this
+// server fully understands. It never mutates the stats; callers decide how to
+// react (the data is always parsed best-effort regardless).
+func (g *GameStats) CheckVersion() VersionStatus {
+	switch {
+	case g.Version == 0:
+		return VersionMissing
+	case g.Version < MinStatsVersion:
+		return VersionTooOld
+	case g.Version > CurrentStatsVersion:
+		return VersionNewer
+	default:
+		return VersionOK
+	}
+}
+
 // GameStats represents the JSON structure from the Generals stats exporter
 type GameStats struct {
 	Version int      `json:"version"`
