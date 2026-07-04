@@ -93,6 +93,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/get_logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a zip archive of every log file stored for the given match seed, with entries named \"\u003cplayer\u003e/\u003cfilename\u003e\". 404 if no logs are stored for that seed.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Download all match logs as a zip",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game seed identifying the match",
+                        "name": "seed",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Zip archive (application/zip)",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/get_map": {
             "get": {
                 "description": "Returns a zip archive whose entries are the .map file and (if available) the .tga preview, named after the original map basename. Suitable for direct extraction into a Generals Maps/ subdirectory.",
@@ -223,6 +284,79 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/logs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Upload match log files for a player",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game seed identifying the match",
+                        "name": "X-Game-Seed",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Player identifier the logs belong to",
+                        "name": "X-Player",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "One or more log files",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
@@ -857,6 +991,16 @@ const docTemplate = `{
         "statsfile.TimeSeriesPlayer": {
             "type": "object",
             "properties": {
+                "incomeBySource": {
+                    "description": "IncomeBySource holds one cumulative-income series per source, keyed by\nthe same source names as Player.IncomeBySource. Present for stats JSON\nversion \u003e= 2; nil for older uploads.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
                 "index": {
                     "type": "integer"
                 },
@@ -900,6 +1044,10 @@ const docTemplate = `{
                 },
                 "stats": {
                     "$ref": "#/definitions/zhreplay.EnrichedStats"
+                },
+                "statsVersion": {
+                    "description": "StatsVersion is the schema version of the stats JSON the game uploaded\n(the \"version\" field the exporter stamps), surfaced so consumers can see\nwhich stats format produced this replay. Omitted when no stats file was\navailable (basic replay-only responses).",
+                    "type": "integer"
                 },
                 "summary": {
                     "type": "array",
@@ -1119,6 +1267,12 @@ const docTemplate = `{
                 },
                 "faction": {
                     "type": "string"
+                },
+                "incomeBySource": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
                 },
                 "index": {
                     "type": "integer"

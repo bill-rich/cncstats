@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
+	"github.com/bill-rich/cncstats/pkg/logfile"
 	"github.com/bill-rich/cncstats/pkg/mapfile"
 	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
@@ -364,7 +366,7 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	// endpoints (map files, zips) are excluded to avoid wasting CPU
 	// recompressing them.
 	router.Use(gzip.Gzip(gzip.DefaultCompression,
-		gzip.WithExcludedPaths([]string{"/get_map_file", "/get_map", "/zip"})))
+		gzip.WithExcludedPaths([]string{"/get_map_file", "/get_map", "/get_logs", "/zip"})))
 
 	// Write endpoints are grouped behind a shared API key. Read endpoints
 	// (map downloads, docs) stay open because game peers need them mid-lobby
@@ -396,6 +398,11 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	writes.POST("/stats", func(c *gin.Context) {
 		uploadStatsHandler(c)
 	})
+
+	// Logs endpoints - clients post their per-match log files, retrieved as a zip by seed.
+	// Both are authenticated: logs may contain sensitive client detail and aren't needed mid-lobby.
+	writes.POST("/logs", uploadLogsHandler)
+	writes.GET("/get_logs", getLogsHandler)
 
 	// Map endpoints
 	router.GET("/map_exists", mapExistsHandler)
@@ -546,6 +553,188 @@ func uploadStatsHandler(c *gin.Context) {
 		"seed":    seed,
 		"size":    len(data),
 	})
+}
+
+// uploadLogsHandler stores one or more log files for a match. The client
+// sends a multipart form containing that player's log file(s); the match
+// is identified by X-Game-Seed and the player by X-Player. Each form file
+// is stored under <seed>/<player>/<original filename>. Call once per
+// player (each call may carry multiple files).
+// @Summary Upload match log files for a player
+// @Description Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.
+// @Tags logs
+// @Accept multipart/form-data
+// @Produce json
+// @Param X-Game-Seed header string true "Game seed identifying the match"
+// @Param X-Player header string true "Player identifier the logs belong to"
+// @Param files formData file true "One or more log files"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Router /logs [post]
+func uploadLogsHandler(c *gin.Context) {
+	seed := c.GetHeader("X-Game-Seed")
+	if seed == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "X-Game-Seed header is required",
+		})
+		return
+	}
+	player := c.GetHeader("X-Player")
+	if player == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "X-Player header is required",
+		})
+		return
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error":   "Could not parse multipart form",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Gather every file part regardless of field name so clients can use
+	// whatever names are convenient.
+	var files []*multipart.FileHeader
+	for _, fhs := range form.File {
+		files = append(files, fhs...)
+	}
+	if len(files) == 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "No log files received",
+		})
+		return
+	}
+
+	stored := make([]string, 0, len(files))
+	var total int
+	for _, fh := range files {
+		fileIn, err := fh.Open()
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error":   "Could not open uploaded file",
+				"details": err.Error(),
+			})
+			return
+		}
+		data, err := io.ReadAll(fileIn)
+		fileIn.Close()
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to read uploaded file",
+				"details": err.Error(),
+			})
+			return
+		}
+		if err := logfile.Store(seed, player, fh.Filename, data); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to store log file",
+				"details": err.Error(),
+			})
+			return
+		}
+		stored = append(stored, fh.Filename)
+		total += len(data)
+	}
+
+	log.WithFields(log.Fields{
+		"seed":   seed,
+		"player": player,
+		"files":  len(stored),
+		"size":   total,
+		"client": clientName(c),
+	}).Info("Log files stored")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logs stored successfully",
+		"seed":    seed,
+		"player":  player,
+		"files":   stored,
+		"size":    total,
+	})
+}
+
+// getLogsHandler returns a zip archive of every stored log file for a
+// match. Entries inside the zip are named "<player>/<filename>" so the
+// per-player grouping is preserved on extraction.
+// @Summary Download all match logs as a zip
+// @Description Returns a zip archive of every log file stored for the given match seed, with entries named "<player>/<filename>". 404 if no logs are stored for that seed.
+// @Tags logs
+// @Produce application/zip
+// @Param seed query string true "Game seed identifying the match"
+// @Success 200 {file} file "Zip archive (application/zip)"
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Router /get_logs [get]
+func getLogsHandler(c *gin.Context) {
+	seed := c.Query("seed")
+	if seed == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "seed query parameter is required",
+		})
+		return
+	}
+
+	files, err := logfile.List(seed)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to list logs",
+			"details": err.Error(),
+		})
+		return
+	}
+	if len(files) == 0 {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "no logs stored for that seed",
+			"seed":  seed,
+		})
+		return
+	}
+
+	// Log files are text and modest in size; build the zip in memory.
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	var zipErr error
+	for _, f := range files {
+		data, err := logfile.Load(seed, f.Player, f.Name)
+		if err != nil {
+			// List said it's there; if Load disagrees, race with a
+			// concurrent delete. Skip rather than abort.
+			continue
+		}
+		entry, err := zw.Create(f.Player + "/" + f.Name)
+		if err != nil {
+			zipErr = err
+			break
+		}
+		if _, err := entry.Write(data); err != nil {
+			zipErr = err
+			break
+		}
+	}
+	if zipErr == nil {
+		zipErr = zw.Close()
+	}
+	if zipErr != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to build zip archive",
+			"details": zipErr.Error(),
+		})
+		return
+	}
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", seed+"-logs.zip"))
+	c.Data(http.StatusOK, "application/zip", buf.Bytes())
 }
 
 // mapExistsHandler reports whether the server already has a map for the

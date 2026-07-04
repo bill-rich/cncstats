@@ -474,6 +474,16 @@
       },
       "statsfile.TimeSeriesPlayer": {
         "properties": {
+          "incomeBySource": {
+            "additionalProperties": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "description": "IncomeBySource holds one cumulative-income series per source, keyed by\nthe same source names as Player.IncomeBySource. Present for stats JSON\nversion \u003e= 2; nil for older uploads.",
+            "type": "object"
+          },
           "index": {
             "type": "integer"
           },
@@ -517,6 +527,10 @@
           },
           "stats": {
             "$ref": "#/components/schemas/zhreplay.EnrichedStats"
+          },
+          "statsVersion": {
+            "description": "StatsVersion is the schema version of the stats JSON the game uploaded\n(the \"version\" field the exporter stamps), surfaced so consumers can see\nwhich stats format produced this replay. Omitted when no stats file was\navailable (basic replay-only responses).",
+            "type": "integer"
           },
           "summary": {
             "items": {
@@ -736,6 +750,12 @@
           },
           "faction": {
             "type": "string"
+          },
+          "incomeBySource": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
           },
           "index": {
             "type": "integer"
@@ -985,6 +1005,86 @@
         ]
       }
     },
+    "/get_logs": {
+      "get": {
+        "description": "Returns a zip archive of every log file stored for the given match seed, with entries named \"\u003cplayer\u003e/\u003cfilename\u003e\". 404 if no logs are stored for that seed.",
+        "parameters": [
+          {
+            "description": "Game seed identifying the match",
+            "in": "query",
+            "name": "seed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "file"
+                }
+              }
+            },
+            "description": "Zip archive (application/zip)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Download all match logs as a zip",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
     "/get_map": {
       "get": {
         "description": "Returns a zip archive whose entries are the .map file and (if available) the .tga preview, named after the original map basename. Suitable for direct extraction into a Generals Maps/ subdirectory.",
@@ -1158,6 +1258,106 @@
         "summary": "List stored asset kinds for a CRC",
         "tags": [
           "maps"
+        ]
+      }
+    },
+    "/logs": {
+      "post": {
+        "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.",
+        "parameters": [
+          {
+            "description": "Game seed identifying the match",
+            "in": "header",
+            "name": "X-Game-Seed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Player identifier the logs belong to",
+            "in": "header",
+            "name": "X-Player",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "files": {
+                    "description": "One or more log files",
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "files"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Upload match log files for a player",
+        "tags": [
+          "logs"
         ]
       }
     },
