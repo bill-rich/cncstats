@@ -1263,7 +1263,7 @@
     },
     "/logs": {
       "post": {
-        "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.",
+        "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names); files are expected to be gzip-compressed by the client. Call once per player. The total request body is capped at 64 MiB.",
         "parameters": [
           {
             "description": "Game seed identifying the match",
@@ -1290,7 +1290,7 @@
               "schema": {
                 "properties": {
                   "files": {
-                    "description": "One or more log files",
+                    "description": "One or more log files (gzip-compressed)",
                     "format": "binary",
                     "type": "string"
                   }
@@ -1335,6 +1335,16 @@
               }
             },
             "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/main.ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
           },
           "500": {
             "content": {

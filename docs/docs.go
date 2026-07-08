@@ -301,7 +301,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.",
+                "description": "Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names); files are expected to be gzip-compressed by the client. Call once per player. The total request body is capped at 64 MiB.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -329,7 +329,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "file",
-                        "description": "One or more log files",
+                        "description": "One or more log files (gzip-compressed)",
                         "name": "files",
                         "in": "formData",
                         "required": true
@@ -351,6 +351,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }

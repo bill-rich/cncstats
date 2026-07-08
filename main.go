@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -561,16 +562,17 @@ func uploadStatsHandler(c *gin.Context) {
 // is stored under <seed>/<player>/<original filename>. Call once per
 // player (each call may carry multiple files).
 // @Summary Upload match log files for a player
-// @Description Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names). Call once per player.
+// @Description Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names); files are expected to be gzip-compressed by the client. Call once per player. The total request body is capped at 64 MiB.
 // @Tags logs
 // @Accept multipart/form-data
 // @Produce json
 // @Param X-Game-Seed header string true "Game seed identifying the match"
 // @Param X-Player header string true "Player identifier the logs belong to"
-// @Param files formData file true "One or more log files"
+// @Param files formData file true "One or more log files (gzip-compressed)"
 // @Success 200 {object} map[string]any
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
+// @Failure 413 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Security BearerAuth
 // @Security ApiKeyAuth
@@ -591,8 +593,23 @@ func uploadLogsHandler(c *gin.Context) {
 		return
 	}
 
+	// Cap the total request body so a misbehaving (or malicious) client can't
+	// exhaust server memory/disk. Logs are uploaded pre-gzipped by the client,
+	// so a whole match's worth of one player's logs sits comfortably under
+	// this ceiling; anything larger is rejected before it's read.
+	const maxLogUploadBytes = 64 << 20 // 64 MiB per request, post-gzip
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxLogUploadBytes)
+
 	form, err := c.MultipartForm()
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "Log upload too large",
+				"details": fmt.Sprintf("request body exceeds %d bytes", maxLogUploadBytes),
+			})
+			return
+		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error":   "Could not parse multipart form",
 			"details": err.Error(),

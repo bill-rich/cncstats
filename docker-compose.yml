@@ -6,10 +6,13 @@ services:
     environment:
       - STATS_DIR=/app/stats
       - MAPS_DIR=/app/maps
+      - LOGS_DIR=/app/logs
     volumes:
       - stats_data:/app/stats
       - maps_data:/app/maps
+      - logs_data:/app/logs
 
 volumes:
   stats_data:
   maps_data:
+  logs_data:
