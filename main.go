@@ -347,6 +347,18 @@ func clientName(c *gin.Context) string {
 	return "anonymous"
 }
 
+// isForced reports whether the caller requested a forced overwrite, via the
+// force query parameter (?force=true) or the X-Force header.
+func isForced(c *gin.Context) bool {
+	if v, err := strconv.ParseBool(c.Query("force")); err == nil && v {
+		return true
+	}
+	if v, err := strconv.ParseBool(c.GetHeader("X-Force")); err == nil && v {
+		return true
+	}
+	return false
+}
+
 // extractAPIKey pulls the API key from the Authorization or X-API-Key header.
 func extractAPIKey(c *gin.Context) string {
 	if h := c.GetHeader("Authorization"); h != "" {
@@ -503,14 +515,16 @@ func saveFileHandler(c *gin.Context, objectStore *iniparse.ObjectStore, powerSto
 
 // uploadStatsHandler stores a gzip-compressed stats payload.
 // @Summary Upload game stats
-// @Description Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.
+// @Description Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed. If a stats file already exists for the seed and the uploaded file is smaller, the upload is rejected with 409 unless force is set.
 // @Tags stats
 // @Accept octet-stream
 // @Produce json
 // @Param X-Game-Seed header string true "Game seed identifier"
+// @Param force query bool false "Overwrite an existing stats file even if the upload is smaller (can also be set via the X-Force header)"
 // @Success 200 {object} StatsUploadResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Security BearerAuth
 // @Security ApiKeyAuth
@@ -538,6 +552,28 @@ func uploadStatsHandler(c *gin.Context) {
 			"error": "Empty request body",
 		})
 		return
+	}
+
+	// Reject an upload that would replace an existing stats file with a
+	// smaller one, unless the caller explicitly forces the overwrite. This
+	// guards against a truncated or partial re-upload clobbering a more
+	// complete stats file for the same match.
+	force := isForced(c)
+	if !force {
+		if existing, err := statsfile.Size(seed); err == nil && int64(len(data)) < existing {
+			log.WithField("seed", seed).
+				WithField("size", len(data)).
+				WithField("existing", existing).
+				WithField("client", clientName(c)).
+				Warn("Rejected smaller stats upload")
+			c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+				"error":    "Stored stats file is larger than the uploaded file; refusing to overwrite. Set force=true to override.",
+				"seed":     seed,
+				"size":     len(data),
+				"existing": existing,
+			})
+			return
+		}
 	}
 
 	if err := statsfile.Store(seed, data); err != nil {
