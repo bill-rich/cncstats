@@ -197,6 +197,16 @@ func Exists(seed string) bool {
 	return err == nil
 }
 
+// Size returns the size in bytes of the stored stats file for the given seed.
+// It returns an error wrapping os.ErrNotExist if no file is stored.
+func Size(seed string) (int64, error) {
+	info, err := os.Stat(StatsPath(seed))
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
 // Load reads and decompresses stats data for the given seed
 func Load(seed string) (*GameStats, error) {
 	f, err := os.Open(StatsPath(seed))
