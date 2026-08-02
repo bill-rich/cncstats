@@ -59,6 +59,7 @@ type Session struct {
 	GamePublicAddr string // in-game (8088) public addr, discovered via STUN purpose=1
 	LocalAddr      string
 	HostingGame    string
+	JoiningGame    string // game id of the last join attempt (player-count bookkeeping)
 	LastSeen       time.Time
 	writeMu        sync.Mutex
 }
@@ -353,6 +354,16 @@ func (s *Server) handleMessage(sess *Session, env *Envelope) error {
 			s.punchOK++
 		} else {
 			s.punchFail++
+			// Roll back the optimistic player count from handleJoin so a
+			// failed punch (and its retry) doesn't inflate the listing.
+			if m.Role == "guest" && sess.JoiningGame != "" {
+				if g, ok := s.games[sess.JoiningGame]; ok && g.info.Players > 1 {
+					g.info.Players--
+				}
+			}
+		}
+		if m.Role == "guest" {
+			sess.JoiningGame = ""
 		}
 		s.mu.Unlock()
 		log.Printf("punch outcome session=%s nick=%q role=%s ok=%v lobby=%v game=%v ms=%d",
@@ -504,6 +515,14 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	sess.LocalAddr = m.LocalAddr
 	sess.PublicAddr = m.PublicAddr
 	sess.GamePublicAddr = m.GamePublicAddr
+	// Approximate the listed player count (joiner leaves are not tracked,
+	// but "2/4 filling up" beats a listing stuck at 1). A failed punch
+	// reported via punch_outcome rolls this back so retries don't inflate
+	// the listing.
+	if g.info.Players < g.info.MaxPlayers {
+		g.info.Players++
+	}
+	sess.JoiningGame = m.GameID
 	// Snapshot both peers' fields while holding the lock; sends below run
 	// unlocked and must not touch shared Session state.
 	guestInfo := PeerInfo{
