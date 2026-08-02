@@ -3,6 +3,10 @@ services:
     build: .
     ports:
       - "8080:8080"
+      # Online coordinator (game NAT traversal): TCP signaling + UDP STUN.
+      # Must be published directly (not via the HTTP reverse proxy).
+      - "27500:27500"
+      - "27501:27501/udp"
     environment:
       - STATS_DIR=/app/stats
       - MAPS_DIR=/app/maps
