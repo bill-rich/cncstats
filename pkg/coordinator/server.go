@@ -88,6 +88,20 @@ type gameState struct {
 	created  time.Time
 }
 
+// relayState pairs the host's and viewer's relay_attach connections for one
+// observer session. Created when the observe request is accepted; each side
+// fills in its slot when its attach connection arrives; spliced when both
+// are present. Unpaired conns/tokens are reaped after RelayAttachTTL.
+type relayState struct {
+	created time.Time
+	host    net.Conn
+	hostR   *bufio.Reader
+	viewer  net.Conn
+	viewerR *bufio.Reader
+}
+
+const RelayAttachTTL = 60 * time.Second
+
 type Server struct {
 	Magic   uint32
 	UDPPort int
@@ -95,6 +109,7 @@ type Server struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
 	games    map[string]*gameState
+	relays   map[string]*relayState
 	// Lifetime punch telemetry counters (see MsgPunchOutcome).
 	punchOK   int
 	punchFail int
@@ -105,6 +120,7 @@ func NewServer() *Server {
 		Magic:    DefaultSTUNMagic,
 		sessions: make(map[string]*Session),
 		games:    make(map[string]*gameState),
+		relays:   make(map[string]*relayState),
 	}
 }
 
@@ -156,7 +172,12 @@ func newToken() (string, error) {
 }
 
 func (s *Server) handleTCPConn(conn net.Conn) {
-	defer conn.Close()
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			conn.Close()
+		}
+	}()
 	r := bufio.NewReaderSize(conn, 8192)
 
 	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
@@ -166,7 +187,20 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 		return
 	}
 	var env Envelope
-	if err := json.Unmarshal(line, &env); err != nil || env.Type != MsgHello {
+	if err := json.Unmarshal(line, &env); err != nil {
+		return
+	}
+	// A relay_attach connection is not a session: after this one line the
+	// socket becomes a raw byte pipe for the observer stream.
+	if env.Type == MsgRelayAttach {
+		var ra RelayAttach
+		if err := json.Unmarshal(env.Data, &ra); err != nil {
+			return
+		}
+		handedOff = s.handleRelayAttach(conn, r, &ra)
+		return
+	}
+	if env.Type != MsgHello {
 		return
 	}
 	var hello Hello
@@ -226,10 +260,89 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 	}
 }
 
+// handleRelayAttach wires one side of an observer relay. Returns true when
+// the connection has been adopted (caller must not close it).
+func (s *Server) handleRelayAttach(conn net.Conn, r *bufio.Reader, ra *RelayAttach) bool {
+	s.mu.Lock()
+	slot, ok := s.relays[ra.Token]
+	if !ok {
+		s.mu.Unlock()
+		log.Printf("relay_attach: unknown token from %s", conn.RemoteAddr())
+		return false
+	}
+	switch ra.Role {
+	case "host":
+		if slot.host != nil {
+			s.mu.Unlock()
+			return false
+		}
+		slot.host, slot.hostR = conn, r
+	case "viewer":
+		if slot.viewer != nil {
+			s.mu.Unlock()
+			return false
+		}
+		slot.viewer, slot.viewerR = conn, r
+	default:
+		s.mu.Unlock()
+		return false
+	}
+	ready := slot.host != nil && slot.viewer != nil
+	if ready {
+		delete(s.relays, ra.Token)
+	}
+	s.mu.Unlock()
+
+	log.Printf("relay_attach: token=%s role=%s from %s (paired=%v)",
+		ra.Token[:8], ra.Role, conn.RemoteAddr(), ready)
+	if ready {
+		go spliceRelay(slot)
+	}
+	return true
+}
+
+// spliceRelay pipes bytes between the paired host and viewer connections
+// until either side closes. The observer stream is host->viewer, but both
+// directions are piped so future control traffic would survive too. The
+// bufio readers are used for reads so no bytes buffered behind the attach
+// line are lost.
+func spliceRelay(slot *relayState) {
+	done := make(chan struct{}, 2)
+	go func() {
+		io.Copy(slot.viewer, slot.hostR)
+		done <- struct{}{}
+	}()
+	go func() {
+		io.Copy(slot.host, slot.viewerR)
+		done <- struct{}{}
+	}()
+	<-done
+	slot.host.Close()
+	slot.viewer.Close()
+	<-done
+	log.Printf("relay closed (host=%s viewer=%s)", slot.host.RemoteAddr(), slot.viewer.RemoteAddr())
+}
+
 func (s *Server) handleMessage(sess *Session, env *Envelope) error {
 	switch env.Type {
 	case MsgHeartbeat:
 		return nil
+	case MsgGameStarted:
+		s.mu.Lock()
+		if sess.HostingGame != "" {
+			if g, ok := s.games[sess.HostingGame]; ok {
+				g.info.InProgress = 1
+			}
+		}
+		s.mu.Unlock()
+		log.Printf("game started: session=%s game=%s", sess.Token[:8], sess.HostingGame)
+		return nil
+	case MsgObserve:
+		var m Observe
+		if err := json.Unmarshal(env.Data, &m); err != nil {
+			return err
+		}
+		return s.handleObserve(sess, &m)
 	case MsgPunchOutcome:
 		var m PunchOutcome
 		if err := json.Unmarshal(env.Data, &m); err != nil {
@@ -329,6 +442,43 @@ func (s *Server) handleList(sess *Session) error {
 	return sess.send(MsgGames, out)
 }
 
+// handleObserve accepts a viewer's request to watch an in-progress game:
+// mint a relay token, tell the host to attach its end, and hand the token
+// back to the viewer so both relay connections can meet at spliceRelay.
+func (s *Server) handleObserve(sess *Session, m *Observe) error {
+	s.mu.Lock()
+	g, ok := s.games[m.GameID]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("game %s not found", m.GameID)
+	}
+	if g.info.InProgress == 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("game has not started yet; join it instead")
+	}
+	host := g.hostSess
+	if host == sess {
+		s.mu.Unlock()
+		return fmt.Errorf("cannot observe your own game")
+	}
+	token, err := newToken()
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.relays[token] = &relayState{created: time.Now()}
+	s.mu.Unlock()
+
+	if err := host.send(MsgObserverRequest, ObserverRequest{Token: token}); err != nil {
+		s.mu.Lock()
+		delete(s.relays, token)
+		s.mu.Unlock()
+		return fmt.Errorf("host unreachable: %w", err)
+	}
+	log.Printf("observe: viewer=%s game=%s token=%s", sess.Nick, m.GameID, token[:8])
+	return sess.send(MsgObserveOK, ObserveOK{Token: token})
+}
+
 func (s *Server) handleJoin(sess *Session, m *Join) error {
 	if m.PublicAddr == "" {
 		return fmt.Errorf("public_addr required (do STUN discovery first)")
@@ -341,6 +491,10 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	if !ok {
 		s.mu.Unlock()
 		return fmt.Errorf("game %s not found", m.GameID)
+	}
+	if g.info.InProgress != 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("game already started (observe it instead)")
 	}
 	host := g.hostSess
 	if host == sess {
@@ -461,6 +615,20 @@ func (s *Server) reapLoop() {
 				if sess.HostingGame != "" {
 					delete(s.games, sess.HostingGame)
 				}
+			}
+		}
+		// Observer relay slots that never got both attach connections.
+		relayCutoff := time.Now().Add(-RelayAttachTTL)
+		for tok, slot := range s.relays {
+			if slot.created.Before(relayCutoff) {
+				log.Printf("reaping unpaired relay %s", tok[:8])
+				if slot.host != nil {
+					slot.host.Close()
+				}
+				if slot.viewer != nil {
+					slot.viewer.Close()
+				}
+				delete(s.relays, tok)
 			}
 		}
 		s.mu.Unlock()

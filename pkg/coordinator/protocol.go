@@ -19,6 +19,18 @@ const (
 	MsgPunchOutcome = "punch_outcome"
 	MsgError        = "error"
 	MsgBye          = "bye"
+
+	// Observing in-progress games. The host reports game_started so its
+	// listing flips to in-progress; a viewer sends observe; the server
+	// mints a relay token, notifies the host (observer_request) and the
+	// viewer (observe_ok); then BOTH sides dial fresh TCP connections whose
+	// first line is relay_attach, and the server splices the two
+	// connections into one byte pipe carrying the observer stream.
+	MsgGameStarted     = "game_started"
+	MsgObserve         = "observe"
+	MsgObserveOK       = "observe_ok"
+	MsgObserverRequest = "observer_request"
+	MsgRelayAttach     = "relay_attach"
 )
 
 type Envelope struct {
@@ -61,6 +73,9 @@ type GameInfo struct {
 	HostNick   string `json:"host_nick"`
 	Players    int    `json:"players"`
 	MaxPlayers int    `json:"max_players"`
+	// 1 once the host reported game_started. An int (not bool) because the
+	// VC6 client's hand-rolled JSON parser only reads numeric fields.
+	InProgress int `json:"in_progress"`
 }
 
 type Games struct {
@@ -91,6 +106,23 @@ type PunchOutcome struct {
 	GameOK  bool   `json:"game_ok"`
 	MS      int    `json:"ms"`
 	Role    string `json:"role"`
+}
+
+type Observe struct {
+	GameID string `json:"game_id"`
+}
+
+type ObserveOK struct {
+	Token string `json:"token"`
+}
+
+type ObserverRequest struct {
+	Token string `json:"token"`
+}
+
+type RelayAttach struct {
+	Token string `json:"token"`
+	Role  string `json:"role"` // "host" or "viewer"
 }
 
 type Error struct {
