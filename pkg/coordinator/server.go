@@ -472,6 +472,11 @@ func (s *Server) handleObserve(sess *Session, m *Observe) error {
 		s.mu.Unlock()
 		return fmt.Errorf("cannot observe your own game")
 	}
+	if sess.Version != host.Version {
+		s.mu.Unlock()
+		return fmt.Errorf("game version mismatch: host is running %s, you are running %s",
+			host.Version, sess.Version)
+	}
 	token, err := newToken()
 	if err != nil {
 		s.mu.Unlock()
@@ -511,6 +516,11 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	if host == sess {
 		s.mu.Unlock()
 		return fmt.Errorf("cannot join your own game")
+	}
+	if sess.Version != host.Version {
+		s.mu.Unlock()
+		return fmt.Errorf("game version mismatch: host is running %s, you are running %s",
+			host.Version, sess.Version)
 	}
 	sess.LocalAddr = m.LocalAddr
 	sess.PublicAddr = m.PublicAddr
