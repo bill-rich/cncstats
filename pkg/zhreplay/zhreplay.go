@@ -29,6 +29,9 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
+	// Upgrade IDs are name keys whose base depends on the client version
+	// that recorded the replay; select the matching store view.
+	bp.UpgradeStore = bp.UpgradeStore.WithBase(iniparse.UpgradeBaseForVersion(replay.Header.Version))
 	replay.Body = body.ParseBody(bp, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
 	replay.AdjustPlayerIDOffset()
 	replay.AddUserNames()
@@ -368,6 +371,10 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 		Header: header,
 		PlayerIDOffset: 2,
 	}
+
+	// Upgrade IDs are name keys whose base depends on the client version
+	// that recorded the replay; select the matching store view.
+	upgradeStore = upgradeStore.WithBase(iniparse.UpgradeBaseForVersion(header.Version))
 
 	// Create channel for body events
 	bodyChan := make(chan *body.BodyChunk, options.BufferSize)

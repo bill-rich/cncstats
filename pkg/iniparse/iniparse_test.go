@@ -249,6 +249,62 @@ func TestUpgradeStoreGetObject(t *testing.T) {
 	}
 }
 
+func TestUpgradeStoreWithBase(t *testing.T) {
+	upgradeStore := &UpgradeStore{
+		Upgrade: []Upgrade{
+			{Name: "Upgrade1", Cost: 100},
+			{Name: "Upgrade2", Cost: 200},
+		},
+	}
+
+	shifted := upgradeStore.WithBase(2271)
+	if shifted == upgradeStore {
+		t.Fatalf("expected a new view for a non-default base")
+	}
+	if _, err := shifted.GetUpgrade(2270); err == nil {
+		t.Errorf("expected error below shifted base, got nil")
+	}
+	upgrade, err := shifted.GetUpgrade(2271)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if upgrade.Name != "Upgrade1" {
+		t.Errorf("expected Upgrade1 at shifted base, got %s", upgrade.Name)
+	}
+
+	if same := upgradeStore.WithBase(UpgradeStoreOffset); same != upgradeStore {
+		t.Errorf("expected the same store for the default base")
+	}
+	var nilStore *UpgradeStore
+	if nilStore.WithBase(2271) != nil {
+		t.Errorf("expected nil view from nil store")
+	}
+}
+
+func TestUpgradeBaseForVersion(t *testing.T) {
+	cases := []struct {
+		version string
+		base    int
+	}{
+		{"Version 1.04", 2270}, // retail
+		{"Version 1.05", 2270}, // 1.05 prerelease
+		{"", 2270},
+		{"1.2.4", 2270},
+		{"1.3.1", 2270},
+		{"1.5.1", 2270},
+		{"1.5.2", 2271}, // FunctionLexicon gained an entry; name keys shifted
+		{"1.5.10", 2271},
+		{"1.6.0", 2271},
+		{"2.0.0", 2271},
+	}
+
+	for _, tc := range cases {
+		if got := UpgradeBaseForVersion(tc.version); got != tc.base {
+			t.Errorf("UpgradeBaseForVersion(%q) = %d, expected %d", tc.version, got, tc.base)
+		}
+	}
+}
+
 func TestObjectStoreParseFile(t *testing.T) {
 	cases := []struct {
 		name        string

@@ -33,6 +33,11 @@ type Object struct {
 
 type UpgradeStore struct {
 	Upgrade []Upgrade
+	// base is the name-key value of the first Upgrade.ini entry for the
+	// client that recorded the replay being parsed. Zero means the retail
+	// default (UpgradeStoreOffset). Use WithBase to get a view for a
+	// different client version; see UpgradeBaseForVersion.
+	base int
 }
 
 type Upgrade struct {
@@ -67,10 +72,62 @@ type RGBColor struct {
 
 const (
 	ObjectStoreOffset = 2
-	// UpgradeStoreOffset is 2270 because upgrades are usually part of the object listing. This is where the upgrades start.
+	// UpgradeStoreOffset is the engine name key of the first Upgrade.ini
+	// entry. The BuildUpgrade replay argument is a NameKey, handed out in
+	// interning order during engine init, so this base moves whenever a
+	// client interns one more name before Upgrade.ini loads. 2270 is
+	// correct for retail 1.04 and zulu clients through 1.5.1; see
+	// UpgradeBaseForVersion for later clients.
 	UpgradeStoreOffset = 2270
 	PowerStoreOffset   = 2
 )
+
+// upgradeBaseChanges lists, oldest first, the zulu client versions at which
+// the upgrade name-key base moved, and the base they moved it to. A version
+// belongs to the last entry it is >= to; earlier versions (and retail, whose
+// header version is "Version 1.04" rather than a bare semver) use
+// UpgradeStoreOffset.
+//
+// 1.5.2: commit 92674b2 in GeneralsGameCode added MultiplayerLoadScreenSystem
+// to the FunctionLexicon's gameWinSystemTable. TheFunctionLexicon interns a
+// name key per table entry and initializes before TheUpgradeCenter, so every
+// upgrade key shifted up by one. Any future change that interns a name before
+// Upgrade.ini loads (FunctionLexicon entries, sciences, player templates,
+// objects, locomotors, ...) needs a new entry here.
+var upgradeBaseChanges = []struct {
+	major, minor, patch int
+	base                int
+}{
+	{1, 5, 2, 2271},
+}
+
+// UpgradeBaseForVersion returns the upgrade name-key base used by the client
+// that wrote a replay, given the replay header's version string. Zulu
+// releases write a bare semver ("1.5.2"); anything else (retail's
+// "Version 1.04", mods, dev builds) gets the retail base.
+func UpgradeBaseForVersion(version string) int {
+	parts := strings.Split(strings.TrimSpace(version), ".")
+	if len(parts) != 3 {
+		return UpgradeStoreOffset
+	}
+	nums := make([]int, 3)
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return UpgradeStoreOffset
+		}
+		nums[i] = n
+	}
+	base := UpgradeStoreOffset
+	for _, change := range upgradeBaseChanges {
+		if nums[0] > change.major ||
+			(nums[0] == change.major && nums[1] > change.minor) ||
+			(nums[0] == change.major && nums[1] == change.minor && nums[2] >= change.patch) {
+			base = change.base
+		}
+	}
+	return base
+}
 
 var IniKey = []string{
 	"Object",
@@ -210,15 +267,35 @@ func NewUpgradeStore(dir string) (*UpgradeStore, error) {
 	return upgradeStore, err
 }
 
+// Base returns the name-key value this store maps to its first upgrade.
+func (u *UpgradeStore) Base() int {
+	if u.base != 0 {
+		return u.base
+	}
+	return UpgradeStoreOffset
+}
+
+// WithBase returns a view of the store whose upgrade IDs start at base. The
+// view shares the backing upgrade list, so it is cheap to create per replay
+// and safe to use alongside the original from concurrent readers. A nil
+// receiver returns nil.
+func (u *UpgradeStore) WithBase(base int) *UpgradeStore {
+	if u == nil || base == u.Base() {
+		return u
+	}
+	return &UpgradeStore{Upgrade: u.Upgrade, base: base}
+}
+
 func (u *UpgradeStore) GetUpgrade(i int) (*Upgrade, error) {
-	max := len(u.Upgrade) + UpgradeStoreOffset
-	if i < UpgradeStoreOffset {
-		return nil, fmt.Errorf("upgrade ID %d is below minimum %d", i, UpgradeStoreOffset)
+	base := u.Base()
+	max := len(u.Upgrade) + base
+	if i < base {
+		return nil, fmt.Errorf("upgrade ID %d is below minimum %d", i, base)
 	}
 	if i >= max {
 		return nil, fmt.Errorf("upgrade ID %d is out of range (max: %d)", i, max-1)
 	}
-	return &u.Upgrade[i-UpgradeStoreOffset], nil
+	return &u.Upgrade[i-base], nil
 }
 
 func (u *UpgradeStore) loadUpgrades(dir string) error {
