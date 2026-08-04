@@ -17,6 +17,7 @@ import (
 
 	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
+	"github.com/bill-rich/cncstats/pkg/coordinator"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/logfile"
 	"github.com/bill-rich/cncstats/pkg/mapfile"
@@ -131,9 +132,25 @@ func main() {
 		log.Info("Running without INI stores")
 	}
 
+	// Start the online coordinator (TCP signaling + UDP STUN/hole punch for
+	// the game client's internet play). Runs alongside the web server on its
+	// own ports; set COORD_DISABLED=1 to run stats-only.
+	var coordSrv *coordinator.Server
+	if os.Getenv("COORD_DISABLED") == "" {
+		coordSrv = coordinator.NewServer()
+		go func() {
+			log.WithField("tcp", coordinator.TCPAddr).WithField("udp", coordinator.UDPAddr).Info("Starting online coordinator...")
+			if err := coordSrv.Run(coordinator.TCPAddr, coordinator.UDPAddr); err != nil {
+				log.WithError(err).Fatal("Failed to start coordinator")
+			}
+		}()
+	} else {
+		log.Info("Online coordinator disabled (COORD_DISABLED set)")
+	}
+
 	// Start web server
 	log.Info("Starting web server...")
-	startWebServer(objectStore, powerStore, upgradeStore, colorStore)
+	startWebServer(objectStore, powerStore, upgradeStore, colorStore, coordSrv)
 }
 
 // Helper functions
@@ -370,7 +387,7 @@ func extractAPIKey(c *gin.Context) string {
 	return c.GetHeader("X-API-Key")
 }
 
-func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {
+func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore, coordSrv *coordinator.Server) {
 	router := gin.Default()
 
 	// Transparently gzip JSON responses (notably the large /replay payload:
@@ -423,6 +440,15 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	router.GET("/get_map", getMapHandler)
 	router.GET("/get_map_file", getMapFileHandler)
 	router.GET("/list_map_assets", listMapAssetsHandler)
+
+	// Coordinator status (read-only session/game counts; open like the other
+	// read endpoints -- it exposes nothing beyond what the in-game browser
+	// already shows any client).
+	if coordSrv != nil {
+		router.GET("/coordinator/status", func(c *gin.Context) {
+			c.JSON(http.StatusOK, coordSrv.Status())
+		})
+	}
 
 	// Swagger UI (serves Swagger 2.0 interactive docs)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
