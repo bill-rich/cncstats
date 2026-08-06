@@ -86,7 +86,15 @@ func (sess *Session) send(msgType string, payload any) error {
 type gameState struct {
 	info     GameInfo
 	hostSess *Session
-	created  time.Time
+	// Guests that have been matched into this game, in join order. Used to
+	// orchestrate guest<->guest hole punching: the coordinator only ever
+	// punched host<->guest pairs, so two guests behind restricted NATs had
+	// no mutual mappings and their in-game keepalive/file-transfer legs
+	// stalled until NAT state self-healed. On every join, each existing
+	// guest and the new guest are sent a peer_info with role "peer" so both
+	// sides open mappings toward each other while still in the lobby.
+	guests  []*Session
+	created time.Time
 }
 
 // relayState pairs the host's and viewer's relay_attach connections for one
@@ -355,10 +363,20 @@ func (s *Server) handleMessage(sess *Session, env *Envelope) error {
 		} else {
 			s.punchFail++
 			// Roll back the optimistic player count from handleJoin so a
-			// failed punch (and its retry) doesn't inflate the listing.
+			// failed punch (and its retry) doesn't inflate the listing, and
+			// drop the guest from the mesh roster so later joiners are not
+			// told to punch a peer that never made it into the game.
 			if m.Role == "guest" && sess.JoiningGame != "" {
-				if g, ok := s.games[sess.JoiningGame]; ok && g.info.Players > 1 {
-					g.info.Players--
+				if g, ok := s.games[sess.JoiningGame]; ok {
+					if g.info.Players > 1 {
+						g.info.Players--
+					}
+					for i, gg := range g.guests {
+						if gg == sess {
+							g.guests = append(g.guests[:i], g.guests[i+1:]...)
+							break
+						}
+					}
 				}
 			}
 		}
@@ -551,6 +569,46 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 		PunchInMS:      PunchDelayMS,
 		Role:           "guest",
 	}
+	// Guest<->guest mesh: pair the new guest with every guest already in
+	// the game. Role "peer" tells both sides this is a mesh notification,
+	// not a host punch: the client never arms a real punch for it, it just
+	// opens NAT mappings (low-TTL first) toward the peer from its lobby and
+	// game sockets. PunchInMS 0 because there is no synchronized punch.
+	s.removeGuestFromOtherGamesLocked(sess, m.GameID)
+	meshPeers := make([]*Session, 0, len(g.guests))
+	meshInfos := make([]PeerInfo, 0, len(g.guests))
+	for _, other := range g.guests {
+		if other == sess {
+			continue
+		}
+		meshPeers = append(meshPeers, other)
+		meshInfos = append(meshInfos, PeerInfo{
+			Nick:           other.Nick,
+			PublicAddr:     other.PublicAddr,
+			GamePublicAddr: other.GamePublicAddr,
+			LocalAddr:      other.LocalAddr,
+			PunchInMS:      0,
+			Role:           "peer",
+		})
+	}
+	newGuestInfo := PeerInfo{
+		Nick:           sess.Nick,
+		PublicAddr:     sess.PublicAddr,
+		GamePublicAddr: sess.GamePublicAddr,
+		LocalAddr:      sess.LocalAddr,
+		PunchInMS:      0,
+		Role:           "peer",
+	}
+	inRoster := false
+	for _, gg := range g.guests {
+		if gg == sess {
+			inRoster = true
+			break
+		}
+	}
+	if !inRoster {
+		g.guests = append(g.guests, sess)
+	}
 	s.mu.Unlock()
 
 	if err := host.send(MsgPeerInfo, guestInfo); err != nil {
@@ -562,7 +620,38 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	log.Printf("matched host=%s(lobby=%s game=%s) <-> guest=%s(lobby=%s game=%s) game=%s",
 		hostInfo.Nick, hostInfo.PublicAddr, hostInfo.GamePublicAddr,
 		guestInfo.Nick, guestInfo.PublicAddr, guestInfo.GamePublicAddr, m.GameID)
+	// Mesh notifications go out AFTER the host/guest pair so the new guest
+	// handles its host peer_info (the one that arms the real punch) first.
+	// A send error to an existing guest is logged, not fatal: that session
+	// is likely dying and will be reaped from the roster on disconnect.
+	for i, other := range meshPeers {
+		if err := other.send(MsgPeerInfo, newGuestInfo); err != nil {
+			log.Printf("mesh send to %s failed: %v", other.Nick, err)
+		}
+		if err := sess.send(MsgPeerInfo, meshInfos[i]); err != nil {
+			log.Printf("mesh send to %s failed: %v", sess.Nick, err)
+		}
+		log.Printf("mesh peers %s(lobby=%s game=%s) <-> %s(lobby=%s game=%s) game=%s",
+			other.Nick, meshInfos[i].PublicAddr, meshInfos[i].GamePublicAddr,
+			sess.Nick, newGuestInfo.PublicAddr, newGuestInfo.GamePublicAddr, m.GameID)
+	}
 	return nil
+}
+
+// removeGuestFromOtherGamesLocked drops sess from every game roster except
+// keepGameID (pass "" to drop from all). Callers must hold s.mu.
+func (s *Server) removeGuestFromOtherGamesLocked(sess *Session, keepGameID string) {
+	for gid, g := range s.games {
+		if gid == keepGameID {
+			continue
+		}
+		for i, gg := range g.guests {
+			if gg == sess {
+				g.guests = append(g.guests[:i], g.guests[i+1:]...)
+				break
+			}
+		}
+	}
 }
 
 func (s *Server) dropSession(sess *Session) {
@@ -571,6 +660,7 @@ func (s *Server) dropSession(sess *Session) {
 	if sess.HostingGame != "" {
 		delete(s.games, sess.HostingGame)
 	}
+	s.removeGuestFromOtherGamesLocked(sess, "")
 	s.mu.Unlock()
 }
 

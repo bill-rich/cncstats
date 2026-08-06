@@ -89,6 +89,10 @@ type Join struct {
 	GamePublicAddr string `json:"game_public_addr,omitempty"`
 }
 
+// PeerInfo's Role is the RECEIVER's role relative to the described peer:
+// "host"/"guest" for the synchronized host<->guest punch pair, or "peer"
+// for a guest<->guest mesh notification (no synchronized punch; each side
+// just opens NAT mappings toward the other from its lobby and game sockets).
 type PeerInfo struct {
 	Nick           string `json:"nick"`
 	PublicAddr     string `json:"public_addr"`
