@@ -29,9 +29,21 @@ func NewReplay(bp *bitparse.BitParser) *Replay {
 	}
 	replay.Header = header.NewHeader(bp)
 	replay.CreatePlayerList()
-	// Upgrade IDs are name keys whose base depends on the client version
-	// that recorded the replay; select the matching store view.
-	bp.UpgradeStore = bp.UpgradeStore.WithBase(iniparse.UpgradeBaseForVersion(replay.Header.Version))
+	// Replay IDs belong to the recording client. 1.5.5+ clients carry the
+	// community balance patch data (a wholesale reorder of the object tree)
+	// and record upgrades as stable ids; older clients use the retail data
+	// layout and record upgrades as raw name keys whose base depends on the
+	// client version.
+	if iniparse.UsesCommunityData(replay.Header.Version) {
+		if cs := iniparse.CommunityObjectStore(); cs != nil {
+			bp.ObjectStore = cs
+		}
+		if us := iniparse.CommunityUpgradeStore(); us != nil {
+			bp.UpgradeStore = us.WithBase(iniparse.StableUpgradeIDBase)
+		}
+	} else {
+		bp.UpgradeStore = bp.UpgradeStore.WithBase(iniparse.UpgradeBaseForVersion(replay.Header.Version))
+	}
 	replay.Body = body.ParseBody(bp, bp.ObjectStore, bp.PowerStore, bp.UpgradeStore)
 	replay.AdjustPlayerIDOffset()
 	replay.AddUserNames()
@@ -372,9 +384,18 @@ func StreamReplay(ctx context.Context, filePath string, objectStore *iniparse.Ob
 		PlayerIDOffset: 2,
 	}
 
-	// Upgrade IDs are name keys whose base depends on the client version
-	// that recorded the replay; select the matching store view.
-	upgradeStore = upgradeStore.WithBase(iniparse.UpgradeBaseForVersion(header.Version))
+	// Replay IDs belong to the recording client; see NewReplay for the
+	// version split between community-data (1.5.5+) and legacy stores.
+	if iniparse.UsesCommunityData(header.Version) {
+		if cs := iniparse.CommunityObjectStore(); cs != nil {
+			objectStore = cs
+		}
+		if us := iniparse.CommunityUpgradeStore(); us != nil {
+			upgradeStore = us.WithBase(iniparse.StableUpgradeIDBase)
+		}
+	} else {
+		upgradeStore = upgradeStore.WithBase(iniparse.UpgradeBaseForVersion(header.Version))
+	}
 
 	// Create channel for body events
 	bodyChan := make(chan *body.BodyChunk, options.BufferSize)

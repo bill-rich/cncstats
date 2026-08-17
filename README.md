@@ -24,6 +24,28 @@ A replay parser for Command and Conquer: Generals: Zero Hour. Includes mappings 
 ./cncstats
 ```
 
+### INI data trees
+
+Replay commands reference objects, upgrades, and powers by IDs that the
+engine deals out in INI parse order, so the parser needs the same data the
+recording client loaded:
+
+- `inizh/Data/INI` — retail 1.04 data. Used for retail replays and zulu
+  releases through 1.5.4.
+- `inizh/Data/INI_v155` — zulu 1.5.5+ data: the community balance patch
+  restructured `Object` into per-unit files (reordering object IDs
+  wholesale), and 1.5.5+ clients record upgrades as stable ids (mask bits,
+  first Upgrade.ini entry = 4) instead of raw name keys. The tree holds the
+  effective load set: retail `Object/FactionUnit.ini` (the one retail file
+  the patch does not blank) plus the nested tree from the zulu `Zulu.big`.
+
+`initializeStores` loads both and registers the 1.5.5+ pair via
+`iniparse.RegisterCommunityStores`; `zhreplay` then picks per replay based
+on the header version. Override the second tree's location with
+`CNC_INI_155` (defaults to `INI_v155` next to the main INI directory). If
+the tree is missing, 1.5.5+ replays fall back to legacy data (and decode
+wrong, as before).
+
 ### Library Usage
 
 #### Complete Replay Parsing
