@@ -16,37 +16,37 @@ func TestMatchKey(t *testing.T) {
 	}{
 		// BuildCost tests
 		{"BuildCost_asExpected", "  BuildCost", "BuildCost"},
-		{"BuildCost_tooManySpaces", "       BuildCost", ""},
-		{"BuildCost_noSpaces", "BuildCost", ""},
+		{"BuildCost_tooManySpaces", "       BuildCost", "BuildCost"},
+		{"BuildCost_noSpaces", "BuildCost", "BuildCost"},
 		{"BuildCost_endlineJunk", "  BuildCost OMG", "BuildCost"},
 		{"BuildCost_withValue", "  BuildCost=123", "BuildCost"},
 		{"BuildCost_withComment", "  BuildCost=123;comment", "BuildCost"},
 
 		// Object tests
 		{"Object_asExpected", "Object del cool", "Object"},
-		{"Object_noExtra", "Object", "Object"},
+		{"Object_noExtra", "Object", ""},
 		{"Object_leadingSpaces", "  Object", ""},
 		{"Object_withSpaces", "Object SomeUnit", "Object"},
 
 		// End tests
 		{"End_asExpected", "End", "End"},
-		{"End_withSpaces", "  End", ""},
+		{"End_withSpaces", "  End", "End"},
 		{"End_withContent", "End some content", "End"},
 
 		// Upgrade tests
 		{"Upgrade_asExpected", "Upgrade SomeUpgrade", "Upgrade"},
-		{"Upgrade_noSpaces", "Upgrade", "Upgrade"},
+		{"Upgrade_noSpaces", "Upgrade", ""},
 		{"Upgrade_leadingSpaces", "  Upgrade", ""},
 
 		// SpecialPower tests
 		{"SpecialPower_asExpected", "SpecialPower SomePower", "SpecialPower"},
-		{"SpecialPower_noSpaces", "SpecialPower", "SpecialPower"},
+		{"SpecialPower_noSpaces", "SpecialPower", ""},
 		{"SpecialPower_leadingSpaces", "  SpecialPower", ""},
 
 		// KindOf tests
 		{"KindOf_asExpected", "  KindOf = INFANTRY SELECTABLE", "KindOf"},
-		{"KindOf_noSpaces", "KindOf", ""},
-		{"KindOf_leadingSpaces", "    KindOf = VEHICLE", ""},
+		{"KindOf_noSpaces", "KindOf", "KindOf"},
+		{"KindOf_leadingSpaces", "    KindOf = VEHICLE", "KindOf"},
 		{"KindOf_withValue", "  KindOf=AIRCRAFT VEHICLE", "KindOf"},
 
 		// Edge cases
@@ -54,8 +54,11 @@ func TestMatchKey(t *testing.T) {
 		{"OnlySpaces", "   ", ""},
 		{"UnknownKey", "UnknownKey", ""},
 		{"PartialMatch", "Obj", ""},
+		{"ObjectAsField", "Object = AmericaWarFactory", ""},
+		{"ObjectAsFieldNoSpaces", "Object=AmericaWarFactory", ""},
+		{"ObjectReskin", "ObjectReskin NewUnit OldUnit", "Object"},
 		{"CaseSensitive", "object", ""},
-		{"MixedCase", "Object", "Object"},
+		{"MixedCase", "Object", ""},
 	}
 
 	for _, tc := range cases {
@@ -446,8 +449,8 @@ func TestPowerStoreParseFile(t *testing.T) {
 		{
 			"PowerWithoutName",
 			"SpecialPower\nEnd",
-			nil,
-			true,
+			[]Power{},
+			false,
 		},
 	}
 
@@ -783,7 +786,7 @@ End`
 	}
 
 	expectedObjects := []Object{
-		{Name: "InfantryUnit", Cost: 200}, // The parser picks up BuildCost from Upgrade section
+		{Name: "InfantryUnit", Cost: 50},
 		{Name: "VehicleUnit", Cost: 300},
 	}
 
@@ -924,6 +927,137 @@ func TestParseFileWithKindOf(t *testing.T) {
 	for i, exp := range expected {
 		if objectStore.Object[i] != exp {
 			t.Errorf("object %d: expected %+v, got %+v", i, exp, objectStore.Object[i])
+		}
+	}
+}
+
+func TestUsesCommunityData(t *testing.T) {
+	cases := []struct {
+		version string
+		want    bool
+	}{
+		{"Version 1.04", false},
+		{"Version 1.06", false},
+		{"1.5.2", false},
+		{"1.5.4", false},
+		{"1.5.5", true},
+		{"1.5.6", true},
+		{"1.6.0", true},
+		{"2.0.0", true},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := UsesCommunityData(tc.version); got != tc.want {
+			t.Errorf("UsesCommunityData(%q) = %v, want %v", tc.version, got, tc.want)
+		}
+	}
+}
+
+func TestIniPathLess(t *testing.T) {
+	// Engine ordering: stricmp on '\'-separated paths. '\' (0x5C) sorts
+	// above digits but below lowercase letters, so "Faction/..." must sort
+	// before "FactionBuilding.ini" even though '/' would not.
+	cases := []struct {
+		a, b string
+		want bool
+	}{
+		{"Faction/America/x.ini", "FactionBuilding.ini", true},
+		{"Campaign/x.ini", "Faction/x.ini", true},
+		{"gc_faction/x.ini", "Nature/x.ini", true}, // lowercased 'g' < 'n'
+		{"ABC.ini", "abd.ini", true},                // case-insensitive
+		{"a.ini", "a.ini", false},
+	}
+	for _, tc := range cases {
+		if got := iniPathLess(tc.a, tc.b); got != tc.want {
+			t.Errorf("iniPathLess(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestLoadObjectsEngineOrderAndOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	obj := filepath.Join(dir, "Object")
+	if err := os.MkdirAll(filepath.Join(obj, "Faction", "America"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(rel, content string) {
+		if err := os.WriteFile(filepath.Join(obj, rel), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Top-level files load first (sorted), then subdirectory files.
+	// ZTop.ini sorts after the subdir path but still loads first because it
+	// is a top-level file. The nested redefinition of UnitA overwrites its
+	// cost but must not take a new slot.
+	write("ZTop.ini", "Object UnitA\n  BuildCost = 100\n  KindOf = VEHICLE\nEnd\n")
+	write("Blank.ini", "")
+	write(filepath.Join("Faction", "America", "UnitA.ini"), "Object UnitA\nBuildCost = 250\nKindOf = VEHICLE\nEnd\n")
+	write(filepath.Join("Faction", "America", "UnitB.ini"), "Object UnitB\nBuildCost = 50\nKindOf = INFANTRY\nEnd\n")
+
+	store, err := NewObjectStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Object{
+		{Name: "UnitA", Cost: 250, Type: ObjectTypeVehicle},
+		{Name: "UnitB", Cost: 50, Type: ObjectTypeInfantry},
+	}
+	if len(store.Object) != len(want) {
+		t.Fatalf("expected %d objects, got %d: %+v", len(want), len(store.Object), store.Object)
+	}
+	for i, exp := range want {
+		if store.Object[i] != exp {
+			t.Errorf("object %d: expected %+v, got %+v", i, exp, store.Object[i])
+		}
+	}
+}
+
+func TestParseFilePrerequisiteObjectLines(t *testing.T) {
+	// Community-patch data writes nested fields at column zero, so a
+	// Prerequisites entry must not start a new object, and a module KindOf
+	// after the object's own must not reclassify it.
+	input := "Object AmericaWarFactory\n" +
+		"BuildCost = 2000\n" +
+		"KindOf = STRUCTURE SELECTABLE\n" +
+		"Prerequisites\n" +
+		"Object = AmericaSupplyCenter\n" +
+		"End\n" +
+		"Behavior = HordeUpdate ModuleTag_04\n" +
+		"KindOf = INFANTRY\n" +
+		"End\n" +
+		"End\n"
+	store := &ObjectStore{}
+	if err := store.parseFile(strings.NewReader(input)); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.Object) != 1 {
+		t.Fatalf("expected 1 object, got %d: %+v", len(store.Object), store.Object)
+	}
+	got := store.Object[0]
+	want := Object{Name: "AmericaWarFactory", Cost: 2000, Type: ObjectTypeStructure}
+	if got != want {
+		t.Errorf("expected %+v, got %+v", got, want)
+	}
+}
+
+func TestUpgradeStoreOverwritesDuplicate(t *testing.T) {
+	// Retail Upgrade.ini defines SupW_Upgrade_AmericaPointDefenseDrone
+	// twice; the engine overwrites in place without a new slot, so the
+	// entry after the duplicate keeps the duplicate's position.
+	input := "Upgrade First\n  BuildCost = 100\nEnd\n" +
+		"Upgrade First\n  BuildCost = 150\nEnd\n" +
+		"Upgrade Second\n  BuildCost = 200\nEnd\n"
+	store := &UpgradeStore{}
+	if err := store.parseFile(strings.NewReader(input)); err != nil {
+		t.Fatal(err)
+	}
+	want := []Upgrade{{Name: "First", Cost: 150}, {Name: "Second", Cost: 200}}
+	if len(store.Upgrade) != len(want) {
+		t.Fatalf("expected %d upgrades, got %d: %+v", len(want), len(store.Upgrade), store.Upgrade)
+	}
+	for i, exp := range want {
+		if store.Upgrade[i] != exp {
+			t.Errorf("upgrade %d: expected %+v, got %+v", i, exp, store.Upgrade[i])
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -221,7 +222,36 @@ func initializeStores(objDataPath string) (*iniparse.ObjectStore, *iniparse.Powe
 		return nil, nil, nil, nil, fmt.Errorf("could not load color store: %w", err)
 	}
 
+	// The community balance patch (zulu 1.5.5+) reordered object and upgrade
+	// IDs wholesale, so replays from those clients decode against a second
+	// data tree. Missing tree is not fatal: 1.5.5+ replays then fall back to
+	// the legacy stores, which is the old (wrong for them) behavior.
+	communityPath := communityDataPath(objDataPath)
+	if _, statErr := os.Stat(communityPath); statErr == nil {
+		communityObjects, err := iniparse.NewObjectStore(communityPath)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("could not load community object store: %w", err)
+		}
+		communityUpgrades, err := iniparse.NewUpgradeStore(communityPath)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("could not load community upgrade store: %w", err)
+		}
+		iniparse.RegisterCommunityStores(communityObjects, communityUpgrades)
+	} else {
+		log.WithField("path", communityPath).Warn("community INI data (v1.5.5+) not found; 1.5.5+ replays will decode against legacy data")
+	}
+
 	return objectStore, powerStore, upgradeStore, colorStore, nil
+}
+
+// communityDataPath returns the INI tree for community-patch clients
+// (zulu 1.5.5+). It defaults to the INI_v155 directory next to the legacy
+// INI directory and can be overridden with CNC_INI_155.
+func communityDataPath(objDataPath string) string {
+	if env := os.Getenv("CNC_INI_155"); env != "" {
+		return env
+	}
+	return filepath.Join(filepath.Dir(objDataPath), "INI_v155")
 }
 
 func handleLocalMode(replayFile string, objectStore *iniparse.ObjectStore, powerStore *iniparse.PowerStore, upgradeStore *iniparse.UpgradeStore, colorStore *iniparse.ColorStore) {

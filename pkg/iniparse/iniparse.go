@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -22,6 +25,11 @@ const (
 
 type ObjectStore struct {
 	Object []Object
+	// index maps object name to its slot in Object. The engine deals
+	// ThingTemplate IDs in first-definition order and a redefinition of an
+	// existing name overwrites the template in place without taking a new
+	// ID, so the parser must do the same.
+	index  map[string]int
 	byName map[string]*Object
 }
 
@@ -80,6 +88,13 @@ const (
 	// UpgradeBaseForVersion for later clients.
 	UpgradeStoreOffset = 2270
 	PowerStoreOffset   = 2
+	// StableUpgradeIDBase is the upgrade ID base for clients that record
+	// stable upgrade ids instead of name keys (zulu 1.5.5+). The stable id
+	// is the upgrade's mask bit, dealt in template-creation order: the
+	// UpgradeCenter creates three veterancy upgrades (Veteran/Elite/Heroic)
+	// in init, then Data\INI\Default\Upgrade.ini's DefaultUpgrade parses,
+	// so bits 0-3 are taken and the first Upgrade.ini entry gets 4.
+	StableUpgradeIDBase = 4
 )
 
 // upgradeBaseChanges lists, oldest first, the zulu client versions at which
@@ -106,40 +121,96 @@ var upgradeBaseChanges = []struct {
 // releases write a bare semver ("1.5.2"); anything else (retail's
 // "Version 1.04", mods, dev builds) gets the retail base.
 func UpgradeBaseForVersion(version string) int {
-	parts := strings.Split(strings.TrimSpace(version), ".")
-	if len(parts) != 3 {
+	nums, ok := parseSemVer(version)
+	if !ok {
 		return UpgradeStoreOffset
-	}
-	nums := make([]int, 3)
-	for i, part := range parts {
-		n, err := strconv.Atoi(part)
-		if err != nil || n < 0 {
-			return UpgradeStoreOffset
-		}
-		nums[i] = n
 	}
 	base := UpgradeStoreOffset
 	for _, change := range upgradeBaseChanges {
-		if nums[0] > change.major ||
-			(nums[0] == change.major && nums[1] > change.minor) ||
-			(nums[0] == change.major && nums[1] == change.minor && nums[2] >= change.patch) {
+		if atLeast(nums, change.major, change.minor, change.patch) {
 			base = change.base
 		}
 	}
 	return base
 }
 
-var IniKey = []string{
-	"Object",
-	"End",
-	"  BuildCost",
-	"  KindOf",
-	"Upgrade",
-	"SpecialPower",
-	"MultiplayerColor",
-	"  RGBColor",
-	"  RGBNightColor",
-	"  TooltipName",
+// parseSemVer parses a bare "major.minor.patch" version as written by zulu
+// clients into a replay header. Anything else (retail's "Version 1.04",
+// mods, dev builds) fails the parse.
+func parseSemVer(version string) ([3]int, bool) {
+	var nums [3]int
+	parts := strings.Split(strings.TrimSpace(version), ".")
+	if len(parts) != 3 {
+		return nums, false
+	}
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return nums, false
+		}
+		nums[i] = n
+	}
+	return nums, true
+}
+
+func atLeast(nums [3]int, major, minor, patch int) bool {
+	if nums[0] != major {
+		return nums[0] > major
+	}
+	if nums[1] != minor {
+		return nums[1] > minor
+	}
+	return nums[2] >= patch
+}
+
+// UsesCommunityData reports whether the client that recorded a replay ships
+// the community balance patch data (zulu 1.5.5+). Those releases rebuilt the
+// whole Data\INI\Object tree into per-unit files, reordering ThingTemplate
+// registration wholesale, and started recording upgrade purchases as stable
+// upgrade ids (mask bits) instead of raw name keys. Replays from them must be
+// decoded against the INI_v155 stores with StableUpgradeIDBase.
+func UsesCommunityData(version string) bool {
+	nums, ok := parseSemVer(version)
+	return ok && atLeast(nums, 1, 5, 5)
+}
+
+// The community-data stores (built from inizh/Data/INI_v155) are registered
+// once at startup and consulted per replay by recording version. When nothing
+// is registered every replay falls back to the legacy stores, which is the
+// pre-1.5.5 behavior.
+var (
+	communityObjectStore  *ObjectStore
+	communityUpgradeStore *UpgradeStore
+)
+
+func RegisterCommunityStores(o *ObjectStore, u *UpgradeStore) {
+	communityObjectStore = o
+	communityUpgradeStore = u
+}
+
+func CommunityObjectStore() *ObjectStore   { return communityObjectStore }
+func CommunityUpgradeStore() *UpgradeStore { return communityUpgradeStore }
+
+// Block-opening keys are only recognized when followed by a name rather than
+// '=': the community-patch data normalizes every field to column zero, so a
+// Prerequisites field like "Object = AmericaWarFactory" must not read as a
+// new definition. Field keys are matched at any indentation for the same
+// reason. ObjectReskin defines a new template (with its own ID) named by its
+// first argument, so it counts as an Object definition.
+var iniBlockKeys = map[string]string{
+	"Object":           "Object",
+	"ObjectReskin":     "Object",
+	"Upgrade":          "Upgrade",
+	"SpecialPower":     "SpecialPower",
+	"MultiplayerColor": "MultiplayerColor",
+}
+
+var iniFieldKeys = map[string]string{
+	"BuildCost":     "BuildCost",
+	"KindOf":        "KindOf",
+	"RGBColor":      "RGBColor",
+	"RGBNightColor": "RGBNightColor",
+	"TooltipName":   "TooltipName",
 }
 
 func NewObjectStore(dir string) (*ObjectStore, error) {
@@ -165,13 +236,50 @@ func (o *ObjectStore) GetObject(i int) (*Object, error) {
 }
 
 func (o *ObjectStore) loadObjects(dir string) error {
-	dirItems, err := os.ReadDir(dir + "/Object/")
+	root := filepath.Join(dir, "Object")
+	var rels []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.EqualFold(filepath.Ext(path), ".ini") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rels = append(rels, filepath.ToSlash(rel))
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	for _, dirItem := range dirItems {
-		file, err := os.Open(dir + "/Object/" + dirItem.Name())
+	// The engine (INI::loadDirectory) loads the files of the Object tree in
+	// two passes over one list sorted case-insensitively by full path with
+	// '\' separators: first every file directly in Object\, then every file
+	// in a subdirectory. Object IDs are dealt in that order, so replicate it
+	// exactly.
+	sort.Slice(rels, func(i, j int) bool { return iniPathLess(rels[i], rels[j]) })
+	ordered := make([]string, 0, len(rels))
+	for _, rel := range rels {
+		if !strings.ContainsRune(rel, '/') {
+			ordered = append(ordered, rel)
+		}
+	}
+	for _, rel := range rels {
+		if strings.ContainsRune(rel, '/') {
+			ordered = append(ordered, rel)
+		}
+	}
+
+	o.index = make(map[string]int)
+	for _, rel := range ordered {
+		file, err := os.Open(filepath.Join(root, filepath.FromSlash(rel)))
 		if err != nil {
 			return err
 		}
@@ -188,6 +296,30 @@ func (o *ObjectStore) loadObjects(dir string) error {
 		o.byName[o.Object[i].Name] = &o.Object[i]
 	}
 	return nil
+}
+
+// iniPathLess orders INI paths the way the engine's FilenameList does:
+// stricmp on the full path with '\' separators. The separator mapping
+// matters because '\' (0x5C) sorts above digits but below lowercase letters,
+// while '/' (0x2F) sorts below both.
+func iniPathLess(a, b string) bool {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		ca, cb := iniPathByte(a[i]), iniPathByte(b[i])
+		if ca != cb {
+			return ca < cb
+		}
+	}
+	return len(a) < len(b)
+}
+
+func iniPathByte(c byte) byte {
+	if c == '/' {
+		return '\\'
+	}
+	if 'A' <= c && c <= 'Z' {
+		return c + ('a' - 'A')
+	}
+	return c
 }
 
 // GetObjectByName returns a pointer to the Object with the given name, or nil if not found.
@@ -308,37 +440,43 @@ func (u *UpgradeStore) loadUpgrades(dir string) error {
 }
 
 func (u *UpgradeStore) parseFile(file io.Reader) error {
+	// Upgrade IDs (name keys and stable mask bits alike) are dealt in
+	// first-definition order; a redefinition of an existing name (retail
+	// Upgrade.ini repeats SupW_Upgrade_AmericaPointDefenseDrone) overwrites
+	// in place without taking a new slot, matching the engine.
+	index := make(map[string]int, len(u.Upgrade))
+	for i := range u.Upgrade {
+		index[u.Upgrade[i].Name] = i
+	}
 	scanner := bufio.NewScanner(file)
-	var upgrade *Upgrade
+	cur := -1
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch matchKey(line) {
 		case "Upgrade":
-			if upgrade != nil {
-				u.Upgrade = append(u.Upgrade, *upgrade)
-			}
 			name, err := parseNameFromLine(line)
 			if err != nil {
 				return err
 			}
-			upgrade = &Upgrade{
-				Name: name,
+			if idx, ok := index[name]; ok {
+				cur = idx
+			} else {
+				index[name] = len(u.Upgrade)
+				cur = len(u.Upgrade)
+				u.Upgrade = append(u.Upgrade, Upgrade{Name: name})
 			}
 		case "BuildCost":
-			if upgrade == nil {
+			if cur < 0 {
 				return fmt.Errorf("need an upgrade to store cost")
 			}
 			cost, err := parseCostFromLine(line)
 			if err != nil {
 				return err
 			}
-			upgrade.Cost = cost
+			u.Upgrade[cur].Cost = cost
 		case "End":
 		default:
 		}
-	}
-	if upgrade != nil {
-		u.Upgrade = append(u.Upgrade, *upgrade)
 	}
 	return nil
 }
@@ -360,7 +498,7 @@ func parseCostFromLine(line string) (int, error) {
 
 // parseNameFromLine extracts the name from an Object/Upgrade/SpecialPower line
 func parseNameFromLine(line string) (string, error) {
-	fields := strings.Split(line, " ")
+	fields := strings.Fields(line)
 	if len(fields) < 2 {
 		return "", fmt.Errorf("could not get name from line: %s", line)
 	}
@@ -406,54 +544,95 @@ func classifyObject(kindOf []string) ObjectType {
 }
 
 func matchKey(line string) string {
-	for _, key := range IniKey {
-		// Handle keys with leading spaces (like "  BuildCost")
-		if strings.HasPrefix(line, key) {
-			// Return the key without leading spaces for consistency
-			return strings.TrimLeft(key, " ")
+	// The engine tokenizer treats '=' as whitespace, so "BuildCost=123"
+	// and "BuildCost = 123" are the same line.
+	fields := strings.Fields(strings.ReplaceAll(line, "=", " = "))
+	if len(fields) == 0 {
+		return ""
+	}
+	if key, ok := iniBlockKeys[fields[0]]; ok {
+		if len(fields) >= 2 && fields[1] != "=" {
+			return key
 		}
+		return ""
+	}
+	if key, ok := iniFieldKeys[fields[0]]; ok {
+		return key
+	}
+	if fields[0] == "End" {
+		return "End"
 	}
 	return ""
 }
 
 func (o *ObjectStore) parseFile(file io.Reader) error {
+	if o.index == nil {
+		o.index = make(map[string]int)
+	}
 	scanner := bufio.NewScanner(file)
-	var object *Object
+	cur := -1
+	// Nested module fields can shadow an object's own fields: HordeUpdate
+	// and GrantStealthBehavior have their own KindOf. In retail data the
+	// object's own fields sit at the shallowest indentation, so shallower
+	// KindOf lines win over deeper ones. The community-patch data writes
+	// everything at column zero, where indentation cannot tell them apart;
+	// there the object's own KindOf comes before its modules, so at equal
+	// indentation a line that classifies to a known type wins over one
+	// that does not, and the first known type sticks. BuildCost appears
+	// once per definition, so its first value wins.
+	costSet := false
+	kindIndent := -1
+	typeKnown := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch matchKey(line) {
 		case "Object":
-			if object != nil {
-				o.Object = append(o.Object, *object)
-			}
 			name, err := parseNameFromLine(line)
 			if err != nil {
 				return err
 			}
-			object = &Object{
-				Name: name,
+			costSet, kindIndent, typeKnown = false, -1, false
+			if idx, ok := o.index[name]; ok {
+				// Redefinition: the engine overwrites the existing
+				// template in place, keeping its ID, so later fields
+				// update the original slot.
+				cur = idx
+			} else {
+				o.index[name] = len(o.Object)
+				cur = len(o.Object)
+				o.Object = append(o.Object, Object{Name: name})
 			}
 		case "BuildCost":
-			if object == nil {
+			if cur < 0 {
 				return fmt.Errorf("need an object to store cost")
+			}
+			if costSet {
+				break
 			}
 			cost, err := parseCostFromLine(line)
 			if err != nil {
 				return err
 			}
-			object.Cost = cost
+			o.Object[cur].Cost = cost
+			costSet = true
 		case "KindOf":
-			if object == nil {
+			if cur < 0 {
 				break
 			}
-			flags := parseKindOfFromLine(line)
-			object.Type = classifyObject(flags)
+			indent := len(line) - len(strings.TrimLeft(line, " \t"))
+			if kindIndent >= 0 && indent > kindIndent {
+				break
+			}
+			t := classifyObject(parseKindOfFromLine(line))
+			shallower := kindIndent < 0 || indent < kindIndent
+			if shallower || t != ObjectTypeUnknown && !typeKnown {
+				o.Object[cur].Type = t
+				typeKnown = t != ObjectTypeUnknown
+			}
+			kindIndent = indent
 		case "End":
 		default:
 		}
-	}
-	if object != nil {
-		o.Object = append(o.Object, *object)
 	}
 	return nil
 }
