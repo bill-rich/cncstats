@@ -280,6 +280,15 @@ definitions:
       production:
         type: integer
     type: object
+  statsfile.HuntedEvent:
+    properties:
+      frame:
+        type: integer
+      hunted:
+        type: boolean
+      player:
+        type: integer
+    type: object
   statsfile.RadarEvent:
     properties:
       frame:
@@ -467,6 +476,10 @@ definitions:
         items:
           $ref: '#/definitions/statsfile.EnergyEvent'
         type: array
+      huntedEvents:
+        items:
+          $ref: '#/definitions/statsfile.HuntedEvent'
+        type: array
       killEvents:
         items:
           $ref: '#/definitions/zhreplay.EnrichedKillEvent'
@@ -515,6 +528,16 @@ definitions:
         type: string
       faction:
         type: string
+      hunted:
+        type: boolean
+      huntedFrame:
+        description: |-
+          HuntedFrame is the frame this player first became hunted (lost all
+          ability to rebuild: no dozers/workers and no structure that can produce
+          one). UnhuntedFrame is the first frame they recovered from that state
+          (e.g. captured an enemy command center or hijacked a dozer). Hunted is
+          their final state. Zero frames mean "never"; requires stats version >= 3.
+        type: integer
       incomeBySource:
         additionalProperties:
           type: integer
@@ -540,6 +563,8 @@ definitions:
       side:
         type: string
       team:
+        type: integer
+      unhuntedFrame:
         type: integer
       unitsCreated:
         additionalProperties:
@@ -911,13 +936,19 @@ paths:
       consumes:
       - application/octet-stream
       description: Receive gzip-compressed JSON stats from a Generals game and store
-        them keyed by seed.
+        them keyed by seed. If a stats file already exists for the seed and the uploaded
+        file is smaller, the upload is rejected with 409 unless force is set.
       parameters:
       - description: Game seed identifier
         in: header
         name: X-Game-Seed
         required: true
         type: string
+      - description: Overwrite an existing stats file even if the upload is smaller
+          (can also be set via the X-Force header)
+        in: query
+        name: force
+        type: boolean
       produces:
       - application/json
       responses:
@@ -931,6 +962,10 @@ paths:
             $ref: '#/definitions/main.ErrorResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/main.ErrorResponse'
         "500":

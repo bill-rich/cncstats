@@ -473,7 +473,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed.",
+                "description": "Receive gzip-compressed JSON stats from a Generals game and store them keyed by seed. If a stats file already exists for the seed and the uploaded file is smaller, the upload is rejected with 409 unless force is set.",
                 "consumes": [
                     "application/octet-stream"
                 ],
@@ -491,6 +491,12 @@ const docTemplate = `{
                         "name": "X-Game-Seed",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Overwrite an existing stats file even if the upload is smaller (can also be set via the X-Force header)",
+                        "name": "force",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -508,6 +514,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
@@ -927,6 +939,20 @@ const docTemplate = `{
                 }
             }
         },
+        "statsfile.HuntedEvent": {
+            "type": "object",
+            "properties": {
+                "frame": {
+                    "type": "integer"
+                },
+                "hunted": {
+                    "type": "boolean"
+                },
+                "player": {
+                    "type": "integer"
+                }
+            }
+        },
         "statsfile.RadarEvent": {
             "type": "object",
             "properties": {
@@ -1201,6 +1227,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/statsfile.EnergyEvent"
                     }
                 },
+                "huntedEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/statsfile.HuntedEvent"
+                    }
+                },
                 "killEvents": {
                     "type": "array",
                     "items": {
@@ -1274,6 +1306,13 @@ const docTemplate = `{
                 "faction": {
                     "type": "string"
                 },
+                "hunted": {
+                    "type": "boolean"
+                },
+                "huntedFrame": {
+                    "description": "HuntedFrame is the frame this player first became hunted (lost all\nability to rebuild: no dozers/workers and no structure that can produce\none). UnhuntedFrame is the first frame they recovered from that state\n(e.g. captured an enemy command center or hijacked a dozer). Hunted is\ntheir final state. Zero frames mean \"never\"; requires stats version \u003e= 3.",
+                    "type": "integer"
+                },
                 "incomeBySource": {
                     "type": "object",
                     "additionalProperties": {
@@ -1311,6 +1350,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "team": {
+                    "type": "integer"
+                },
+                "unhuntedFrame": {
                     "type": "integer"
                 },
                 "unitsCreated": {

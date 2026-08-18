@@ -109,6 +109,14 @@ type PlayerSummaryV2 struct {
 	MoneyEarned    int                              `json:"moneyEarned"`
 	MoneySpent     int                              `json:"moneySpent"`
 	IncomeBySource map[string]int                   `json:"incomeBySource,omitempty"`
+	// HuntedFrame is the frame this player first became hunted (lost all
+	// ability to rebuild: no dozers/workers and no structure that can produce
+	// one). UnhuntedFrame is the first frame they recovered from that state
+	// (e.g. captured an enemy command center or hijacked a dozer). Hunted is
+	// their final state. Zero frames mean "never"; requires stats version >= 3.
+	HuntedFrame   uint                              `json:"huntedFrame,omitempty"`
+	UnhuntedFrame uint                              `json:"unhuntedFrame,omitempty"`
+	Hunted        bool                              `json:"hunted,omitempty"`
 	Score          int                              `json:"score"`
 	Academy        *statsfile.Academy               `json:"academy,omitempty"`
 	UnitsCreated   map[string]*object.ObjectSummary `json:"unitsCreated"`
@@ -148,6 +156,7 @@ type EnrichedStats struct {
 	SciencePointsEvents []statsfile.SciencePointsEvent `json:"sciencePointsEvents"`
 	RadarEvents         []statsfile.RadarEvent         `json:"radarEvents"`
 	DeathEvents         []statsfile.DeathEvent         `json:"deathEvents"`
+	HuntedEvents        []statsfile.HuntedEvent        `json:"huntedEvents"`
 	BattlePlanEvents    []statsfile.BattlePlanEvent    `json:"battlePlanEvents"`
 	TimeSeries          statsfile.TimeSeries           `json:"timeSeries"`
 }
@@ -173,6 +182,7 @@ func enrichStats(stats *statsfile.GameStats, objectStore *iniparse.ObjectStore) 
 		SciencePointsEvents: stats.SciencePointsEvents,
 		RadarEvents:         stats.RadarEvents,
 		DeathEvents:         stats.DeathEvents,
+		HuntedEvents:        stats.HuntedEvents,
 		BattlePlanEvents:    stats.BattlePlanEvents,
 		TimeSeries:          stats.TimeSeries,
 	}
@@ -273,6 +283,23 @@ func ConvertToEnhancedReplayV2(replay *Replay, stats *statsfile.GameStats, objec
 		p.IncomeBySource = sp.IncomeBySource
 		p.Score = sp.Score
 		p.Academy = sp.Academy
+	}
+
+	// Fold hunted transition events into per-player summary fields.
+	for _, he := range stats.HuntedEvents {
+		idx := he.Player - 1
+		if idx < 0 || idx >= len(nonObservers) {
+			continue
+		}
+		p := nonObservers[idx]
+		if he.Hunted {
+			if p.HuntedFrame == 0 {
+				p.HuntedFrame = he.Frame
+			}
+		} else if p.HuntedFrame != 0 && p.UnhuntedFrame == 0 {
+			p.UnhuntedFrame = he.Frame
+		}
+		p.Hunted = he.Hunted
 	}
 
 	// Determine winners using death events from stats
