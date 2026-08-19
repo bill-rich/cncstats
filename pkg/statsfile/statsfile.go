@@ -24,6 +24,7 @@ type GameStats struct {
 	SciencePointsEvents []SciencePointsEvent `json:"sciencePointsEvents"`
 	RadarEvents         []RadarEvent         `json:"radarEvents"`
 	DeathEvents         []DeathEvent         `json:"deathEvents"`
+	HuntedEvents        []HuntedEvent        `json:"huntedEvents"`
 	BattlePlanEvents    []BattlePlanEvent    `json:"battlePlanEvents"`
 	TimeSeries          TimeSeries           `json:"timeSeries"`
 }
@@ -143,6 +144,18 @@ type RadarEvent struct {
 type DeathEvent struct {
 	Frame  uint `json:"frame"`
 	Player int  `json:"player"`
+}
+
+// HuntedEvent marks a player transitioning into or out of the hunted state:
+// hunted means they can no longer rebuild (no dozer or worker alive and no
+// structure that can produce one, i.e. command center or GLA supply stash).
+// Becoming un-hunted is rare and means they regained a builder, e.g. by
+// capturing an enemy command center or hijacking a dozer. Present for stats
+// JSON version >= 3; nil for older uploads.
+type HuntedEvent struct {
+	Frame  uint `json:"frame"`
+	Player int  `json:"player"`
+	Hunted bool `json:"hunted"`
 }
 
 type BattlePlanEvent struct {
