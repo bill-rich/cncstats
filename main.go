@@ -22,6 +22,7 @@ import (
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/logfile"
 	"github.com/bill-rich/cncstats/pkg/mapfile"
+	"github.com/bill-rich/cncstats/pkg/serverlog"
 	"github.com/bill-rich/cncstats/pkg/statsfile"
 	"github.com/bill-rich/cncstats/pkg/zhreplay"
 	"github.com/gin-contrib/gzip"
@@ -93,6 +94,14 @@ func main() {
 		log.SetLevel(log.InfoLevel) // Ensure InfoLevel is set explicitly
 	}
 
+	// Tee the log stream to a file on the logs volume. Container stderr is
+	// discarded when the container is recreated, which is exactly when we
+	// lose the coordinator's record of a player's failed host/join attempt.
+	// Best-effort: if the file can't be opened we keep running on stderr.
+	if logSink := startFileLogging(); logSink != nil {
+		defer logSink.Close()
+	}
+
 	log.Info("CNC Stats application starting...")
 
 	// Handle local mode
@@ -155,6 +164,43 @@ func main() {
 }
 
 // Helper functions
+
+// startFileLogging tees logrus onto a persistent per-day file in addition to
+// stderr, so the log survives container recreation. The default location is
+// a "server" subdirectory of the logs volume (LOGS_DIR), which is already
+// mounted for client log uploads; SERVER_LOG_DIR overrides it and
+// SERVER_LOG_RETAIN_DAYS (default 30) sets how long files are kept.
+// Returns nil when file logging is disabled or unavailable - the caller
+// keeps running on stderr either way.
+func startFileLogging() *serverlog.Writer {
+	dir := os.Getenv("SERVER_LOG_DIR")
+	if dir == "" {
+		dir = filepath.Join(logfile.LogsDir, "server")
+	}
+	if strings.EqualFold(dir, "off") || strings.EqualFold(dir, "none") {
+		return nil
+	}
+
+	retain := 30
+	if v := os.Getenv("SERVER_LOG_RETAIN_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			retain = n
+		} else {
+			log.WithField("value", v).Warn("could not parse SERVER_LOG_RETAIN_DAYS; using 30")
+		}
+	}
+
+	w, err := serverlog.Open(dir, "cncstats", retain)
+	if err != nil {
+		log.WithError(err).WithField("dir", dir).
+			Warn("could not open the persistent log file; logging to stderr only")
+		return nil
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, w))
+	log.WithField("file", w.Path()).WithField("retain_days", retain).
+		Info("Persistent log file opened")
+	return w
+}
 
 func showHelp() {
 	fmt.Println("CNC Stats - Command and Conquer Replay Analyzer")
@@ -653,6 +699,12 @@ func uploadStatsHandler(c *gin.Context) {
 // is identified by X-Game-Seed and the player by X-Player. Each form file
 // is stored under <seed>/<player>/<original filename>. Call once per
 // player (each call may carry multiple files).
+//
+// X-Game-Seed is an opaque storage key, not necessarily a game seed: the
+// client also uploads here when an online host/join attempt fails before
+// any match exists, using a per-day bucket ("connfail-YYYYMMDD") with the
+// attempt timestamp in X-Player. pkg/logfile sanitizes both to a single
+// path segment.
 // @Summary Upload match log files for a player
 // @Description Store one or more client log files for a match, keyed by game seed and grouped by player. Send a multipart/form-data body with one or more file parts (any field names); files are expected to be gzip-compressed by the client. Call once per player. The total request body is capped at 64 MiB.
 // @Tags logs

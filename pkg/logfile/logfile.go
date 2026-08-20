@@ -41,9 +41,27 @@ type LogFile struct {
 	Size   int64  `json:"size"`
 }
 
-// MatchDir returns the per-seed storage directory for a match.
+// MatchDir returns the per-seed storage directory for a match. The seed is
+// reduced to a safe single path segment; use safeSeed when the caller needs
+// to know that the seed was unusable.
 func MatchDir(seed string) string {
-	return filepath.Join(LogsDir, seed)
+	safe, err := sanitizeComponent(seed)
+	if err != nil {
+		return filepath.Join(LogsDir, "invalid")
+	}
+	return filepath.Join(LogsDir, safe)
+}
+
+// safeSeed validates the seed as a storage key. Seeds are client-supplied
+// (an X-Game-Seed header) and are not always numeric: connection-failure
+// uploads, which have no match to key off, use a "connfail-YYYYMMDD" bucket.
+// Anything that isn't a single usable path segment is rejected rather than
+// silently rewritten, so a traversal attempt can never land outside LogsDir.
+func safeSeed(seed string) (string, error) {
+	if seed == "" {
+		return "", errors.New("logfile: empty seed")
+	}
+	return sanitizeComponent(seed)
 }
 
 // sanitizeComponent reduces an untrusted path component (player id or
@@ -65,8 +83,9 @@ func sanitizeComponent(raw string) (string, error) {
 // player and filename are sanitized to their basenames; a repeated
 // (seed, player, filename) overwrites silently.
 func Store(seed, player, filename string, data []byte) error {
-	if seed == "" {
-		return errors.New("logfile.Store: empty seed")
+	safeSeedName, err := safeSeed(seed)
+	if err != nil {
+		return err
 	}
 	safePlayer, err := sanitizeComponent(player)
 	if err != nil {
@@ -77,7 +96,7 @@ func Store(seed, player, filename string, data []byte) error {
 		return err
 	}
 
-	dir := filepath.Join(MatchDir(seed), safePlayer)
+	dir := filepath.Join(LogsDir, safeSeedName, safePlayer)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("create log dir: %w", err)
 	}
@@ -89,20 +108,22 @@ func Store(seed, player, filename string, data []byte) error {
 
 // Exists reports whether any logs have been stored for the given seed.
 func Exists(seed string) bool {
-	if seed == "" {
+	safeSeedName, err := safeSeed(seed)
+	if err != nil {
 		return false
 	}
-	info, err := os.Stat(MatchDir(seed))
+	info, err := os.Stat(filepath.Join(LogsDir, safeSeedName))
 	return err == nil && info.IsDir()
 }
 
 // List returns every stored log file for a match, sorted by player then
 // filename. Returns an empty slice if the match has no logs.
 func List(seed string) ([]LogFile, error) {
-	if seed == "" {
-		return nil, errors.New("logfile.List: empty seed")
+	safeSeedName, err := safeSeed(seed)
+	if err != nil {
+		return nil, err
 	}
-	matchDir := MatchDir(seed)
+	matchDir := filepath.Join(LogsDir, safeSeedName)
 	players, err := os.ReadDir(matchDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -148,8 +169,9 @@ func List(seed string) ([]LogFile, error) {
 // Load returns the raw bytes of one stored log file. Returns
 // os.ErrNotExist if the file isn't stored.
 func Load(seed, player, filename string) ([]byte, error) {
-	if seed == "" {
-		return nil, errors.New("logfile.Load: empty seed")
+	safeSeedName, err := safeSeed(seed)
+	if err != nil {
+		return nil, err
 	}
 	safePlayer, err := sanitizeComponent(player)
 	if err != nil {
@@ -159,5 +181,5 @@ func Load(seed, player, filename string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(MatchDir(seed), safePlayer, safeName))
+	return os.ReadFile(filepath.Join(LogsDir, safeSeedName, safePlayer, safeName))
 }
