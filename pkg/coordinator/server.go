@@ -24,6 +24,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// logger tags every coordinator line with component=coordinator so a day's
+// matchmaking traffic can be pulled out of the shared application log with
+// one grep (the persistent copy lives under LOGS_DIR/server; see
+// pkg/serverlog).
+var logger = log.WithField("component", "coordinator")
+
 // TCPAddr and UDPAddr are the listen addresses, overridable via environment
 // variables (matching the STATS_DIR/MAPS_DIR convention elsewhere in this
 // repo). The game client defaults to TCP 27500 / UDP 27501.
@@ -60,6 +66,7 @@ type Session struct {
 	LocalAddr      string
 	HostingGame    string
 	JoiningGame    string // game id of the last join attempt (player-count bookkeeping)
+	Started        time.Time
 	LastSeen       time.Time
 	writeMu        sync.Mutex
 }
@@ -139,7 +146,7 @@ func (s *Server) Run(tcpAddr, udpAddr string) error {
 		return fmt.Errorf("listen tcp: %w", err)
 	}
 	defer tcpL.Close()
-	log.Printf("TCP signaling listening on %s", tcpL.Addr())
+	logger.Printf("TCP signaling listening on %s", tcpL.Addr())
 
 	udpResAddr, err := net.ResolveUDPAddr("udp", udpAddr)
 	if err != nil {
@@ -150,7 +157,7 @@ func (s *Server) Run(tcpAddr, udpAddr string) error {
 		return fmt.Errorf("listen udp: %w", err)
 	}
 	defer udpL.Close()
-	log.Printf("UDP STUN listening on %s", udpL.LocalAddr())
+	logger.Printf("UDP STUN listening on %s", udpL.LocalAddr())
 	s.UDPPort = udpL.LocalAddr().(*net.UDPAddr).Port
 
 	go s.handleUDP(udpL)
@@ -165,7 +172,7 @@ func (s *Server) acceptTCP(l net.Listener) error {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			log.Printf("accept: %v", err)
+			logger.Printf("accept: %v", err)
 			continue
 		}
 		go s.handleTCPConn(conn)
@@ -227,6 +234,7 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 		Nick:       sanitizeNick(hello.Nick),
 		Version:    hello.Version,
 		RemoteAddr: conn.RemoteAddr().String(),
+		Started:    time.Now(),
 		LastSeen:   time.Now(),
 	}
 
@@ -242,13 +250,13 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 	}); err != nil {
 		return
 	}
-	log.Printf("session %s nick=%q version=%s from %s", token[:8], sess.Nick, sess.Version, sess.RemoteAddr)
+	logger.Printf("session %s nick=%q version=%s from %s", token[:8], sess.Nick, sess.Version, sess.RemoteAddr)
 
 	for {
 		line, err := r.ReadBytes('\n')
 		if err != nil {
 			if err != io.EOF {
-				log.Printf("session %s read: %v", token[:8], err)
+				logger.Printf("session %s read: %v", token[:8], err)
 			}
 			return
 		}
@@ -257,6 +265,7 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 		s.mu.Unlock()
 		var env Envelope
 		if err := json.Unmarshal(line, &env); err != nil {
+			logger.Printf("session %s nick=%q rejected: bad envelope (%v)", token[:8], sess.Nick, err)
 			sess.send(MsgError, Error{Message: "bad envelope"})
 			continue
 		}
@@ -264,6 +273,12 @@ func (s *Server) handleTCPConn(conn net.Conn) {
 			if err == io.EOF {
 				return
 			}
+			// Every rejection the client is shown is recorded here: this is
+			// the server's only record of why a player's host/join attempt
+			// failed, and the client-side ReleaseLog it uploads on failure
+			// is matched against it by nick + time.
+			logger.Printf("session %s nick=%q version=%s from %s: %s REJECTED: %v",
+				token[:8], sess.Nick, sess.Version, sess.RemoteAddr, env.Type, err)
 			sess.send(MsgError, Error{Message: err.Error()})
 		}
 	}
@@ -276,7 +291,7 @@ func (s *Server) handleRelayAttach(conn net.Conn, r *bufio.Reader, ra *RelayAtta
 	slot, ok := s.relays[ra.Token]
 	if !ok {
 		s.mu.Unlock()
-		log.Printf("relay_attach: unknown token from %s", conn.RemoteAddr())
+		logger.Printf("relay_attach: unknown token from %s", conn.RemoteAddr())
 		return false
 	}
 	switch ra.Role {
@@ -302,7 +317,7 @@ func (s *Server) handleRelayAttach(conn net.Conn, r *bufio.Reader, ra *RelayAtta
 	}
 	s.mu.Unlock()
 
-	log.Printf("relay_attach: token=%s role=%s from %s (paired=%v)",
+	logger.Printf("relay_attach: token=%s role=%s from %s (paired=%v)",
 		ra.Token[:8], ra.Role, conn.RemoteAddr(), ready)
 	if ready {
 		go spliceRelay(slot)
@@ -329,7 +344,7 @@ func spliceRelay(slot *relayState) {
 	slot.host.Close()
 	slot.viewer.Close()
 	<-done
-	log.Printf("relay closed (host=%s viewer=%s)", slot.host.RemoteAddr(), slot.viewer.RemoteAddr())
+	logger.Printf("relay closed (host=%s viewer=%s)", slot.host.RemoteAddr(), slot.viewer.RemoteAddr())
 }
 
 func (s *Server) handleMessage(sess *Session, env *Envelope) error {
@@ -344,7 +359,7 @@ func (s *Server) handleMessage(sess *Session, env *Envelope) error {
 			}
 		}
 		s.mu.Unlock()
-		log.Printf("game started: session=%s game=%s", sess.Token[:8], sess.HostingGame)
+		logger.Printf("game started: session=%s game=%s", sess.Token[:8], sess.HostingGame)
 		return nil
 	case MsgObserve:
 		var m Observe
@@ -384,7 +399,7 @@ func (s *Server) handleMessage(sess *Session, env *Envelope) error {
 			sess.JoiningGame = ""
 		}
 		s.mu.Unlock()
-		log.Printf("punch outcome session=%s nick=%q role=%s ok=%v lobby=%v game=%v ms=%d",
+		logger.Printf("punch outcome session=%s nick=%q role=%s ok=%v lobby=%v game=%v ms=%d",
 			sess.Token[:8], sess.Nick, m.Role, m.OK, m.LobbyOK, m.GameOK, m.MS)
 		return nil
 	case MsgHost:
@@ -446,7 +461,7 @@ func (s *Server) handleHost(sess *Session, m *Host) error {
 		created:  time.Now(),
 	}
 	s.mu.Unlock()
-	log.Printf("session %s hosting game %s name=%q", sess.Token[:8], gameID, m.Name)
+	logger.Printf("session %s hosting game %s name=%q", sess.Token[:8], gameID, m.Name)
 	return sess.send(MsgHosted, Hosted{GameID: gameID})
 }
 
@@ -509,7 +524,7 @@ func (s *Server) handleObserve(sess *Session, m *Observe) error {
 		s.mu.Unlock()
 		return fmt.Errorf("host unreachable: %w", err)
 	}
-	log.Printf("observe: viewer=%s game=%s token=%s", sess.Nick, m.GameID, token[:8])
+	logger.Printf("observe: viewer=%s game=%s token=%s", sess.Nick, m.GameID, token[:8])
 	return sess.send(MsgObserveOK, ObserveOK{Token: token})
 }
 
@@ -617,7 +632,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	if err := sess.send(MsgPeerInfo, hostInfo); err != nil {
 		return fmt.Errorf("guest send: %w", err)
 	}
-	log.Printf("matched host=%s(lobby=%s game=%s) <-> guest=%s(lobby=%s game=%s) game=%s",
+	logger.Printf("matched host=%s(lobby=%s game=%s) <-> guest=%s(lobby=%s game=%s) game=%s",
 		hostInfo.Nick, hostInfo.PublicAddr, hostInfo.GamePublicAddr,
 		guestInfo.Nick, guestInfo.PublicAddr, guestInfo.GamePublicAddr, m.GameID)
 	// Mesh notifications go out AFTER the host/guest pair so the new guest
@@ -626,12 +641,12 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 	// is likely dying and will be reaped from the roster on disconnect.
 	for i, other := range meshPeers {
 		if err := other.send(MsgPeerInfo, newGuestInfo); err != nil {
-			log.Printf("mesh send to %s failed: %v", other.Nick, err)
+			logger.Printf("mesh send to %s failed: %v", other.Nick, err)
 		}
 		if err := sess.send(MsgPeerInfo, meshInfos[i]); err != nil {
-			log.Printf("mesh send to %s failed: %v", sess.Nick, err)
+			logger.Printf("mesh send to %s failed: %v", sess.Nick, err)
 		}
-		log.Printf("mesh peers %s(lobby=%s game=%s) <-> %s(lobby=%s game=%s) game=%s",
+		logger.Printf("mesh peers %s(lobby=%s game=%s) <-> %s(lobby=%s game=%s) game=%s",
 			other.Nick, meshInfos[i].PublicAddr, meshInfos[i].GamePublicAddr,
 			sess.Nick, newGuestInfo.PublicAddr, newGuestInfo.GamePublicAddr, m.GameID)
 	}
@@ -655,6 +670,13 @@ func (s *Server) removeGuestFromOtherGamesLocked(sess *Session, keepGameID strin
 }
 
 func (s *Server) dropSession(sess *Session) {
+	// Log the shape of the session on the way out: a client that connected,
+	// never got as far as hosting or joining, and vanished seconds later is
+	// the fingerprint of a punch/STUN failure on its side.
+	logger.Printf("session %s ended nick=%q from %s hosting=%q joining=%q after %s",
+		sess.Token[:8], sess.Nick, sess.RemoteAddr, sess.HostingGame, sess.JoiningGame,
+		time.Since(sess.Started).Round(time.Second))
+
 	s.mu.Lock()
 	delete(s.sessions, sess.Token)
 	if sess.HostingGame != "" {
@@ -672,7 +694,7 @@ func (s *Server) handleUDP(udpL *net.UDPConn) {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			log.Printf("udp read: %v", err)
+			logger.Printf("udp read: %v", err)
 			continue
 		}
 		// Accept the legacy 20-byte probe (assume lobby) and the current
@@ -706,7 +728,7 @@ func (s *Server) handleUDP(udpL *net.UDPConn) {
 		}
 		s.mu.Unlock()
 		if !ok {
-			log.Printf("STUN probe with unknown token from %s", src)
+			logger.Printf("STUN probe with unknown token from %s", src)
 			continue
 		}
 
@@ -716,7 +738,7 @@ func (s *Server) handleUDP(udpL *net.UDPConn) {
 		binary.BigEndian.PutUint16(resp[8:10], uint16(src.Port))
 		udpL.WriteToUDP(resp, src)
 
-		log.Printf("session %s STUN purpose=%d public=%s", token[:8], purpose, public)
+		logger.Printf("session %s STUN purpose=%d public=%s", token[:8], purpose, public)
 	}
 }
 
@@ -728,7 +750,7 @@ func (s *Server) reapLoop() {
 		s.mu.Lock()
 		for tok, sess := range s.sessions {
 			if sess.LastSeen.Before(cutoff) {
-				log.Printf("reaping idle session %s", tok[:8])
+				logger.Printf("reaping idle session %s", tok[:8])
 				sess.Conn.Close()
 				delete(s.sessions, tok)
 				if sess.HostingGame != "" {
@@ -740,7 +762,7 @@ func (s *Server) reapLoop() {
 		relayCutoff := time.Now().Add(-RelayAttachTTL)
 		for tok, slot := range s.relays {
 			if slot.created.Before(relayCutoff) {
-				log.Printf("reaping unpaired relay %s", tok[:8])
+				logger.Printf("reaping unpaired relay %s", tok[:8])
 				if slot.host != nil {
 					slot.host.Close()
 				}
