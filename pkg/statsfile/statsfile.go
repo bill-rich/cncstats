@@ -1,12 +1,14 @@
 package statsfile
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // GameStats represents the JSON structure from the Generals stats exporter
@@ -218,6 +220,81 @@ func Size(seed string) (int64, error) {
 		return 0, err
 	}
 	return info.Size(), nil
+}
+
+// Identity is the part of a stats payload that says which match it is,
+// as opposed to how that match went. Two uploads of the same match from
+// two different players agree on all of it; two genuinely different
+// matches essentially never do.
+//
+// This exists because the storage key is the game seed, and on a LAN the
+// seed is GetTickCount() on the host, i.e. milliseconds since that machine
+// booted. That is not a unique identifier: 373 of the first 3879 matches
+// stored here have a seed under one hour of uptime, where GetTickCount's
+// ~15.6ms granularity leaves only ~230k distinct values. Colliding matches
+// used to be arbitrated purely on file size, so the bigger one silently
+// replaced the other.
+type Identity struct {
+	Map     string
+	Players []string // display names, sorted, so player order cannot matter
+}
+
+// IdentityOf extracts the match identity from parsed stats.
+func IdentityOf(stats *GameStats) Identity {
+	id := Identity{Map: stats.Game.Map}
+	for _, p := range stats.Players {
+		id.Players = append(id.Players, p.DisplayName)
+	}
+	sort.Strings(id.Players)
+	return id
+}
+
+// SameMatch reports whether two identities describe the same match.
+//
+// An empty map name or an empty roster means the payload did not carry
+// enough to tell (an old or partial export), and we say "same" rather than
+// block a legitimate upload on missing data: the size guard still applies,
+// and refusing here would be a regression for anything that predates these
+// fields.
+func (a Identity) SameMatch(b Identity) bool {
+	if a.Map == "" || b.Map == "" || len(a.Players) == 0 || len(b.Players) == 0 {
+		return true
+	}
+	if a.Map != b.Map || len(a.Players) != len(b.Players) {
+		return false
+	}
+	for i := range a.Players {
+		if a.Players[i] != b.Players[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// String renders an identity for a log line.
+func (a Identity) String() string {
+	return fmt.Sprintf("map=%q players=%v", a.Map, a.Players)
+}
+
+// ParseBytes decodes a gzip-compressed stats payload that has not been
+// stored yet, so an upload can be inspected before it overwrites anything.
+func ParseBytes(data []byte) (*GameStats, error) {
+	gz, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("gzip reader: %w", err)
+	}
+	defer gz.Close()
+
+	raw, err := io.ReadAll(gz)
+	if err != nil {
+		return nil, fmt.Errorf("read stats: %w", err)
+	}
+
+	var stats GameStats
+	if err := json.Unmarshal(raw, &stats); err != nil {
+		return nil, fmt.Errorf("parse stats JSON: %w", err)
+	}
+	return &stats, nil
 }
 
 // Load reads and decompresses stats data for the given seed
