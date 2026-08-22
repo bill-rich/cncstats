@@ -134,3 +134,33 @@ func TestParseBytesRejectsGarbage(t *testing.T) {
 		t.Fatal("expected an error for gzipped non-JSON")
 	}
 }
+
+func TestIdentityOfHumansSkipsAI(t *testing.T) {
+	// A match with an AI slot. IdentityOf keeps it (the upload guard wants
+	// the strictest comparison); IdentityOfHumans drops it, so a
+	// replay-derived roster that never saw the AI still matches.
+	s := statsFor("maps/alpine", "Wld", "Gorn")
+	s.Players = append(s.Players, Player{
+		Index: 2, DisplayName: "Tactical AI", Type: PlayerTypeComputer,
+	})
+
+	full := IdentityOf(s)
+	if len(full.Players) != 3 {
+		t.Fatalf("IdentityOf dropped the AI: %v", full.Players)
+	}
+
+	humans := IdentityOfHumans(s)
+	if len(humans.Players) != 2 {
+		t.Fatalf("IdentityOfHumans kept the AI: %v", humans.Players)
+	}
+
+	// This is the real-world case: cncstats records the AI, radarvan's
+	// gentool-rewritten replay does not. Same match.
+	replaySide := IdentityOf(statsFor("maps/alpine", "Gorn", "Wld"))
+	if !humans.SameMatch(replaySide) {
+		t.Fatal("human-only comparison still reported a collision")
+	}
+	if full.SameMatch(replaySide) {
+		t.Fatal("whole-roster comparison should still see a difference")
+	}
+}

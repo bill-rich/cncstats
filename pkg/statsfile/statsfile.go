@@ -249,6 +249,35 @@ func IdentityOf(stats *GameStats) Identity {
 	return id
 }
 
+// PlayerTypeComputer is the Player.Type value the stats exporter writes for
+// an AI slot.
+const PlayerTypeComputer = "Computer"
+
+// IdentityOfHumans is IdentityOf with AI slots left out.
+//
+// Use it only when comparing against a roster from somewhere else, never for
+// the upload guard: two uploads of one match both come from the live stats
+// exporter and agree about the AI, so the guard should hold them to the
+// stricter whole-roster comparison.
+//
+// It exists because a replay-derived roster may not list the AI at all.
+// GenTool rewrites the headers of replays uploaded through it and drops zulu's
+// tactical-AI slots, so radarvan (which parses replays) sees seven humans on a
+// match where cncstats (which records the live game) sees seven humans and a
+// Tactical AI. That is a difference in where the two rosters came from, not
+// two different matches, and reporting it as a collision would be noise.
+func IdentityOfHumans(stats *GameStats) Identity {
+	id := Identity{Map: stats.Game.Map}
+	for _, p := range stats.Players {
+		if p.Type == PlayerTypeComputer {
+			continue
+		}
+		id.Players = append(id.Players, p.DisplayName)
+	}
+	sort.Strings(id.Players)
+	return id
+}
+
 // SameMatch reports whether two identities describe the same match.
 //
 // An empty map name or an empty roster means the payload did not carry

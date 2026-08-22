@@ -103,10 +103,12 @@ func main() {
 			skipped++
 			continue
 		}
-		// Normalize our map the same way as radarvan's: the two servers
-		// spell the same map differently, and only the leaf name is
-		// comparable between them.
-		ours := statsfile.IdentityOf(stored)
+		// Humans only, and map normalized to its leaf: the two servers
+		// spell the same map differently, and their rosters do not agree
+		// about AI slots (GenTool strips zulu tactical-AI slots out of the
+		// replays radarvan parses). Comparing the part both sides record the
+		// same way is what makes a difference here mean something.
+		ours := statsfile.IdentityOfHumans(stored)
 		ours.Map = mapLeaf(ours.Map)
 
 		theirs, ok, err := fetchMatch(client, *baseURL, *key, seed)
