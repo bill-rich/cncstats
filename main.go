@@ -656,11 +656,53 @@ func uploadStatsHandler(c *gin.Context) {
 		return
 	}
 
+	force := isForced(c)
+
+	// Before the size comparison below, check that the upload is even the
+	// same match as what is already stored. The key is the game seed, and on
+	// a LAN that is GetTickCount() on the host, so two matches genuinely can
+	// land on one key. Arbitrating those on file size means the bigger one
+	// silently replaces a completely unrelated match, and nothing anywhere
+	// records that it happened.
+	//
+	// Two players uploading the same match agree on map and roster, so this
+	// costs the normal path nothing: it falls through to the size guard
+	// exactly as before.
+	if !force && statsfile.Exists(seed) {
+		incoming, errIncoming := statsfile.ParseBytes(data)
+		stored, errStored := statsfile.Load(seed)
+		if errIncoming != nil {
+			// Undecodable payload: leave it to the size guard rather than
+			// invent an identity for it.
+			log.WithError(errIncoming).WithField("seed", seed).
+				Warn("Could not parse uploaded stats for identity check")
+		} else if errStored != nil {
+			log.WithError(errStored).WithField("seed", seed).
+				Warn("Could not parse stored stats for identity check")
+		} else {
+			incomingID := statsfile.IdentityOf(incoming)
+			storedID := statsfile.IdentityOf(stored)
+			if !incomingID.SameMatch(storedID) {
+				log.WithField("seed", seed).
+					WithField("incoming", incomingID.String()).
+					WithField("stored", storedID.String()).
+					WithField("client", clientName(c)).
+					Error("Seed collision: upload describes a different match than the stored one")
+				c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+					"error":    "Stored stats for this seed describe a different match (seed collision); refusing to overwrite. Set force=true to override.",
+					"seed":     seed,
+					"incoming": incomingID.String(),
+					"stored":   storedID.String(),
+				})
+				return
+			}
+		}
+	}
+
 	// Reject an upload that would replace an existing stats file with a
 	// smaller one, unless the caller explicitly forces the overwrite. This
 	// guards against a truncated or partial re-upload clobbering a more
 	// complete stats file for the same match.
-	force := isForced(c)
 	if !force {
 		if existing, err := statsfile.Size(seed); err == nil && int64(len(data)) < existing {
 			log.WithField("seed", seed).
