@@ -718,11 +718,14 @@ func (s *Server) handleUDP(udpL *net.UDPConn) {
 		public := fmt.Sprintf("%s:%d", ip4.String(), src.Port)
 		s.mu.Lock()
 		sess, ok := s.sessions[token]
+		changed := false
 		if ok {
 			switch purpose {
 			case STUNPurposeGame:
+				changed = sess.GamePublicAddr != public
 				sess.GamePublicAddr = public
 			default:
+				changed = sess.PublicAddr != public
 				sess.PublicAddr = public
 			}
 		}
@@ -738,7 +741,15 @@ func (s *Server) handleUDP(udpL *net.UDPConn) {
 		binary.BigEndian.PutUint16(resp[8:10], uint16(src.Port))
 		udpL.WriteToUDP(resp, src)
 
-		logger.Printf("session %s STUN purpose=%d public=%s", token[:8], purpose, public)
+		// Only when it moves. Clients re-probe on a timer now to keep the
+		// NAT mapping from expiring under an idle lobby, so logging every
+		// probe would bury the diagnostics in this file under a steady few
+		// lines per player per minute. A change is the interesting event
+		// anyway: it is what invalidates the address already handed to a
+		// peer, and the first probe of a session always counts as one.
+		if changed {
+			logger.Printf("session %s STUN purpose=%d public=%s", token[:8], purpose, public)
+		}
 	}
 }
 
