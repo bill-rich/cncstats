@@ -43,8 +43,50 @@ func TestIdentityOfSortsPlayers(t *testing.T) {
 			t.Fatalf("got %v, want %v", id.Players, want)
 		}
 	}
-	if id.Map != "maps/tournament" {
+	if id.Map != "tournament" {
 		t.Fatalf("map = %q", id.Map)
+	}
+}
+
+func TestMapLeaf(t *testing.T) {
+	cases := map[string]string{
+		`c:\users\bill\documents\command and conquer generals zero hour data\maps\amazonassault\amazonassault.map`: "amazonassault",
+		`C:\Users\ktkel\Documents\...\Maps\AmazonAssault\AmazonAssault.map`:                                        "amazonassault",
+		"userdata/maps/Alpine Assault/Alpine Assault.map":                                                          "alpine assault",
+		"maps/alpine assault":      "alpine assault",
+		`Maps\Defcon6\Defcon6.map`: "defcon6",
+		"maps/tournament/":         "tournament",
+		"":                         "",
+	}
+	for in, want := range cases {
+		if got := MapLeaf(in); got != want {
+			t.Errorf("MapLeaf(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSameMatchIgnoresPerMachineMapPath(t *testing.T) {
+	// The regression this guard shipped with: Game.Map is whatever path the
+	// reporting client had open, so the same match uploaded by six players
+	// arrived as six strings differing only in the Windows account name.
+	// Every upload after the first was refused with a 409.
+	base := `\documents\command and conquer generals zero hour data\maps\amazonassault\amazonassault.map`
+	first := IdentityOf(statsFor(`c:\users\bill`+base, "131", "Mod", "Neo", "Skip", "Syn", "Wld"))
+	for _, user := range []string{"ktkel", "bmfah", "danie", "jcoll", "bdubo"} {
+		other := IdentityOf(statsFor(`c:\users\`+user+base, "Wld", "Syn", "Skip", "Neo", "Mod", "131"))
+		if !first.SameMatch(other) {
+			t.Fatalf("upload from %q reported as a seed collision", user)
+		}
+	}
+}
+
+func TestSameMatchStillCatchesDifferentMapsAcrossMachines(t *testing.T) {
+	// Normalizing the path must not normalize away a genuine collision:
+	// two different matches that really do share a seed still differ.
+	a := IdentityOf(statsFor(`c:\users\bill\...\maps\amazonassault\amazonassault.map`, "131", "Mod"))
+	b := IdentityOf(statsFor(`c:\users\ktkel\...\maps\icy frontier\icy frontier.map`, "131", "Mod"))
+	if a.SameMatch(b) {
+		t.Fatal("different maps on different machines reported as the same match")
 	}
 }
 

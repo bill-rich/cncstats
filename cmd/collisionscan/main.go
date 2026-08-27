@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,13 +102,13 @@ func main() {
 			skipped++
 			continue
 		}
-		// Humans only, and map normalized to its leaf: the two servers
-		// spell the same map differently, and their rosters do not agree
-		// about AI slots (GenTool strips zulu tactical-AI slots out of the
-		// replays radarvan parses). Comparing the part both sides record the
-		// same way is what makes a difference here mean something.
+		// Humans only: the two servers' rosters do not agree about AI slots
+		// (GenTool strips zulu tactical-AI slots out of the replays radarvan
+		// parses). Comparing the part both sides record the same way is what
+		// makes a difference here mean something. The map is already
+		// normalized to its leaf by IdentityOfHumans, which is also what the
+		// two servers' differing spellings need.
 		ours := statsfile.IdentityOfHumans(stored)
-		ours.Map = mapLeaf(ours.Map)
 
 		theirs, ok, err := fetchMatch(client, *baseURL, *key, seed)
 		if err != nil {
@@ -188,22 +187,10 @@ func fetchMatch(client *http.Client, baseURL, key, seed string) (statsfile.Ident
 		return statsfile.Identity{}, false, fmt.Errorf("decode: %w", err)
 	}
 
-	id := statsfile.Identity{Map: mapLeaf(m.MapName)}
+	id := statsfile.Identity{Map: statsfile.MapLeaf(m.MapName)}
 	for _, p := range m.PlayerSummary {
 		id.Players = append(id.Players, p.Name)
 	}
 	sort.Strings(id.Players)
 	return id, true, nil
-}
-
-// mapLeaf reduces a map path to its final component. The two servers spell
-// the same map differently ("maps/alpine assault" against
-// "userdata/maps/Alpine Assault/Alpine Assault.map"), and only the leaf is
-// comparable. Lowercased because the case differs too.
-func mapLeaf(path string) string {
-	p := strings.ReplaceAll(path, "\\", "/")
-	p = strings.TrimSuffix(p, "/")
-	leaf := filepath.Base(p)
-	leaf = strings.TrimSuffix(leaf, filepath.Ext(leaf))
-	return strings.ToLower(leaf)
 }
