@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // GameStats represents the JSON structure from the Generals stats exporter
@@ -235,13 +236,40 @@ func Size(seed string) (int64, error) {
 // used to be arbitrated purely on file size, so the bigger one silently
 // replaced the other.
 type Identity struct {
-	Map     string
+	Map     string   // MapLeaf'd, so a per-machine path cannot matter
 	Players []string // display names, sorted, so player order cannot matter
+}
+
+// MapLeaf reduces a map path to its final component, lowercased and without
+// its extension.
+//
+// It has to exist because Game.Map is whatever path the reporting client had
+// open, and that is per-machine: the same match uploaded by six players
+// arrives as six different strings that differ only in the Windows account
+// name.
+//
+//	c:\users\bill\documents\...\maps\amazonassault\amazonassault.map
+//	c:\users\ktkel\documents\...\maps\amazonassault\amazonassault.map
+//
+// Comparing those raw made every upload after the first look like a seed
+// collision, so five of every six players in a six-player game were turned
+// away with a 409. Only stock maps, whose path carries no account name,
+// survived the check.
+//
+// Backslashes are replaced by hand: filepath.Base uses the host separator,
+// and the server runs on Linux while every one of these paths is a Windows
+// one.
+func MapLeaf(path string) string {
+	p := strings.ReplaceAll(path, "\\", "/")
+	p = strings.TrimSuffix(p, "/")
+	leaf := filepath.Base(p)
+	leaf = strings.TrimSuffix(leaf, filepath.Ext(leaf))
+	return strings.ToLower(leaf)
 }
 
 // IdentityOf extracts the match identity from parsed stats.
 func IdentityOf(stats *GameStats) Identity {
-	id := Identity{Map: stats.Game.Map}
+	id := Identity{Map: MapLeaf(stats.Game.Map)}
 	for _, p := range stats.Players {
 		id.Players = append(id.Players, p.DisplayName)
 	}
@@ -267,7 +295,7 @@ const PlayerTypeComputer = "Computer"
 // Tactical AI. That is a difference in where the two rosters came from, not
 // two different matches, and reporting it as a collision would be noise.
 func IdentityOfHumans(stats *GameStats) Identity {
-	id := Identity{Map: stats.Game.Map}
+	id := Identity{Map: MapLeaf(stats.Game.Map)}
 	for _, p := range stats.Players {
 		if p.Type == PlayerTypeComputer {
 			continue
