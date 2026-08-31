@@ -7,6 +7,8 @@ services:
       # Must be published directly (not via the HTTP reverse proxy).
       - "27500:27500"
       - "27501:27501/udp"
+      # Second STUN port for the client NAT self-check (symmetric-host warning).
+      - "27503:27503/udp"
     environment:
       - STATS_DIR=/app/stats
       - MAPS_DIR=/app/maps
