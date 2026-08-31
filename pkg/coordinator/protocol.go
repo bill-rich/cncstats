@@ -5,15 +5,15 @@ import "encoding/json"
 const ProtocolVersion = 1
 
 const (
-	MsgHello      = "hello"
-	MsgHelloOK    = "hello_ok"
-	MsgDiscoverOK = "discover_ok"
-	MsgHost       = "host"
-	MsgHosted     = "hosted"
-	MsgUnhost     = "unhost"
-	MsgList       = "list"
-	MsgGames      = "games"
-	MsgJoin       = "join"
+	MsgHello        = "hello"
+	MsgHelloOK      = "hello_ok"
+	MsgDiscoverOK   = "discover_ok"
+	MsgHost         = "host"
+	MsgHosted       = "hosted"
+	MsgUnhost       = "unhost"
+	MsgList         = "list"
+	MsgGames        = "games"
+	MsgJoin         = "join"
 	MsgPeerInfo     = "peer_info"
 	MsgHeartbeat    = "heartbeat"
 	MsgPunchOutcome = "punch_outcome"
@@ -31,6 +31,11 @@ const (
 	MsgObserveOK       = "observe_ok"
 	MsgObserverRequest = "observer_request"
 	MsgRelayAttach     = "relay_attach"
+
+	// UDP relay fallback: sent to BOTH members of a punch pair when either
+	// side reports a failed punch, telling each client to route that pair's
+	// lobby and game traffic through the coordinator's UDP relay.
+	MsgRelayGrant = "relay_grant"
 )
 
 type Envelope struct {
@@ -41,12 +46,25 @@ type Envelope struct {
 type Hello struct {
 	Nick    string `json:"nick"`
 	Version string `json:"version"`
+	// Nonzero: this client understands the UDP relay fallback (RelayPurpose*
+	// frames and relay_grant). The server only mints relay ids and grants
+	// relays between clients that both advertised support.
+	Relay int `json:"relay,omitempty"`
 }
 
 type HelloOK struct {
 	SessionToken string `json:"session_token"`
 	STUNMagic    uint32 `json:"stun_magic"`
 	UDPPort      int    `json:"udp_port"`
+	// The client's own relay id; 0/absent when relaying is unavailable.
+	// Numeric because the VC6 client's JSON parser only reads numeric and
+	// string fields.
+	RelayID uint32 `json:"relay_id,omitempty"`
+	// Second STUN port for NAT self-classification: a client that observes
+	// DIFFERENT external ports from probes to the two ports has an
+	// endpoint-dependent (symmetric) mapping and is warned before hosting.
+	// 0/absent on servers without the second listener.
+	UDPPort2 int `json:"udp_port2,omitempty"`
 }
 
 type DiscoverOK struct {
@@ -76,6 +94,10 @@ type GameInfo struct {
 	// 1 once the host reported game_started. An int (not bool) because the
 	// VC6 client's hand-rolled JSON parser only reads numeric fields.
 	InProgress int `json:"in_progress"`
+	// 1 once any guest's punch against this host failed or relayed: the
+	// host has a restrictive connection, and the lobby browser marks the
+	// game so players can prefer a different host.
+	RestrictedHost int `json:"restricted_host,omitempty"`
 }
 
 type Games struct {
@@ -100,6 +122,10 @@ type PeerInfo struct {
 	LocalAddr      string `json:"local_addr"`
 	PunchInMS      int    `json:"punch_in_ms"`
 	Role           string `json:"role"`
+	// The described peer's relay id, present only when both this client and
+	// the peer advertised relay support. The receiver registers it in its
+	// relay registry so a failed punch can flip the pair to the relay.
+	RelayID uint32 `json:"relay_id,omitempty"`
 }
 
 // PunchOutcome is fire-and-forget telemetry from a client after a hole
@@ -110,6 +136,19 @@ type PunchOutcome struct {
 	GameOK  bool   `json:"game_ok"`
 	MS      int    `json:"ms"`
 	Role    string `json:"role"`
+	// Relayed means the client resolved the failed punch by flipping the
+	// pair to the relay (so the join is proceeding, not failing): the game
+	// bookkeeping rollback must not run, and the peer named by PeerRelayID
+	// gets a relay_grant so both sides converge.
+	Relayed     bool   `json:"relayed,omitempty"`
+	PeerRelayID uint32 `json:"peer_relay_id,omitempty"`
+}
+
+// RelayGrant tells a client to route everything for the peer with this
+// relay id through the coordinator's UDP relay.
+type RelayGrant struct {
+	PeerRelayID uint32 `json:"peer_relay_id"`
+	PeerNick    string `json:"peer_nick,omitempty"`
 }
 
 type Observe struct {
@@ -141,10 +180,26 @@ type Error struct {
 const (
 	STUNPurposeLobby byte = 0
 	STUNPurposeGame  byte = 1
+	// UDP relay fallback frames share the STUN socket and header layout up
+	// through the purpose byte (magic + token + purpose):
+	//  client->server RelayData:    magic(4) token(16) purpose=2 channel(1) destRelayID(4 BE) payload
+	//    destRelayID 0 with no payload is a keepalive that (re)registers the
+	//    sender's return address for that channel.
+	//  server->client RelayDeliver: magic(4) purpose=3 channel(1) srcRelayID(4 BE) payload
+	RelayPurposeData    byte = 2
+	RelayPurposeDeliver byte = 3
 )
 
 const (
 	STUNRequestSize   = 4 + 16 + 1
 	STUNResponseSize  = 4 + 4 + 2
 	SessionTokenBytes = 16
+
+	RelayDataHeaderSize    = 4 + SessionTokenBytes + 1 + 1 + 4
+	RelayDeliverHeaderSize = 4 + 1 + 1 + 4
+	// Max relayed payload: the client's max UDP payload (1100) plus slack.
+	RelayMaxPayload = 1200
+
+	RelayChannelLobby byte = 0
+	RelayChannelGame  byte = 1
 )
