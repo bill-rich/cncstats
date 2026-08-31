@@ -68,6 +68,7 @@ type Session struct {
 	PublicAddr     string // lobby (8086) public addr, discovered via STUN purpose=0
 	GamePublicAddr string // in-game (8088) public addr, discovered via STUN purpose=1
 	LocalAddr      string
+	GameLocalAddr  string // in-game (8088) bind addr on the same interface
 	HostingGame    string
 	JoiningGame    string // game id of the last join attempt (player-count bookkeeping)
 	RelayID        uint32 // nonzero when the client advertised relay support
@@ -587,6 +588,7 @@ func (s *Server) handleHost(sess *Session, m *Host) error {
 	}
 	gameID = gameID[:12]
 	sess.LocalAddr = m.LocalAddr
+	sess.GameLocalAddr = m.GameLocalAddr
 	sess.PublicAddr = m.PublicAddr
 	sess.GamePublicAddr = m.GamePublicAddr
 	sess.HostingGame = gameID
@@ -698,6 +700,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 			host.Version, sess.Version)
 	}
 	sess.LocalAddr = m.LocalAddr
+	sess.GameLocalAddr = m.GameLocalAddr
 	sess.PublicAddr = m.PublicAddr
 	sess.GamePublicAddr = m.GamePublicAddr
 	// Approximate the listed player count (joiner leaves are not tracked,
@@ -725,6 +728,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 		PublicAddr:     sess.PublicAddr,
 		GamePublicAddr: sess.GamePublicAddr,
 		LocalAddr:      sess.LocalAddr,
+		GameLocalAddr:  sess.GameLocalAddr,
 		PunchInMS:      PunchDelayMS,
 		Role:           "host",
 		RelayID:        guestRelayID,
@@ -734,6 +738,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 		PublicAddr:     host.PublicAddr,
 		GamePublicAddr: host.GamePublicAddr,
 		LocalAddr:      host.LocalAddr,
+		GameLocalAddr:  host.GameLocalAddr,
 		PunchInMS:      PunchDelayMS,
 		Role:           "guest",
 		RelayID:        hostRelayID,
@@ -760,6 +765,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 			PublicAddr:     other.PublicAddr,
 			GamePublicAddr: other.GamePublicAddr,
 			LocalAddr:      other.LocalAddr,
+			GameLocalAddr:  other.GameLocalAddr,
 			PunchInMS:      0,
 			Role:           "peer",
 			RelayID:        otherID,
@@ -771,6 +777,7 @@ func (s *Server) handleJoin(sess *Session, m *Join) error {
 		PublicAddr:     sess.PublicAddr,
 		GamePublicAddr: sess.GamePublicAddr,
 		LocalAddr:      sess.LocalAddr,
+		GameLocalAddr:  sess.GameLocalAddr,
 		PunchInMS:      0,
 		Role:           "peer",
 	}
