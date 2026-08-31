@@ -76,6 +76,7 @@ type Host struct {
 	Map            string `json:"map"`
 	MaxPlayers     int    `json:"max_players"`
 	LocalAddr      string `json:"local_addr"`
+	GameLocalAddr  string `json:"game_local_addr,omitempty"`
 	PublicAddr     string `json:"public_addr"`
 	GamePublicAddr string `json:"game_public_addr,omitempty"`
 }
@@ -107,6 +108,7 @@ type Games struct {
 type Join struct {
 	GameID         string `json:"game_id"`
 	LocalAddr      string `json:"local_addr"`
+	GameLocalAddr  string `json:"game_local_addr,omitempty"`
 	PublicAddr     string `json:"public_addr"`
 	GamePublicAddr string `json:"game_public_addr,omitempty"`
 }
@@ -120,8 +122,13 @@ type PeerInfo struct {
 	PublicAddr     string `json:"public_addr"`
 	GamePublicAddr string `json:"game_public_addr,omitempty"`
 	LocalAddr      string `json:"local_addr"`
-	PunchInMS      int    `json:"punch_in_ms"`
-	Role           string `json:"role"`
+	// The peer's in-game (8088) bind address on that same interface. A
+	// same-LAN pair needs a local candidate on the game channel too, not
+	// just the lobby, or it can only reach 8088 by hairpinning off the
+	// shared public address. Absent from older clients.
+	GameLocalAddr string `json:"game_local_addr,omitempty"`
+	PunchInMS     int    `json:"punch_in_ms"`
+	Role          string `json:"role"`
 	// The described peer's relay id, present only when both this client and
 	// the peer advertised relay support. The receiver registers it in its
 	// relay registry so a failed punch can flip the pair to the relay.
