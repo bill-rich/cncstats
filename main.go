@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	cgzip "compress/gzip"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -15,10 +16,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/bill-rich/cncstats/docs"
 	"github.com/bill-rich/cncstats/pkg/bitparse"
 	"github.com/bill-rich/cncstats/pkg/coordinator"
+	"github.com/bill-rich/cncstats/pkg/crashfile"
 	"github.com/bill-rich/cncstats/pkg/iniparse"
 	"github.com/bill-rich/cncstats/pkg/logfile"
 	"github.com/bill-rich/cncstats/pkg/mapfile"
@@ -510,6 +513,16 @@ func startWebServer(objectStore *iniparse.ObjectStore, powerStore *iniparse.Powe
 	writes.POST("/logs", uploadLogsHandler)
 	writes.GET("/get_logs", getLogsHandler)
 
+	// Crash reports from the Zulu GO client's sentry-native SDK. Not in the
+	// writes group: the SDK cannot send our headers, so the shared key rides
+	// in the DSN and arrives as sentry_key in X-Sentry-Auth, checked against
+	// the same CNC_API_KEYS store. Stored under crash-YYYYMMDD so
+	// /get_logs?seed=crash-YYYYMMDD returns a day's crashes as one zip.
+	crashKeys := loadAPIKeys(os.Getenv("CNC_API_KEYS"))
+	crashHandler := crashEnvelopeHandler(crashKeys, authIsRequired())
+	router.POST("/crash/api/:project/envelope/", crashHandler)
+	router.POST("/crash/api/:project/envelope", crashHandler)
+
 	// Map endpoints
 	router.GET("/map_exists", mapExistsHandler)
 	writes.POST("/add_map", addMapHandler)
@@ -861,6 +874,120 @@ func uploadLogsHandler(c *gin.Context) {
 		"files":   stored,
 		"size":    total,
 	})
+}
+
+// sentryAuthKey pulls the public key out of a Sentry request: the
+// X-Sentry-Auth header ("Sentry sentry_version=7, sentry_key=<key>, ...") or,
+// failing that, the sentry_key query parameter. "" when neither is present.
+func sentryAuthKey(c *gin.Context) string {
+	if h := c.GetHeader("X-Sentry-Auth"); h != "" {
+		h = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(h), "Sentry"))
+		for _, part := range strings.FieldsFunc(h, func(r rune) bool { return r == ',' || r == ' ' }) {
+			if k, v, ok := strings.Cut(part, "="); ok && strings.TrimSpace(k) == "sentry_key" {
+				return strings.Trim(strings.TrimSpace(v), `"`)
+			}
+		}
+	}
+	return c.Query("sentry_key")
+}
+
+// crashEnvelopeHandler stores a Sentry envelope posted by the game client.
+// @Summary Receive a crash report (Sentry envelope)
+// @Description Endpoint for the Zulu GO client's sentry-native SDK, reached through a DSN of the form https://KEY@host/crash/PROJECT. Accepts a Sentry envelope (optionally gzip-encoded), authenticates sentry_key from X-Sentry-Auth against the configured API keys, and stores the envelope, event JSON, attachments (minidump) and a summary under crash-YYYYMMDD/<player>-HHMMSS-<event id>/. Retrieve with GET /get_logs?seed=crash-YYYYMMDD.
+// @Tags logs
+// @Accept octet-stream
+// @Produce json
+// @Param project path string true "Sentry project id from the DSN (any value)"
+// @Param X-Sentry-Auth header string true "Sentry sentry_version=7, sentry_key=<api key>"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 413 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /crash/api/{project}/envelope/ [post]
+func crashEnvelopeHandler(keys apiKeyStore, authRequired bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		client := keys.match(sentryAuthKey(c))
+		if client == "" && authRequired {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{
+				Error: "invalid or missing sentry_key",
+			})
+			return
+		}
+		if client != "" {
+			c.Set("client", client)
+		}
+
+		// A minidump of a 32-bit game plus the event fits in a few MB; the
+		// cap keeps a runaway client from filling the volume in one POST.
+		const maxCrashUploadBytes = 32 << 20
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxCrashUploadBytes)
+		var reader io.Reader = c.Request.Body
+		if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
+			gz, err := cgzip.NewReader(c.Request.Body)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse{
+					Error: "body is not gzip", Details: err.Error(),
+				})
+				return
+			}
+			defer gz.Close()
+			reader = io.LimitReader(gz, maxCrashUploadBytes+1)
+		}
+		body, err := io.ReadAll(reader)
+		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, ErrorResponse{
+					Error:   "Crash upload too large",
+					Details: fmt.Sprintf("request body exceeds %d bytes", maxCrashUploadBytes),
+				})
+				return
+			}
+			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse{
+				Error: "Failed to read request body", Details: err.Error(),
+			})
+			return
+		}
+		if len(body) > maxCrashUploadBytes {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, ErrorResponse{
+				Error: "Crash upload too large (decompressed)",
+			})
+			return
+		}
+
+		env, err := crashfile.Parse(body)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse{
+				Error: "Not a Sentry envelope", Details: err.Error(),
+			})
+			return
+		}
+		// Session and other event-less envelopes carry nothing worth a
+		// directory; acknowledge them so the SDK does not retry.
+		if env.Event() == nil && !env.HasAttachment() {
+			c.JSON(http.StatusOK, gin.H{"id": env.EventID()})
+			return
+		}
+		stored, err := crashfile.Store(body, env, time.Now())
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
+				Error: "Failed to store crash report", Details: err.Error(),
+			})
+			return
+		}
+
+		log.WithFields(log.Fields{
+			"seed":        stored.Seed,
+			"player":      stored.Player,
+			"event_id":    stored.EventID,
+			"release":     stored.Release,
+			"attachments": len(stored.Attachments),
+			"size":        len(body),
+			"client":      clientName(c),
+		}).Info("Crash report stored")
+		c.JSON(http.StatusOK, gin.H{"id": stored.EventID, "seed": stored.Seed, "player": stored.Player})
+	}
 }
 
 // getLogsHandler returns a zip archive of every stored log file for a
