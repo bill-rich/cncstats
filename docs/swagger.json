@@ -87,6 +87,70 @@
                 }
             }
         },
+        "/crash/api/{project}/envelope/": {
+            "post": {
+                "description": "Endpoint for the Zulu GO client's sentry-native SDK, reached through a DSN of the form https://KEY@host/crash/PROJECT. Accepts a Sentry envelope (optionally gzip-encoded), authenticates sentry_key from X-Sentry-Auth against the configured API keys, and stores the envelope, event JSON, attachments (minidump) and a summary under crash-YYYYMMDD/\u003cplayer\u003e-HHMMSS-\u003cevent id\u003e/. Retrieve with GET /get_logs?seed=crash-YYYYMMDD.",
+                "consumes": [
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Receive a crash report (Sentry envelope)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sentry project id from the DSN (any value)",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sentry sentry_version=7, sentry_key=\u003capi key\u003e",
+                        "name": "X-Sentry-Auth",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/get_logs": {
             "get": {
                 "security": [

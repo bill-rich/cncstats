@@ -697,6 +697,64 @@ paths:
       summary: Upload a map asset (.map / .tga / sidecar)
       tags:
         - maps
+  /crash/api/{project}/envelope/:
+    post:
+      description: "Endpoint for the Zulu GO client's sentry-native SDK, reached through a DSN of the form https://KEY@host/crash/PROJECT. Accepts a Sentry envelope (optionally gzip-encoded), authenticates sentry_key from X-Sentry-Auth against the configured API keys, and stores the envelope, event JSON, attachments (minidump) and a summary under crash-YYYYMMDD/\u003cplayer\u003e-HHMMSS-\u003cevent id\u003e/. Retrieve with GET /get_logs?seed=crash-YYYYMMDD."
+      parameters:
+        - description: Sentry project id from the DSN (any value)
+          in: path
+          name: project
+          required: true
+          schema:
+            type: string
+        - description: "Sentry sentry_version=7, sentry_key=\u003capi key\u003e"
+          in: header
+          name: X-Sentry-Auth
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              format: binary
+              type: string
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+          description: OK
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Bad Request
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Unauthorized
+        413:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Request Entity Too Large
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/main.ErrorResponse"
+          description: Internal Server Error
+      summary: Receive a crash report (Sentry envelope)
+      tags:
+        - logs
   /get_logs:
     get:
       description: "Returns a zip archive of every log file stored for the given match seed, with entries named \"\u003cplayer\u003e/\u003cfilename\u003e\". 404 if no logs are stored for that seed."

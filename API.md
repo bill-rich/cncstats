@@ -116,6 +116,39 @@ Deletes a specific player money data record by ID.
 }
 ```
 
+## Crash Reports
+
+### POST /crash/api/:project/envelope/
+
+Receives a [Sentry envelope](https://develop.sentry.dev/sdk/data-model/envelopes/)
+from the Zulu GO client's sentry-native SDK. The client is pointed here with a
+DSN of the form `https://<api key>@cncstats.computersrfun.org/crash/1`; the SDK
+derives this URL from it and sends the key as `sentry_key` in the
+`X-Sentry-Auth` header, which is checked against the same `CNC_API_KEYS` store
+as the other write endpoints (`sentry_key` as a query parameter also works).
+`Content-Encoding: gzip` bodies are accepted. The body is capped at 32 MiB.
+
+Each envelope is stored under the logs volume as a day bucket, so a whole
+night's crashes come back as one zip from `GET /get_logs?seed=crash-YYYYMMDD`:
+
+```
+crash-20261015/
+  Skip-013839-9b5e3a7c/        <display name>-<HHMMSS UTC>-<event id prefix>
+    envelope.raw               the envelope as received (after gunzip)
+    event.json                 the event item, pretty-printed
+    <attachment>               each attachment under its own filename (the minidump)
+    summary.txt                player, release, exception, frames as module+offset
+```
+
+`summary.txt` prints every frame as `<module>+<offset>`, which is what
+`llvm-symbolizer --relative-address` takes against that build's PDB; the Zulu
+GO release keeps the PDB beside each release (`scripts/zulugo/symbolicate.sh`
+in the client repo does the lookup).
+
+**Response:** `200 {"id": "<event id>", "seed": "crash-20261015", "player": "Skip-013839-9b5e3a7c"}`
+
+**Errors:** `400` not an envelope, `401` bad or missing `sentry_key`, `413` too large.
+
 ## Error Responses
 
 All endpoints return appropriate HTTP status codes and error messages:
