@@ -43,17 +43,17 @@ type GameInfo struct {
 }
 
 type Player struct {
-	Index       int      `json:"index"`
-	DisplayName string   `json:"displayName"`
-	Faction     string   `json:"faction,omitempty"`
-	Side        string   `json:"side"`
-	BaseSide    string   `json:"baseSide,omitempty"`
-	Type        string   `json:"type"`
-	Color       string   `json:"color"`
-	Money       uint     `json:"money"`
-	MoneyEarned int      `json:"moneyEarned"`
-	MoneySpent  int      `json:"moneySpent"`
-	Score       int      `json:"score"`
+	Index       int    `json:"index"`
+	DisplayName string `json:"displayName"`
+	Faction     string `json:"faction,omitempty"`
+	Side        string `json:"side"`
+	BaseSide    string `json:"baseSide,omitempty"`
+	Type        string `json:"type"`
+	Color       string `json:"color"`
+	Money       uint   `json:"money"`
+	MoneyEarned int    `json:"moneyEarned"`
+	MoneySpent  int    `json:"moneySpent"`
+	Score       int    `json:"score"`
 	// IncomeBySource breaks moneyEarned down by source (supply, hacker,
 	// blackMarket, supplyDrop, oilDerrick, bounty, salvage, crate, theft,
 	// other). Present for stats JSON version >= 2; nil for older uploads.
@@ -199,12 +199,47 @@ func StatsPath(seed string) string {
 	return filepath.Join(StatsDir, seed+".json.gz")
 }
 
-// Store saves gzip-compressed stats data for the given seed
+// Store saves gzip-compressed stats data for the given seed.
+//
+// The write is atomic (temp file in the same directory, then rename) because
+// every player of a match uploads the same seed within the same second, and
+// the identity check in the upload handler Loads the stored file while
+// another request may be writing it. A plain os.WriteFile truncates in
+// place, so that reader could see a half-written gzip stream: on 2026-11-08
+// one of nine games logged "Could not parse stored stats for identity check:
+// gzip: invalid checksum" while the file on disk was perfectly valid.
+// Rename also means a crash mid-write cannot leave a corrupt stored file.
 func Store(seed string, data []byte) error {
 	if err := os.MkdirAll(StatsDir, 0755); err != nil {
 		return fmt.Errorf("create stats dir: %w", err)
 	}
-	return os.WriteFile(StatsPath(seed), data, 0644)
+	path := StatsPath(seed)
+	tmp, err := os.CreateTemp(StatsDir, seed+".json.gz.tmp*")
+	if err != nil {
+		return fmt.Errorf("create temp stats file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename below succeeds
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temp stats file: %w", err)
+	}
+	// Durability before the rename: a reader must never see a renamed-in file
+	// whose contents have not reached disk.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync temp stats file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp stats file: %w", err)
+	}
+	if err := os.Chmod(tmpName, 0644); err != nil { // CreateTemp makes it 0600
+		return fmt.Errorf("chmod temp stats file: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("rename stats file into place: %w", err)
+	}
+	return nil
 }
 
 // Exists checks if stats data exists for the given seed

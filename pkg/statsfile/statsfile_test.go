@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"os"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -204,5 +207,78 @@ func TestIdentityOfHumansSkipsAI(t *testing.T) {
 	}
 	if full.SameMatch(replaySide) {
 		t.Fatal("whole-roster comparison should still see a difference")
+	}
+}
+
+// Store must never let a concurrent Load observe a half-written file. Three
+// players upload the same seed within the same second and the upload handler
+// Loads the stored copy for its identity check, which is how a valid file on
+// disk produced "gzip: invalid checksum" on 2026-11-08.
+func TestStoreIsAtomicUnderConcurrentLoad(t *testing.T) {
+	oldDir := StatsDir
+	StatsDir = t.TempDir()
+	defer func() { StatsDir = oldDir }()
+
+	const seed = "428588073"
+	small := gzipJSON(t, map[string]any{"version": 3, "pad": "s"})
+	big := gzipJSON(t, map[string]any{"version": 3, "pad": strings.Repeat("x", 256*1024)})
+
+	if err := Store(seed, small); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	var readErr error
+	var mu sync.Mutex
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			// Every observable state of the file must be a complete payload.
+			if _, err := Load(seed); err != nil {
+				mu.Lock()
+				if readErr == nil {
+					readErr = err
+				}
+				mu.Unlock()
+				return
+			}
+		}
+	}()
+
+	for i := 0; i < 50; i++ {
+		payload := big
+		if i%2 == 0 {
+			payload = small
+		}
+		if err := Store(seed, payload); err != nil {
+			t.Fatalf("store %d: %v", i, err)
+		}
+	}
+	close(stop)
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if readErr != nil {
+		t.Fatalf("concurrent Load saw a torn file: %v", readErr)
+	}
+
+	// No temp files left behind.
+	entries, err := os.ReadDir(StatsDir)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
 	}
 }
