@@ -94,7 +94,7 @@
    "id": 2
   },
   {
-   "title": "Stall seconds caused, per game",
+   "title": "Freeze seconds caused, per game",
    "type": "timeseries",
    "datasource": {
     "type": "mysql",
@@ -115,7 +115,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT m.started_at AS time, b.blamed AS metric, b.stall_s AS value FROM blame b JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.lag_caused AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.lag_caused IS NOT NULL AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
      "format": "time_series"
     }
    ],
@@ -146,6 +146,7 @@
      "sort": "desc"
     }
    },
+   "description": "Freeze time each player caused, as the player's profile counts it. The packet router sees everyone directly, so who it waited on is charged to them; when most other players froze and the router did not, the router's relay is charged; when one player froze alone, that player's link. Games of 3+ players with the router's log only (in a 1v1 nobody can tell whose end of the link is bad). Only the part of each wait past its first 100 ms counts.",
    "id": 3
   },
   {

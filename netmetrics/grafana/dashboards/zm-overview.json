@@ -129,7 +129,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT ROUND(SUM(frozen_s)/60,1) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "rawSql": "SELECT ROUND(SUM(felt_s)/60,1) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
      "format": "table"
     }
    ],
@@ -150,7 +150,7 @@
     "colorMode": "none",
     "graphMode": "none"
    },
-   "description": "Per game, the total stall time of the player who stalled the most, summed over games.",
+   "description": "Per game, the felt freeze time of the player who froze the most, summed over games. Only the part of each wait past its first 100 ms counts: waits of a few ms slow the game down but are not felt as freezes.",
    "id": 3
   },
   {
@@ -265,7 +265,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT started_at AS Started, map AS Map, humans AS Players, router_name AS Router, version AS Version, ROUND(duration_s/60) AS Minutes, ROUND(sim_fps,1) AS `Speed fps`, slowest_name AS `Held speed down`, ROUND(frozen_s) AS `Frozen s`, ROUND(frozen_s*3600/duration_s) AS `Frozen s per hour`, ROUND(worst_stall_ms/1000,1) AS `Worst freeze s`, disc_screens AS `Disconnect screens`, desync AS Desync, CONCAT(reports,'/',humans) AS `Logs in`, match_id AS `Match`, UNIX_TIMESTAMP(started_at)*1000 - 60000 AS from_ms, UNIX_TIMESTAMP(ended_at)*1000 + 60000 AS to_ms FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY started_at DESC",
+     "rawSql": "SELECT started_at AS Started, map AS Map, humans AS Players, router_name AS Router, version AS Version, ROUND(duration_s/60) AS Minutes, ROUND(sim_fps,1) AS `Speed fps`, slowest_name AS `Held speed down`, ROUND(felt_s) AS `Frozen s`, ROUND(felt_s*3600/duration_s) AS `Frozen s per hour`, ROUND(worst_stall_ms/1000,1) AS `Worst freeze s`, disc_screens AS `Disconnect screens`, desync AS Desync, CONCAT(reports,'/',humans) AS `Logs in`, match_id AS `Match`, UNIX_TIMESTAMP(started_at)*1000 - 60000 AS from_ms, UNIX_TIMESTAMP(ended_at)*1000 + 60000 AS to_ms FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY started_at DESC",
      "format": "table"
     }
    ],
@@ -333,7 +333,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT started_at AS time, frozen_s*3600/duration_s AS `Frozen s per hour` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "rawSql": "SELECT started_at AS time, felt_s*3600/duration_s AS `Frozen s per hour` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
      "format": "time_series"
     }
    ],
@@ -442,7 +442,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT b.blamed AS Player, COUNT(DISTINCT b.match_id) AS Games, ROUND(SUM(b.stall_s)) AS `Stall s caused`, SUM(b.stalls) AS `Logged stalls` FROM blame b JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY b.blamed ORDER BY 3 DESC",
+     "rawSql": "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(SUM(p.lag_caused)) AS `Freeze s caused`, ROUND(AVG(p.lag_caused),1) AS `Per game` FROM match_players p JOIN matches m USING (match_id) WHERE p.lag_caused IS NOT NULL AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY p.name ORDER BY 3 DESC",
      "format": "table"
     }
    ],
@@ -456,7 +456,7 @@
     "showHeader": true,
     "cellHeight": "sm"
    },
-   "description": "From NETSTALL lines (stalls of 0.5 s or more, at most one every 5 s per player). 'several' = waiting on more than one player.",
+   "description": "Freeze time each player caused, as the player's profile counts it. The packet router sees everyone directly, so who it waited on is charged to them; when most other players froze and the router did not, the router's relay is charged; when one player froze alone, that player's link. Games of 3+ players with the router's log only (in a 1v1 nobody can tell whose end of the link is bad). Only the part of each wait past its first 100 ms counts.",
    "id": 9
   },
   {
@@ -481,7 +481,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT router_name AS Router, COUNT(*) AS Games, ROUND(AVG(humans),1) AS `Avg players`, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY router_name ORDER BY 2 DESC",
+     "rawSql": "SELECT router_name AS Router, COUNT(*) AS Games, ROUND(AVG(humans),1) AS `Avg players`, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(felt_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY router_name ORDER BY 2 DESC",
      "format": "table"
     }
    ],
@@ -519,7 +519,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT humans AS Players, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY humans ORDER BY 1",
+     "rawSql": "SELECT humans AS Players, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(felt_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY humans ORDER BY 1",
      "format": "table"
     }
    ],
@@ -557,7 +557,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT m.version AS Version, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, SUM(desync > 0) AS Desyncs, SUM(humans) - SUM(reports) AS `Missing logs`, MIN(started_at) AS `First game` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY m.version ORDER BY 7 DESC",
+     "rawSql": "SELECT m.version AS Version, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(felt_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, SUM(desync > 0) AS Desyncs, SUM(humans) - SUM(reports) AS `Missing logs`, MIN(started_at) AS `First game` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY m.version ORDER BY 7 DESC",
      "format": "table"
     }
    ],

@@ -23,7 +23,7 @@ import re
 import subprocess
 import sys
 
-PARSER = 3  # bump to re-ingest every bucket after a parser change
+PARSER = 4  # bump to re-ingest every bucket after a parser change
 DB_CMD = ["docker", "exec", "-i", "gosvc-db", "sh", "-c",
           'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" --default-character-set=utf8mb4']
 
@@ -40,6 +40,7 @@ ROUTE = re.compile(r"(\d+):([DR])/(-?\d+)ms/q-?[\d.]+/pend(-?\d+)(?:/out(-?\d+)k
 # 2.1.6+: router's view of every PC's fps, and this PC's frame time split.
 PEERS = re.compile(r"peers=\[([^\]]*)\]")
 PEER = re.compile(r"(\d+):(-?\d+)/(-?\d+)")
+STALL_ON = re.compile(r" on=\[([^\]]*)\]")
 PERF = re.compile(r"client=(\d+\.\d)/max(\d+) logic=(\d+\.\d)/max(\d+) objs=(\d+)")
 HELD_BACK_FPS = 54  # getMinimumFps ignores a PC within 10% of 60
 VERSION = re.compile(r"CRASHREPORT enabled: (\S+)")
@@ -90,7 +91,9 @@ def parse_report(text, mtime, seed, gonames):
     c0 = lines[start][0]
     r = {"map": os.path.splitext(re.split(r"[\\/]", m[1])[-1])[0], "slot": int(m[3]), "resume": int(m[4] or 0),
          "start": utc(c0), "end": None, "end_frame": None, "desync": None, "version": None,
-         "roster": {}, "humans": set(), "netstat": [], "stalls": [], "disc": [], "routes": [], "peers": []}
+         "roster": {}, "humans": set(), "netstat": [], "stalls": [], "disc": [], "routes": [], "peers": [],
+         "windows": []}
+    prev_at = r["start"]
     for _, body in lines[:start]:
         v = VERSION.search(body)
         if v:
@@ -105,6 +108,14 @@ def parse_report(text, mtime, seed, gonames):
             perf = PERF.search(body)
             perf = (float(perf[1]), int(perf[2]), float(perf[3]), int(perf[4]), int(perf[5])) if perf else (None,) * 5
             r["netstat"].append((utc(clock), t, *map(int, m.groups()), *perf))
+            # One NETSTAT window: (from, to, felt stall ms, {slot: stalls waiting on it}).
+            # The window holds only a total and a count, so the time past the first
+            # NOTICE_MS of each wait is estimated as total - count * NOTICE_MS: never
+            # more than the real figure. Waits of a few ms slow the game, they are not freezes.
+            on = STALL_ON.search(body)
+            r["windows"].append((prev_at, utc(clock), max(0, int(m[8]) - int(m[7]) * NOTICE_MS),
+                                 {int(a): int(b) for a, b in (x.split(":") for x in on[1].split())} if on else {}))
+            prev_at = utc(clock)
             if (pm := PEERS.search(body)):
                 for slot, lat, fps in PEER.findall(pm[1]):
                     r["peers"].append((utc(clock), t, int(slot), int(lat), int(fps)))
@@ -127,6 +138,48 @@ def parse_report(text, mtime, seed, gonames):
 
 def avg(xs):
     return sum(xs) / len(xs) if xs else None
+
+
+def lag_caused(router, reports, slots):
+    """Seconds of noticeable freeze (past NOTICE_MS per wait) each slot caused in one match, {slot: s}.
+    Every PC's moves go through the router, so a non-router PC that is missing
+    Neo's moves may be waiting on the router's relay, not on Neo. Only the router
+    sees everyone directly, so its own stall windows decide who it waited on.
+    Freezes the other PCs had and the router did not are relay or link delays:
+    when most of them froze it is the router's, when one froze it is that PC's
+    link. Without the router's log, or with only two players (nobody to tell
+    whose end of the one link is bad), there is no fair answer: None."""
+    rr = next((r for r in reports.values() if r["slot"] == router), None)
+    if rr is None or len(slots) < 3:
+        return None
+    lag = dict.fromkeys(slots, 0.0)
+    for _, _, ms, on in rr["windows"]:
+        total = sum(c for s, c in on.items() if s != router)
+        for s, c in on.items():
+            if s != router and total:
+                lag[s] = lag.get(s, 0.0) + ms / 1000.0 * c / total
+
+    def router_ms(a, b):
+        a, b = a - SKEW_S, b + SKEW_S  # each log's clock is rebuilt from its mtime
+        return sum(ms * max(0.0, min(b, t1) - max(a, t0)) / max(1e-9, t1 - t0)
+                   for t0, t1, ms, _ in rr["windows"] if t1 > a and t0 < b)
+    others = [r for r in reports.values() if r["slot"] != router]
+    buckets = {}
+    for r in others:
+        for t0, t1, ms, _ in r["windows"]:
+            extra = ms - router_ms(t0, t1)
+            if extra >= EXTRA_MIN_MS:
+                buckets.setdefault(int(t1 // BUCKET_S), []).append((r["slot"], extra / 1000.0))
+    for hits in buckets.values():
+        if len({s for s, _ in hits}) * 2 >= len(others) and len(others) > 1:
+            lag[router] = lag.get(router, 0.0) + sorted(x for _, x in hits)[len(hits) // 2]
+        else:
+            for s, x in hits:
+                lag[s] = lag.get(s, 0.0) + x
+    return lag
+
+
+SKEW_S, BUCKET_S, EXTRA_MIN_MS, NOTICE_MS = 2, 10, 500, 100
 
 
 def blamed_name(mask, roster):
@@ -185,6 +238,7 @@ def bucket_sql(seed, reports, newest):
                 held[slot] = held.get(slot, 0) + (fps == low and low < HELD_BACK_FPS)
         held = {slot: n / len(by_sample) for slot, n in held.items()} if by_sample else {}
 
+    lag = lag_caused(router, reports, humans | {r["slot"] for r in reports.values()})
     players, stalls, netstat, routes = [], [], [], []
     for name, r in sorted(reports.items()):
         ns = r["netstat"]
@@ -196,10 +250,12 @@ def bucket_sql(seed, reports, newest):
                         min((n[4] for n in ns if n[4] > 0), default=None),
                         sum(n[11] for n in ns), sum(n[12] for n in ns),
                         len(rt), (sum(1 for x in rt if x[3]) / len(rt)) if rt else None,
-                        round(sum(x[4] for x in rt if x[4] >= 0) / max(1, sum(1 for x in rt if x[4] >= 0))) if rt else None,
+                        round(avg([x[4] for x in rt if x[4] >= 0])) if any(x[4] >= 0 for x in rt) else None,
                         avg(fps_seen.get(r["slot"])), held.get(r["slot"]) if rr and rr["peers"] else None,
                         avg([n[13] for n in ns if n[13] is not None]), avg([n[15] for n in ns if n[15] is not None]),
-                        max((n[17] for n in ns if n[17] is not None), default=None)))
+                        max((n[17] for n in ns if n[17] is not None), default=None),
+                        lag.get(r["slot"]) if lag is not None else None,
+                        sum(w[2] for w in r["windows"]) / 1000.0))
         for at, t, frame, waited, on, blame in r["stalls"]:
             stalls.append((seed, name, r["slot"], ts(at), t, frame, waited, on, blame, blamed_name(blame, roster)))
         for at, t, frame, ra, fps, _router, lat, _rlat, sn, sms, smax, rreq, rans, cms, cmax, lms, lmax, objs in ns:
@@ -209,7 +265,8 @@ def bucket_sql(seed, reports, newest):
     reported_slots = {r["slot"] for r in reports.values()}
     for slot in sorted(humans - reported_slots):
         players.append((seed, slot, roster.get(slot), False) + (None,) * 15
-                       + (avg(fps_seen.get(slot)), held.get(slot) if rr and rr["peers"] else None, None, None, None))
+                       + (avg(fps_seen.get(slot)), held.get(slot) if rr and rr["peers"] else None, None, None, None,
+                          lag.get(slot) if lag is not None else None, None))
 
     # Match timing from the reporter who got furthest (early leavers stop short).
     best = max(reports.values(), key=lambda r: (r["end_frame"] or 0, r["end"] or 0))
@@ -224,7 +281,8 @@ def bucket_sql(seed, reports, newest):
              max((r["desync"] or 0 for r in reports.values()), default=0), len(reports),
              max((p[8] or 0 for p in players), default=0), max((p[9] or 0 for p in players), default=0),
              max((p[10] or 0 for p in players), default=0),
-             roster.get(max(held, key=held.get)) if held and max(held.values()) > 0 else None)
+             roster.get(max(held, key=held.get)) if held and max(held.values()) > 0 else None,
+             max((p[-1] or 0 for p in players), default=0))
     out.append(insert("matches", [match]))
     out.append(insert("match_players", players))
     out.append(insert("stalls", stalls))
@@ -233,6 +291,137 @@ def bucket_sql(seed, reports, newest):
     out.append(insert("peer_fps", peer_rows))
     out.append("REPLACE INTO ingest_state VALUES (%d,%d,%d,UTC_TIMESTAMP());\n" % (seed, newest, PARSER))
     return "START TRANSACTION;\n" + "".join(out) + "COMMIT;\n"
+
+
+# Player profile "form": each player's last 5 games on each metric, as a tier
+# against the regulars, for the in-game profile (Services passes it through).
+# Only stats that point at the player who caused them: link stats are charged to
+# the end that is bad with everyone (link_metrics), lag caused comes from the
+# router's own view (lag_caused), and the PC stats are measured per PC.
+# (key, section, higher_is_better, noise floor for the trend)
+METRICS = [("ping", "net", False, 5), ("direct", "net", True, 0.05), ("lagcaused", "net", False, 0.5),
+           ("fps", "pc", True, 2), ("heldback", "pc", False, 0.02), ("drawms", "pc", False, 1.0), ("simms", "pc", False, 0.5)]
+FORM_GAMES, FORM_MIN, REGULAR_GAMES, REGULAR_DAYS, TIER_MIN_PLAYERS = 5, 3, 3, 30, 4
+NOLAG_S = 2.0  # "Never the Lag": an occasional hiccup is fine
+FORM_SQL = ("SELECT p.match_id, p.name, UNIX_TIMESTAMP(m.started_at), p.lag_caused,"
+            " p.rep_fps, p.held_back, p.client_ms, p.logic_ms"
+            " FROM zulumetrics.match_players p JOIN zulumetrics.matches m USING (match_id)"
+            " WHERE p.reported = 1 AND p.name IS NOT NULL AND m.humans >= 2 ORDER BY m.started_at")
+LINK_SQL = ("SELECT match_id, name, peer, AVG(relayed), AVG(CASE WHEN ping_ms > 0 THEN ping_ms END)"
+            " FROM zulumetrics.routes GROUP BY match_id, name, peer")
+
+
+def link_metrics(link_rows):
+    """link_rows: (match, reporter, peer, relayed share, avg ping or None), one per direction.
+    Returns {(match, name): (ping, direct)}: ping is the player's middle link, so one far
+    away peer does not move it; a relayed link counts against the end with more relayed
+    links to everyone else (half each on a tie), so one player stuck behind a relay is
+    the only one charged for it."""
+    links = {}
+    for match, a, b, relayed, ping in link_rows:
+        if a != b:
+            links.setdefault((match, frozenset((a, b))), []).append((relayed, ping))
+    per_match = {}
+    for (match, pair), sides in links.items():
+        pings = [p for _, p in sides if p is not None]
+        per_match.setdefault(match, {})[pair] = ((avg([r for r, _ in sides if r is not None]) or 0) >= 0.5, avg(pings) if pings else None)
+    out = {}
+    for match, ls in per_match.items():
+        mine = {}
+        for pair in ls:
+            for x in pair:
+                mine.setdefault(x, []).append(pair)
+
+        def bad_elsewhere(x, pair):
+            other = [l for l in mine[x] if l != pair]
+            return sum(ls[l][0] for l in other) / len(other) if other else 0
+        fault = dict.fromkeys(mine, 0.0)
+        for pair, (relayed, _) in ls.items():
+            if relayed:
+                a, b = sorted(pair)
+                fa, fb = bad_elsewhere(a, pair), bad_elsewhere(b, pair)
+                fault[a] += 1 if fa > fb else 0.5 if fa == fb else 0
+                fault[b] += 1 if fb > fa else 0.5 if fa == fb else 0
+        for x, pairs in mine.items():
+            pings = sorted(ls[l][1] for l in pairs if ls[l][1] is not None)
+            mid = (pings[(len(pings) - 1) // 2] + pings[len(pings) // 2]) / 2 if pings else None
+            out[(match, x)] = (mid, 1 - fault[x] / len(pairs))
+    return out
+
+
+def compute_forms(rows, now):
+    """rows: (name, started_epoch, *one value per METRICS entry, None = not measured), oldest first.
+    Returns {name: form dict}. Tier 0 = top third of the regulars, 1 = middle, 2 = bottom third,
+    -1 = too few games or too few regulars to say."""
+    games = {}
+    for name, at, *vals in rows:
+        games.setdefault(name, []).append((at, vals))
+    regulars = {n for n, g in games.items() if sum(1 for at, _ in g if at >= now - REGULAR_DAYS * 86400) >= REGULAR_GAMES}
+    forms = {n: {"games": min(len(g), FORM_GAMES), "net": [], "pc": [], "badges": []} for n, g in games.items()}
+    stats = {}
+    for i, (key, section, up, floor) in enumerate(METRICS):
+        better = (lambda a, b: a >= b) if up else (lambda a, b: a <= b)
+        per = {}
+        for n, g in games.items():
+            vals = [v[i] for _, v in g if v[i] is not None]
+            if len(vals) >= FORM_MIN:
+                last, prev = vals[-FORM_GAMES:], vals[-2 * FORM_GAMES:-FORM_GAMES]
+                per[n] = (avg(last), last, avg(prev) if len(prev) >= FORM_MIN else None)
+        ranked = sorted((per[n][0] for n in per if n in regulars), reverse=up)
+        k = len(ranked) // 3
+        cuts = (ranked[k - 1], ranked[len(ranked) - k]) if len(ranked) >= TIER_MIN_PLAYERS and k else None
+
+        def tier(v):
+            if cuts is None:
+                return -1
+            return 0 if better(v, cuts[0]) else 2 if better(cuts[1], v) else 1
+        stats[key] = per
+        for n, (mean, last, prev) in per.items():
+            trend = None
+            if prev is not None:
+                delta = (mean - prev) if up else (prev - mean)
+                trend = 1 if delta > max(abs(prev) * 0.15, floor) else -1 if -delta > max(abs(prev) * 0.15, floor) else 0
+            forms[n][section].append({"k": key, "v": round(mean, 3), "t": tier(mean),
+                                      "d": "".join("x" if tier(v) < 0 else str(tier(v)) for v in last), "tr": trend})
+
+    def best(key, up):
+        cand = [(v[0], n) for n, v in stats[key].items() if n in regulars]
+        return (max if up else min)(cand)[1] if len(cand) >= TIER_MIN_PLAYERS else None
+    for n, g in games.items():
+        last = g[-FORM_GAMES:]
+        if len(last) == FORM_GAMES and all(v[1] is not None and v[1] >= 1 for _, v in last):
+            forms[n]["badges"].append("link")       # never the reason for a relay in 5 games
+        lag = stats["lagcaused"].get(n)
+        if lag and lag[0] < NOLAG_S:
+            forms[n]["badges"].append("nolag")      # under NOLAG_S of felt freeze per game
+    for key, up, badge in (("ping", False, "comms"), ("fps", True, "machine")):
+        if (n := best(key, up)):
+            forms[n]["badges"].append(badge)
+    drops = [((prev - mean) / prev, n) for n, (mean, _, prev) in stats["lagcaused"].items()
+             if n in regulars and prev and prev >= 1]
+    if drops and max(drops)[0] >= 0.25:
+        forms[max(drops)[1]]["badges"].append("improved")
+    return forms
+
+
+def form_rows(form_tsv, link_tsv):
+    """The two queries' tab separated output -> compute_forms rows."""
+    def num(x):
+        return None if x == "NULL" else float(x)
+    lm = link_metrics([(int(f[0]), f[1], f[2], num(f[3]), num(f[4]))
+                       for f in (l.split("\t") for l in link_tsv.splitlines() if l)])
+    rows = []
+    for f in (l.split("\t") for l in form_tsv.splitlines() if l):
+        ping, direct = lm.get((int(f[0]), f[1]), (None, None))
+        rows.append((f[1], int(f[2]), ping, direct, *(num(x) for x in f[3:])))
+    return rows
+
+
+def form_sql(forms):
+    rows = [(n, json.dumps(f, separators=(",", ":"))) for n, f in sorted(forms.items())]
+    body = "".join("(%s,%s,UTC_TIMESTAMP())" % (q(n), q(f)) + (",\n" if i < len(rows) - 1 else ";\n")
+                   for i, (n, f) in enumerate(rows))
+    return "START TRANSACTION;\nDELETE FROM player_form;\n" + ("INSERT INTO player_form VALUES\n" + body if rows else "") + "COMMIT;\n"
 
 
 def newest_mtime(path):
@@ -286,9 +475,17 @@ def main():
     if a.sql_out:
         with open(a.sql_out, "w") as f:
             f.write(body)
-    elif sql:
+        return
+    if sql:
         subprocess.run(DB_CMD, input=body, text=True, check=True)
     print("netmetrics: %d matches ingested, %d buckets without a match block" % (n_ok, n_skip))
+    # Rebuilt every run: the regulars window moves with the clock even when no game arrived.
+    out = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "%s"' % FORM_SQL], check=True, capture_output=True, text=True).stdout
+    links = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "%s"' % LINK_SQL], check=True, capture_output=True, text=True).stdout
+    rows = form_rows(out, links)
+    forms = compute_forms(rows, dt.datetime.now(dt.timezone.utc).timestamp())
+    subprocess.run(DB_CMD, input="SET NAMES utf8mb4;\nUSE zulumetrics;\n" + form_sql(forms), text=True, check=True)
+    print("netmetrics: form rebuilt for %d players" % len(forms))
 
 
 if __name__ == "__main__":

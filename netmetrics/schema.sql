@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS matches (
   worst_stall_ms INT,
   disc_screens   TINYINT,
   slowest_name   VARCHAR(64),    -- PC that held the game speed down most (2.1.6+)
+  felt_s         FLOAT,          -- worst player's felt freeze: time past the first 100 ms of each wait
   INDEX (started_at)
 );
 
@@ -50,6 +51,8 @@ CREATE TABLE IF NOT EXISTS match_players (
   client_ms      FLOAT,          -- average client update (input, UI, drawing) per frame
   logic_ms       FLOAT,          -- average logic update per logic frame
   max_objs       INT,
+  lag_caused     FLOAT,          -- seconds of felt freeze this player caused, from the router's view (lag_caused)
+  felt_stall_s   FLOAT,          -- this player's waits past the first 100 ms each (stall_s counts every ms)
   PRIMARY KEY (match_id, slot)
 );
 
@@ -120,12 +123,21 @@ CREATE TABLE IF NOT EXISTS peer_fps (
 
 -- Columns added after the first deploy. Inserts are positional, so new columns
 -- only ever go on the end, here and in the CREATE above.
-ALTER TABLE matches ADD COLUMN IF NOT EXISTS slowest_name VARCHAR(64);
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS slowest_name VARCHAR(64), ADD COLUMN IF NOT EXISTS felt_s FLOAT;
 ALTER TABLE match_players ADD COLUMN IF NOT EXISTS rep_fps FLOAT, ADD COLUMN IF NOT EXISTS held_back FLOAT,
-  ADD COLUMN IF NOT EXISTS client_ms FLOAT, ADD COLUMN IF NOT EXISTS logic_ms FLOAT, ADD COLUMN IF NOT EXISTS max_objs INT;
+  ADD COLUMN IF NOT EXISTS client_ms FLOAT, ADD COLUMN IF NOT EXISTS logic_ms FLOAT, ADD COLUMN IF NOT EXISTS max_objs INT,
+  ADD COLUMN IF NOT EXISTS lag_caused FLOAT, ADD COLUMN IF NOT EXISTS felt_stall_s FLOAT;
 ALTER TABLE netstat ADD COLUMN IF NOT EXISTS client_ms FLOAT, ADD COLUMN IF NOT EXISTS client_max_ms INT,
   ADD COLUMN IF NOT EXISTS logic_ms FLOAT, ADD COLUMN IF NOT EXISTS logic_max_ms INT, ADD COLUMN IF NOT EXISTS objs INT;
 ALTER TABLE routes ADD COLUMN IF NOT EXISTS out_kbps INT, ADD COLUMN IF NOT EXISTS queue_ms INT;
+
+-- Each player's form over their last 5 games, rebuilt every run (compute_forms),
+-- read by the GO Services for the in-game player profile.
+CREATE TABLE IF NOT EXISTS player_form (
+  name           VARCHAR(64) PRIMARY KEY,
+  form           TEXT NOT NULL,     -- JSON, see compute_forms
+  updated_at     DATETIME
+);
 
 CREATE TABLE IF NOT EXISTS ingest_state (
   bucket         BIGINT UNSIGNED PRIMARY KEY,
