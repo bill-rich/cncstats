@@ -82,6 +82,7 @@ f = nm.compute_forms(rows, NOW)
 ping = {n: next(m for m in f[n]["net"] if m["k"] == "ping") for n in "ABCDEF"}
 assert [ping[n]["t"] for n in "ABCDEF"] == [0, 0, 1, 1, 2, 2], ping
 assert ping["A"]["v"] == 10 and ping["A"]["d"] == "00000" and f["A"]["games"] == 5
+assert ping["A"]["p"] is None  # only one game before the last 5: no previous average
 assert "Old" in f and f["Old"]["net"] == []          # 1 game: under FORM_MIN, no rows at all
 assert [m["k"] for m in f["A"]["net"]] == ["ping", "direct", "lagcaused"] and len(f["A"]["pc"]) == 4
 assert "link" in f["A"]["badges"] and "link" not in f["B"]["badges"]

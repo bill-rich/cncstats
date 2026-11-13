@@ -381,7 +381,7 @@ def compute_forms(rows, now):
             if prev is not None:
                 delta = (mean - prev) if up else (prev - mean)
                 trend = 1 if delta > max(abs(prev) * 0.15, floor) else -1 if -delta > max(abs(prev) * 0.15, floor) else 0
-            forms[n][section].append({"k": key, "v": round(mean, 3), "t": tier(mean),
+            forms[n][section].append({"k": key, "v": round(mean, 3), "p": round(prev, 3) if prev is not None else None, "t": tier(mean),
                                       "d": "".join("x" if tier(v) < 0 else str(tier(v)) for v in last), "tr": trend})
 
     def best(key, up):
