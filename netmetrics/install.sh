@@ -29,6 +29,8 @@ docker exec -i gosvc-db sh -c 'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD"' <
 CREATE USER IF NOT EXISTS 'grafana_ro'@'%' IDENTIFIED BY '$ZM_RO_PASSWORD';
 ALTER USER 'grafana_ro'@'%' IDENTIFIED BY '$ZM_RO_PASSWORD';
 GRANT SELECT, SHOW VIEW ON zulumetrics.* TO 'grafana_ro'@'%';
+-- The GO Services read profile form from here (its own login, created by Services).
+GRANT SELECT ON zulumetrics.player_form TO 'genonline'@'%';
 EOF
 
 cat > /etc/systemd/system/netmetrics.service <<EOF
