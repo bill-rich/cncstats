@@ -97,6 +97,12 @@ overview = dashboard("zm-overview", "Game nights", [
                " logic ms high = the CPU cannot keep up with the simulation."),
 ], desc="One row per game from the players' uploaded logs. Times are in your browser's time zone.")
 
+# The profile's regulars: 3+ games of 2+ players in the last 30 days (lab accounts and one-off names drop out).
+REG = ("(SELECT p2.name FROM match_players p2 JOIN matches m2 USING (match_id) WHERE p2.reported AND m2.humans >= 2"
+       " AND m2.started_at >= NOW() - INTERVAL 30 DAY GROUP BY p2.name HAVING COUNT(*) >= 3)")
+PAIR_DESC = ("One row per pair of players, both directions merged. 'Relay charged to' is whose fault the relays were, as the profile"
+             " counts it: the player who needed relays with everyone else that game ('both' when it cannot tell, like a 1v1).")
+
 M = "match_id = $match"
 NEW = " (2.1.6 and later clients only)"
 match = dashboard("zm-match", "Game detail", [
@@ -109,14 +115,17 @@ match = dashboard("zm-match", "Game detail", [
           " ROUND(stall_s) AS `All waits s`, ROUND(stall_max_ms/1000,1) AS `Worst stall s`,"
           " disc_screens AS `Disconnect screens`, ROUND(rep_fps) AS `PC fps`, ROUND(held_back*100) AS `Held speed down %`,"
           " ROUND(client_ms,1) AS `Client ms`, ROUND(logic_ms,1) AS `Logic ms`, resend_req AS `Resends asked`,"
-          " resend_ans AS `Resends served`, ROUND(relayed_share*100) AS `Relayed %`, ping_ms AS `Avg ping ms`"
+          " resend_ans AS `Resends served`, ping_mid_ms AS `Ping ms`, ROUND(direct_share*100) AS `Direct %`"
           " FROM match_players WHERE " + M + " ORDER BY slot", 0, 4, 24, 10,
           desc="Frozen s: waits past their first 100 ms (felt freezes); All waits s also counts the few ms waits that only slow the game."
-               " Freeze s caused: see 'Who the game waited on' on the overview. PC fps: what this PC reported to the router; the lowest sets the game speed. Held speed down: share of the game this PC was"
+               " Freeze s caused, Ping ms and Direct %: measured like the in-game profile (middle link, relays charged to the"
+               " player at fault, freezes from the router's view). PC fps: what this PC reported to the router; the lowest sets the game speed. Held speed down: share of the game this PC was"
                " the slowest and under 54 fps. Client ms: input, UI and drawing per frame (includes any vsync wait). Logic ms: simulation per logic frame."),
-    panel("Freezes, by who the game waited on (one point per player who logged it)",
+    panel("Freezes as each player logged them, by who they were missing (raw)",
           "SELECT at AS time, blamed AS metric, waited_ms/1000 AS value FROM stalls WHERE " + M + " ORDER BY at",
-          0, 14, 24, 8, "timeseries", style="points", unit="s"),
+          0, 14, 24, 8, "timeseries", style="points", unit="s",
+          desc="Each 0.5 s+ freeze as a player's client logged it, named after whose moves that client was missing. A late relay"
+               " shows up as the original sender here; 'Freeze s caused' in the Players table is the fair attribution."),
     panel("Game speed (frames per real second, 60 = full)",
           "SELECT at AS time, name AS metric, value FROM (SELECT at, name, (frame - LAG(frame) OVER w) / TIMESTAMPDIFF(SECOND, LAG(at) OVER w, at) AS value"
           " FROM netstat WHERE " + M + " WINDOW w AS (PARTITION BY slot ORDER BY at)) x WHERE value IS NOT NULL ORDER BY at",
@@ -150,32 +159,81 @@ match = dashboard("zm-match", "Game detail", [
     panel("Unsent bytes queued per link", "SELECT at AS time, CONCAT(name,' > ',peer) AS metric, pending AS value FROM routes WHERE " + M + " AND pending >= 0 ORDER BY at",
           0, 55, 24, 8, "timeseries", unit="decbytes",
           desc="GNS pending reliable + unreliable bytes. A link that stops draining is about to time out (about 10 s)."),
-    panel("Links", "SELECT name AS `From`, peer AS `To`, COUNT(*) AS Samples, ROUND(AVG(relayed)*100) AS `Relayed %`,"
-          " ROUND(AVG(NULLIF(ping_ms,-1))) AS `Avg ping ms`, MAX(ping_ms) AS `Max ping ms`, MAX(pending) AS `Max queued bytes`,"
-          " ROUND(AVG(out_kbps)) AS `Avg KB/s out`, MAX(queue_ms) AS `Max queue ms`"
-          " FROM routes WHERE " + M + " GROUP BY name, peer ORDER BY 1, 2", 0, 63, 24, 12),
+    panel("Links", "SELECT l.a AS Player, l.b AS `With`, l.ping_ms AS `Ping ms`, ROUND(l.relayed*100) AS `Relayed %`,"
+          " COALESCE(l.charged_to, '') AS `Relay charged to`, MAX(r.ping_ms) AS `Max ping ms`, MAX(r.pending) AS `Max queued bytes`,"
+          " ROUND(AVG(r.out_kbps)) AS `Avg KB/s out`, MAX(r.queue_ms) AS `Max queue ms`"
+          " FROM link_pairs l LEFT JOIN routes r ON r.match_id = l.match_id AND ((r.name = l.a AND r.peer = l.b) OR (r.name = l.b AND r.peer = l.a))"
+          " WHERE l.match_id = $match GROUP BY l.a, l.b, l.ping_ms, l.relayed, l.charged_to ORDER BY l.relayed DESC, l.ping_ms DESC",
+          0, 63, 24, 12, desc=PAIR_DESC + " Max ping, queued bytes, upload and queue time are the raw worst of the two directions."),
 ], time_from="now-24h", templating=[{
     "name": "match", "label": "Game", "type": "query", "datasource": DS, "refresh": 1,
     "query": "SELECT match_id AS __value, CONCAT(DATE_FORMAT(started_at,'%Y-%m-%d %H:%i'),' UTC  ',map,'  ',humans,'p') AS __text"
              " FROM matches ORDER BY started_at DESC LIMIT 300"}],
     desc="Open a game from the Game nights table so the time range matches it.")
 
+FAIR = ("Measured like the in-game profile: ping is each game's middle link (one far away player does not count), direct %"
+        " counts a relayed link only against the player who needed relays with everyone, and freeze caused comes from the"
+        " packet router's own view (1v1 games and games without the router's log are left out).")
+
+
+def form_col(key, label, value_sql):
+    """One profile row as 'value · tier' from player_form's JSON."""
+    return (" COALESCE(MAX(CASE WHEN x.k = '%s' THEN CONCAT(%s, ' · ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END),"
+            " 'Not enough games yet') AS `%s`" % (key, value_sql, label))
+
+
+FORM_ROWS = " UNION ALL ".join(
+    "SELECT f.name, x.* FROM player_form f, JSON_TABLE(f.form, '$.%s[*]' COLUMNS (k VARCHAR(16) PATH '$.k',"
+    " v DOUBLE PATH '$.v', t INT PATH '$.t')) x" % sec for sec in ("net", "pc"))
+BADGES = "JSON_UNQUOTE(JSON_EXTRACT(f.form, '$.badges'))"
+for k, name in (("link", "Rock Solid Link"), ("nolag", "Never the Lag"), ("comms", "Frontline Comms"),
+                ("machine", "War Machine"), ("improved", "Most Improved")):
+    BADGES = "REPLACE(%s, '\"%s\"', '%s')" % (BADGES, k, name)
+BADGES = "REPLACE(REPLACE(REPLACE(%s, '[', ''), ']', ''), '[]', '')" % BADGES
+
 links = dashboard("zm-links", "Connections", [
-    panel("Players", "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(AVG(p.ping_ms)) AS `Avg ping ms`,"
-          " ROUND(AVG(p.relayed_share)*100) AS `Relayed %`, SUM(p.disc_screens) AS `Disconnect screens`,"
+    panel("Profile form (what players see in game, last 5 games)",
+          "SELECT x.name AS Player, MAX(JSON_VALUE(f.form, '$.games')) AS Games," +
+          form_col("ping", "Ping", "CONCAT(ROUND(x.v), ' ms')") + "," +
+          form_col("direct", "Direct links", "CONCAT(ROUND(x.v * 100), '%')") + "," +
+          form_col("lagcaused", "Lag caused", "CONCAT(ROUND(x.v, 1), ' s')") + "," +
+          form_col("fps", "Game speed", "CONCAT(ROUND(x.v), ' fps')") + "," +
+          form_col("heldback", "Slowest PC", "CONCAT(ROUND(x.v * 100), '%')") + "," +
+          form_col("drawms", "Drawing", "CONCAT(ROUND(x.v, 1), ' ms')") + "," +
+          form_col("simms", "Simulation", "CONCAT(ROUND(x.v, 1), ' ms')") + ","
+          " MAX(" + BADGES + ") AS Badges"
+          " FROM (" + FORM_ROWS + ") x JOIN player_form f ON f.name = x.name GROUP BY x.name ORDER BY x.name",
+          0, 0, 24, 9,
+          desc="The player_form table the GO Services hand to the Network Form screen, rebuilt every 5 minutes. Tiers compare with the"
+               " regulars (3+ games in 30 days): Top tier = their best third, Rough patch = their worst third. " + FAIR),
+    panel("Players", "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(AVG(p.ping_mid_ms)) AS `Ping ms`,"
+          " ROUND(AVG(p.direct_share)*100) AS `Direct %`, ROUND(AVG(p.lag_caused),1) AS `Freeze s caused per game`,"
+          " ROUND(AVG(p.felt_stall_s),1) AS `Frozen s per game`, SUM(p.disc_screens) AS `Disconnect screens`,"
           " SUM(p.finished = 0) AS `Log without match end`, SUM(p.reported = 0) AS `No log`,"
           " ROUND(AVG(p.rep_fps)) AS `Avg PC fps`, ROUND(AVG(p.client_ms),1) AS `Client ms`, ROUND(AVG(p.logic_ms),1) AS `Logic ms`"
-          " FROM match_players p JOIN matches m USING (match_id) WHERE " + IN_RANGE + " GROUP BY p.name ORDER BY 2 DESC", 0, 0, 12, 10),
-    panel("Links", "SELECT r.name AS `From`, r.peer AS `To`, COUNT(DISTINCT r.match_id) AS Games, ROUND(AVG(NULLIF(r.ping_ms,-1))) AS `Avg ping ms`,"
-          " MAX(r.ping_ms) AS `Max ping ms`, ROUND(AVG(r.relayed)*100) AS `Relayed %`, MAX(r.pending) AS `Max queued bytes`"
-          " FROM routes r JOIN matches m USING (match_id) WHERE " + IN_RANGE + " GROUP BY r.name, r.peer ORDER BY 1, 2", 12, 0, 12, 10),
+          " FROM match_players p JOIN matches m USING (match_id) WHERE p.name IN " + REG + " AND " + IN_RANGE +
+          " GROUP BY p.name ORDER BY 2 DESC", 0, 9, 24, 10,
+          desc="The regulars (3+ games in the last 30 days), averaged over every game in the time range (the profile uses the"
+               " last 5). " + FAIR),
+    panel("Links",
+          "SELECT p.a AS Player, p.b AS `With`, p.games AS Games, p.ping AS `Ping ms`, p.rel AS `Relayed %`,"
+          " COALESCE(c.charged, '') AS `Relay charged to (games)` FROM"
+          " (SELECT l.a, l.b, COUNT(*) AS games, ROUND(AVG(l.ping_ms)) AS ping, ROUND(AVG(l.relayed)*100) AS rel"
+          " FROM link_pairs l JOIN matches m USING (match_id) WHERE " + IN_RANGE + " AND l.a IN " + REG + " AND l.b IN " + REG +
+          " GROUP BY l.a, l.b) p LEFT JOIN"
+          " (SELECT a, b, GROUP_CONCAT(CONCAT(charged_to, ' (', n, ')') ORDER BY n DESC SEPARATOR ', ') AS charged FROM"
+          " (SELECT l.a, l.b, l.charged_to, COUNT(*) AS n FROM link_pairs l JOIN matches m USING (match_id)"
+          " WHERE " + IN_RANGE + " AND l.charged_to IS NOT NULL GROUP BY l.a, l.b, l.charged_to) z GROUP BY a, b) c"
+          " ON c.a = p.a AND c.b = p.b ORDER BY p.rel DESC, p.ping DESC", 0, 19, 24, 10, desc=PAIR_DESC),
     panel("Freeze seconds caused, per game", "SELECT m.started_at AS time, p.name AS metric, p.lag_caused AS value FROM match_players p"
-          " JOIN matches m USING (match_id) WHERE p.lag_caused IS NOT NULL AND " + IN_RANGE + " ORDER BY 1", 0, 10, 24, 8, "timeseries",
+          " JOIN matches m USING (match_id) WHERE p.lag_caused IS NOT NULL AND " + IN_RANGE + " ORDER BY 1", 0, 29, 24, 8, "timeseries",
           style="points", unit="s", desc=LAG_DESC),
-    panel("Average ping per game", "SELECT m.started_at AS time, p.name AS metric, p.ping_ms AS value FROM match_players p"
-          " JOIN matches m USING (match_id) WHERE p.reported AND " + IN_RANGE + " ORDER BY 1", 0, 18, 12, 8, "timeseries", style="points", unit="ms"),
-    panel("Share of links relayed per game", "SELECT m.started_at AS time, p.name AS metric, p.relayed_share*100 AS value FROM match_players p"
-          " JOIN matches m USING (match_id) WHERE p.reported AND " + IN_RANGE + " ORDER BY 1", 12, 18, 12, 8, "timeseries", style="points", unit="percent"),
+    panel("Ping per game (middle link)", "SELECT m.started_at AS time, p.name AS metric, p.ping_mid_ms AS value FROM match_players p"
+          " JOIN matches m USING (match_id) WHERE p.ping_mid_ms IS NOT NULL AND " + IN_RANGE + " ORDER BY 1", 0, 37, 12, 8,
+          "timeseries", style="points", unit="ms", desc=FAIR),
+    panel("Direct links per game", "SELECT m.started_at AS time, p.name AS metric, p.direct_share*100 AS value FROM match_players p"
+          " JOIN matches m USING (match_id) WHERE p.direct_share IS NOT NULL AND " + IN_RANGE + " ORDER BY 1", 12, 37, 12, 8,
+          "timeseries", style="points", unit="percent", desc=FAIR),
 ], desc="Per player and per link connection quality across game nights.")
 
 os.makedirs(OUT, exist_ok=True)

@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS match_players (
   max_objs       INT,
   lag_caused     FLOAT,          -- seconds of felt freeze this player caused, from the router's view (lag_caused)
   felt_stall_s   FLOAT,          -- this player's waits past the first 100 ms each (stall_s counts every ms)
+  ping_mid_ms    INT,            -- the player's middle link ping (link_metrics), as on the profile
+  direct_share   FLOAT,          -- share of links not relayed by this player's fault (link_metrics)
   PRIMARY KEY (match_id, slot)
 );
 
@@ -126,10 +128,23 @@ CREATE TABLE IF NOT EXISTS peer_fps (
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS slowest_name VARCHAR(64), ADD COLUMN IF NOT EXISTS felt_s FLOAT;
 ALTER TABLE match_players ADD COLUMN IF NOT EXISTS rep_fps FLOAT, ADD COLUMN IF NOT EXISTS held_back FLOAT,
   ADD COLUMN IF NOT EXISTS client_ms FLOAT, ADD COLUMN IF NOT EXISTS logic_ms FLOAT, ADD COLUMN IF NOT EXISTS max_objs INT,
-  ADD COLUMN IF NOT EXISTS lag_caused FLOAT, ADD COLUMN IF NOT EXISTS felt_stall_s FLOAT;
+  ADD COLUMN IF NOT EXISTS lag_caused FLOAT, ADD COLUMN IF NOT EXISTS felt_stall_s FLOAT,
+  ADD COLUMN IF NOT EXISTS ping_mid_ms INT, ADD COLUMN IF NOT EXISTS direct_share FLOAT;
 ALTER TABLE netstat ADD COLUMN IF NOT EXISTS client_ms FLOAT, ADD COLUMN IF NOT EXISTS client_max_ms INT,
   ADD COLUMN IF NOT EXISTS logic_ms FLOAT, ADD COLUMN IF NOT EXISTS logic_max_ms INT, ADD COLUMN IF NOT EXISTS objs INT;
 ALTER TABLE routes ADD COLUMN IF NOT EXISTS out_kbps INT, ADD COLUMN IF NOT EXISTS queue_ms INT;
+
+-- One row per pair of players per game, both directions merged (link_metrics):
+-- the relayed share, the ping, and whose fault the relay was, as the profile counts it.
+CREATE TABLE IF NOT EXISTS link_pairs (
+  match_id       BIGINT UNSIGNED,
+  a              VARCHAR(64),
+  b              VARCHAR(64),
+  relayed        FLOAT,          -- share of samples relayed, both directions
+  ping_ms        INT,
+  charged_to     VARCHAR(64),    -- a, b, 'both' (a tie) or NULL (not relayed)
+  INDEX (match_id), INDEX (a, b)
+);
 
 -- Each player's form over their last 5 games, rebuilt every run (compute_forms),
 -- read by the GO Services for the in-game player profile.

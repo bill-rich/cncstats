@@ -89,7 +89,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT slot AS Slot, name AS Player, IF(reported, IF(finished,'yes','no end'), 'no log') AS `Log`, version AS Version, ROUND(felt_stall_s,1) AS `Frozen s`, ROUND(lag_caused,1) AS `Freeze s caused`, ROUND(stall_s) AS `All waits s`, ROUND(stall_max_ms/1000,1) AS `Worst stall s`, disc_screens AS `Disconnect screens`, ROUND(rep_fps) AS `PC fps`, ROUND(held_back*100) AS `Held speed down %`, ROUND(client_ms,1) AS `Client ms`, ROUND(logic_ms,1) AS `Logic ms`, resend_req AS `Resends asked`, resend_ans AS `Resends served`, ROUND(relayed_share*100) AS `Relayed %`, ping_ms AS `Avg ping ms` FROM match_players WHERE match_id = $match ORDER BY slot",
+     "rawSql": "SELECT slot AS Slot, name AS Player, IF(reported, IF(finished,'yes','no end'), 'no log') AS `Log`, version AS Version, ROUND(felt_stall_s,1) AS `Frozen s`, ROUND(lag_caused,1) AS `Freeze s caused`, ROUND(stall_s) AS `All waits s`, ROUND(stall_max_ms/1000,1) AS `Worst stall s`, disc_screens AS `Disconnect screens`, ROUND(rep_fps) AS `PC fps`, ROUND(held_back*100) AS `Held speed down %`, ROUND(client_ms,1) AS `Client ms`, ROUND(logic_ms,1) AS `Logic ms`, resend_req AS `Resends asked`, resend_ans AS `Resends served`, ping_mid_ms AS `Ping ms`, ROUND(direct_share*100) AS `Direct %` FROM match_players WHERE match_id = $match ORDER BY slot",
      "format": "table"
     }
    ],
@@ -103,11 +103,11 @@
     "showHeader": true,
     "cellHeight": "sm"
    },
-   "description": "Frozen s: waits past their first 100 ms (felt freezes); All waits s also counts the few ms waits that only slow the game. Freeze s caused: see 'Who the game waited on' on the overview. PC fps: what this PC reported to the router; the lowest sets the game speed. Held speed down: share of the game this PC was the slowest and under 54 fps. Client ms: input, UI and drawing per frame (includes any vsync wait). Logic ms: simulation per logic frame.",
+   "description": "Frozen s: waits past their first 100 ms (felt freezes); All waits s also counts the few ms waits that only slow the game. Freeze s caused, Ping ms and Direct %: measured like the in-game profile (middle link, relays charged to the player at fault, freezes from the router's view). PC fps: what this PC reported to the router; the lowest sets the game speed. Held speed down: share of the game this PC was the slowest and under 54 fps. Client ms: input, UI and drawing per frame (includes any vsync wait). Logic ms: simulation per logic frame.",
    "id": 2
   },
   {
-   "title": "Freezes, by who the game waited on (one point per player who logged it)",
+   "title": "Freezes as each player logged them, by who they were missing (raw)",
    "type": "timeseries",
    "datasource": {
     "type": "mysql",
@@ -159,6 +159,7 @@
      "sort": "desc"
     }
    },
+   "description": "Each 0.5 s+ freeze as a player's client logged it, named after whose moves that client was missing. A late relay shows up as the original sender here; 'Freeze s caused' in the Players table is the fair attribution.",
    "id": 3
   },
   {
@@ -681,7 +682,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT name AS `From`, peer AS `To`, COUNT(*) AS Samples, ROUND(AVG(relayed)*100) AS `Relayed %`, ROUND(AVG(NULLIF(ping_ms,-1))) AS `Avg ping ms`, MAX(ping_ms) AS `Max ping ms`, MAX(pending) AS `Max queued bytes`, ROUND(AVG(out_kbps)) AS `Avg KB/s out`, MAX(queue_ms) AS `Max queue ms` FROM routes WHERE match_id = $match GROUP BY name, peer ORDER BY 1, 2",
+     "rawSql": "SELECT l.a AS Player, l.b AS `With`, l.ping_ms AS `Ping ms`, ROUND(l.relayed*100) AS `Relayed %`, COALESCE(l.charged_to, '') AS `Relay charged to`, MAX(r.ping_ms) AS `Max ping ms`, MAX(r.pending) AS `Max queued bytes`, ROUND(AVG(r.out_kbps)) AS `Avg KB/s out`, MAX(r.queue_ms) AS `Max queue ms` FROM link_pairs l LEFT JOIN routes r ON r.match_id = l.match_id AND ((r.name = l.a AND r.peer = l.b) OR (r.name = l.b AND r.peer = l.a)) WHERE l.match_id = $match GROUP BY l.a, l.b, l.ping_ms, l.relayed, l.charged_to ORDER BY l.relayed DESC, l.ping_ms DESC",
      "format": "table"
     }
    ],
@@ -695,6 +696,7 @@
     "showHeader": true,
     "cellHeight": "sm"
    },
+   "description": "One row per pair of players, both directions merged. 'Relay charged to' is whose fault the relays were, as the profile counts it: the player who needed relays with everyone else that game ('both' when it cannot tell, like a 1v1). Max ping, queued bytes, upload and queue time are the raw worst of the two directions.",
    "id": 13
   }
  ],

@@ -23,7 +23,7 @@ import re
 import subprocess
 import sys
 
-PARSER = 4  # bump to re-ingest every bucket after a parser change
+PARSER = 6  # bump to re-ingest every bucket after a parser change
 DB_CMD = ["docker", "exec", "-i", "gosvc-db", "sh", "-c",
           'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" --default-character-set=utf8mb4']
 
@@ -215,7 +215,7 @@ def insert(table, rows):
 
 def bucket_sql(seed, reports, newest):
     """SQL replacing everything for one match. reports: {uploader: report}."""
-    out = ["DELETE FROM %s WHERE match_id=%d;\n" % (t, seed) for t in ("matches", "match_players", "stalls", "netstat", "routes", "peer_fps")]
+    out = ["DELETE FROM %s WHERE match_id=%d;\n" % (t, seed) for t in ("matches", "match_players", "stalls", "netstat", "routes", "peer_fps", "link_pairs")]
     roster, humans = {}, set()
     for r in reports.values():
         roster.update(r["roster"])
@@ -239,6 +239,20 @@ def bucket_sql(seed, reports, newest):
         held = {slot: n / len(by_sample) for slot, n in held.items()} if by_sample else {}
 
     lag = lag_caused(router, reports, humans | {r["slot"] for r in reports.values()})
+    # Fair link stats per player (link_metrics), stored so the dashboards match the profile.
+    dirs = {}
+    for name, r in reports.items():
+        for _, _, peer, relayed, ping, *_ in r["routes"]:
+            d = dirs.setdefault((name, peer), ([], []))
+            d[0].append(relayed)
+            if ping > 0:
+                d[1].append(ping)
+    pairs = []
+    fair = link_metrics([(seed, a, b, avg(rel), avg(pings) if pings else None) for (a, b), (rel, pings) in dirs.items()], pairs)
+
+    def fair_cols(name):
+        ping, direct = fair.get((seed, name), (None, None))
+        return (round(ping) if ping is not None else None, direct)
     players, stalls, netstat, routes = [], [], [], []
     for name, r in sorted(reports.items()):
         ns = r["netstat"]
@@ -255,7 +269,7 @@ def bucket_sql(seed, reports, newest):
                         avg([n[13] for n in ns if n[13] is not None]), avg([n[15] for n in ns if n[15] is not None]),
                         max((n[17] for n in ns if n[17] is not None), default=None),
                         lag.get(r["slot"]) if lag is not None else None,
-                        sum(w[2] for w in r["windows"]) / 1000.0))
+                        sum(w[2] for w in r["windows"]) / 1000.0, *fair_cols(name)))
         for at, t, frame, waited, on, blame in r["stalls"]:
             stalls.append((seed, name, r["slot"], ts(at), t, frame, waited, on, blame, blamed_name(blame, roster)))
         for at, t, frame, ra, fps, _router, lat, _rlat, sn, sms, smax, rreq, rans, cms, cmax, lms, lmax, objs in ns:
@@ -266,7 +280,7 @@ def bucket_sql(seed, reports, newest):
     for slot in sorted(humans - reported_slots):
         players.append((seed, slot, roster.get(slot), False) + (None,) * 15
                        + (avg(fps_seen.get(slot)), held.get(slot) if rr and rr["peers"] else None, None, None, None,
-                          lag.get(slot) if lag is not None else None, None))
+                          lag.get(slot) if lag is not None else None, None, *fair_cols(roster.get(slot))))
 
     # Match timing from the reporter who got furthest (early leavers stop short).
     best = max(reports.values(), key=lambda r: (r["end_frame"] or 0, r["end"] or 0))
@@ -289,6 +303,7 @@ def bucket_sql(seed, reports, newest):
     out.append(insert("netstat", netstat))
     out.append(insert("routes", routes))
     out.append(insert("peer_fps", peer_rows))
+    out.append(insert("link_pairs", pairs))
     out.append("REPLACE INTO ingest_state VALUES (%d,%d,%d,UTC_TIMESTAMP());\n" % (seed, newest, PARSER))
     return "START TRANSACTION;\n" + "".join(out) + "COMMIT;\n"
 
@@ -303,20 +318,20 @@ METRICS = [("ping", "net", False, 5), ("direct", "net", True, 0.05), ("lagcaused
            ("fps", "pc", True, 2), ("heldback", "pc", False, 0.02), ("drawms", "pc", False, 1.0), ("simms", "pc", False, 0.5)]
 FORM_GAMES, FORM_MIN, REGULAR_GAMES, REGULAR_DAYS, TIER_MIN_PLAYERS = 5, 3, 3, 30, 4
 NOLAG_S = 2.0  # "Never the Lag": an occasional hiccup is fine
-FORM_SQL = ("SELECT p.match_id, p.name, UNIX_TIMESTAMP(m.started_at), p.lag_caused,"
+FORM_SQL = ("SELECT p.match_id, p.name, UNIX_TIMESTAMP(m.started_at), p.ping_mid_ms, p.direct_share, p.lag_caused,"
             " p.rep_fps, p.held_back, p.client_ms, p.logic_ms"
             " FROM zulumetrics.match_players p JOIN zulumetrics.matches m USING (match_id)"
             " WHERE p.reported = 1 AND p.name IS NOT NULL AND m.humans >= 2 ORDER BY m.started_at")
-LINK_SQL = ("SELECT match_id, name, peer, AVG(relayed), AVG(CASE WHEN ping_ms > 0 THEN ping_ms END)"
-            " FROM zulumetrics.routes GROUP BY match_id, name, peer")
 
 
-def link_metrics(link_rows):
+
+def link_metrics(link_rows, pairs_out=None):
     """link_rows: (match, reporter, peer, relayed share, avg ping or None), one per direction.
     Returns {(match, name): (ping, direct)}: ping is the player's middle link, so one far
     away peer does not move it; a relayed link counts against the end with more relayed
     links to everyone else (half each on a tie), so one player stuck behind a relay is
-    the only one charged for it."""
+    the only one charged for it. pairs_out, when given, gets one row per pair:
+    (match, a, b, relayed share, ping, charged_to) with charged_to a, b, 'both' or None."""
     links = {}
     for match, a, b, relayed, ping in link_rows:
         if a != b:
@@ -324,7 +339,8 @@ def link_metrics(link_rows):
     per_match = {}
     for (match, pair), sides in links.items():
         pings = [p for _, p in sides if p is not None]
-        per_match.setdefault(match, {})[pair] = ((avg([r for r, _ in sides if r is not None]) or 0) >= 0.5, avg(pings) if pings else None)
+        share = avg([r for r, _ in sides if r is not None]) or 0
+        per_match.setdefault(match, {})[pair] = (share >= 0.5, avg(pings) if pings else None, share)
     out = {}
     for match, ls in per_match.items():
         mine = {}
@@ -336,12 +352,16 @@ def link_metrics(link_rows):
             other = [l for l in mine[x] if l != pair]
             return sum(ls[l][0] for l in other) / len(other) if other else 0
         fault = dict.fromkeys(mine, 0.0)
-        for pair, (relayed, _) in ls.items():
+        for pair, (relayed, ping, share) in ls.items():
+            a, b = sorted(pair)
+            charged = None
             if relayed:
-                a, b = sorted(pair)
                 fa, fb = bad_elsewhere(a, pair), bad_elsewhere(b, pair)
                 fault[a] += 1 if fa > fb else 0.5 if fa == fb else 0
                 fault[b] += 1 if fb > fa else 0.5 if fa == fb else 0
+                charged = a if fa > fb else b if fb > fa else "both"
+            if pairs_out is not None:
+                pairs_out.append((match, a, b, round(share, 3), round(ping) if ping is not None else None, charged))
         for x, pairs in mine.items():
             pings = sorted(ls[l][1] for l in pairs if ls[l][1] is not None)
             mid = (pings[(len(pings) - 1) // 2] + pings[len(pings) // 2]) / 2 if pings else None
@@ -404,17 +424,11 @@ def compute_forms(rows, now):
     return forms
 
 
-def form_rows(form_tsv, link_tsv):
-    """The two queries' tab separated output -> compute_forms rows."""
+def form_rows(form_tsv):
+    """FORM_SQL's tab separated output -> compute_forms rows."""
     def num(x):
         return None if x == "NULL" else float(x)
-    lm = link_metrics([(int(f[0]), f[1], f[2], num(f[3]), num(f[4]))
-                       for f in (l.split("\t") for l in link_tsv.splitlines() if l)])
-    rows = []
-    for f in (l.split("\t") for l in form_tsv.splitlines() if l):
-        ping, direct = lm.get((int(f[0]), f[1]), (None, None))
-        rows.append((f[1], int(f[2]), ping, direct, *(num(x) for x in f[3:])))
-    return rows
+    return [(f[1], int(f[2]), *(num(x) for x in f[3:])) for f in (l.split("\t") for l in form_tsv.splitlines() if l)]
 
 
 def form_sql(forms):
@@ -481,8 +495,7 @@ def main():
     print("netmetrics: %d matches ingested, %d buckets without a match block" % (n_ok, n_skip))
     # Rebuilt every run: the regulars window moves with the clock even when no game arrived.
     out = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "%s"' % FORM_SQL], check=True, capture_output=True, text=True).stdout
-    links = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "%s"' % LINK_SQL], check=True, capture_output=True, text=True).stdout
-    rows = form_rows(out, links)
+    rows = form_rows(out)
     forms = compute_forms(rows, dt.datetime.now(dt.timezone.utc).timestamp())
     subprocess.run(DB_CMD, input="SET NAMES utf8mb4;\nUSE zulumetrics;\n" + form_sql(forms), text=True, check=True)
     print("netmetrics: form rebuilt for %d players" % len(forms))

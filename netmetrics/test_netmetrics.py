@@ -26,7 +26,7 @@ assert nm.parse_report(LOG, 0, 222, {}) is None
 assert nm.blamed_name(1, {0: "Skip"}) == "Skip" and nm.blamed_name(3, {}) == "several"
 assert nm.q("a'\\b") == "'a\\'\\\\b'" and nm.q(None) == "NULL"
 sql = nm.bucket_sql(111, {"O'Neil": r}, 5)
-assert ",30.0," in sql and "'O\\'Neil'" in sql and sql.count("INSERT INTO") == 5, sql
+assert ",30.0," in sql and "'O\\'Neil'" in sql and sql.count("INSERT INTO") == 6, sql
 # 2.1.6 router: per PC fps in peers=, frame time split, upload per link.
 ROUTER = LOG.replace("localSlot=1", "localSlot=0").replace(
     "rreq=1/1 peers=[]", "rreq=1/1 peers=[0:10/60 1:50/41] client=3.5/max12 logic=1.2/max4 objs=812").replace(
@@ -37,8 +37,8 @@ assert rr["netstat"][0][13:] == (3.5, 12, 1.2, 4, 812) and r["netstat"][0][13:] 
 assert rr["routes"][0][6:] == (24, 35) and r["routes"][0][6:] == (None, None)
 sql = nm.bucket_sql(111, {"O'Neil": r, "Skip": rr}, 5)
 assert "INSERT INTO peer_fps" in sql and sql.rstrip().endswith("COMMIT;")
-assert ",41.0,1.0,NULL,NULL,NULL,NULL,0.5)" in sql, sql  # O'Neil held the game back; 1v1: lag unmeasured
-assert ",60.0,0.0,3.5,1.2,812,NULL,0.5)" in sql and ",'O\\'Neil',0.5)" in sql, sql
+assert ",41.0,1.0,NULL,NULL,NULL,NULL,0.5,40,0.5)" in sql, sql  # O'Neil held the game back; 1v1: lag unmeasured
+assert ",60.0,0.0,3.5,1.2,812,NULL,0.5,40,0.5)" in sql and ",'O\\'Neil',0.5)" in sql, sql
 # Lag caused, router slot 0 with three others. Window A (0-10 s): the router
 # waited 2 s on slot 3, everyone froze with it. Window B (100-110 s): the router
 # was fine but slots 1, 2 and 3 froze 3 s: the relay. Window C (200-210 s): only
@@ -63,11 +63,15 @@ for x, y in (("A", "B"), ("A", "C"), ("B", "C"), ("A", "S"), ("B", "S"), ("C", "
     far = 200 if "C" in (x, y) else 30
     for a_, b_ in ((x, y), (y, x)):
         L.append((7, a_, b_, 1.0 if "S" in (x, y) else 0.0, far))
-lm = nm.link_metrics(L)
+pairs = []
+lm = nm.link_metrics(L, pairs)
+charged = {(a, b): c for _, a, b, _, _, c in pairs}
+assert charged[("A", "S")] == "S" and charged[("C", "S")] == "S" and charged[("A", "B")] is None, pairs
+assert nm.link_metrics([(1, "A", "B", 1.0, 30), (1, "B", "A", 1.0, 30)], pairs) and pairs[-1][5] == "both"  # 1v1 tie
 assert lm[(7, "S")][1] == 0 and lm[(7, "A")][1] == 1 and lm[(7, "C")][1] == 1, lm
 assert lm[(7, "A")][0] == 30 and lm[(7, "C")][0] == 200, lm
 assert nm.link_metrics([(1, "A", "B", 1.0, None), (1, "B", "A", 1.0, None)])[(1, "A")] == (None, 0.5)  # 1v1: split
-rows = nm.form_rows("7\tA\t100\t0\t60\t0\t9.5\t3\n", "7\tA\tB\t0.0000\t40.0\n7\tB\tA\tNULL\tNULL\n")
+rows = nm.form_rows("7\tA\t100\t40\t1\t0\t60\t0\t9.5\t3\n")
 assert rows == [("A", 100, 40.0, 1.0, 0.0, 60.0, 0.0, 9.5, 3.0)], rows
 
 # Profile form: 6 regulars, ping 10..60 ms (lower is better), 6 games each.
