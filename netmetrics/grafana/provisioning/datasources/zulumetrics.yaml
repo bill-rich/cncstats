@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: zulumetrics
+    uid: zulumetrics
+    type: mysql
+    url: ${ZM_DB_ADDR}
+    user: grafana_ro
+    isDefault: true
+    jsonData:
+      database: zulumetrics
+    secureJsonData:
+      password: ${ZM_RO_PASSWORD}
