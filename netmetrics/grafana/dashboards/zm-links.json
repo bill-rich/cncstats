@@ -1,0 +1,272 @@
+{
+ "uid": "zm-links",
+ "title": "Connections",
+ "description": "Per player and per link connection quality across game nights.",
+ "tags": [
+  "zulu"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-30d",
+  "to": "now"
+ },
+ "refresh": "",
+ "editable": true,
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "title": "Players",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(AVG(p.ping_ms)) AS `Avg ping ms`, ROUND(AVG(p.relayed_share)*100) AS `Relayed %`, SUM(p.disc_screens) AS `Disconnect screens`, SUM(p.finished = 0) AS `Log without match end`, SUM(p.reported = 0) AS `No log`, ROUND(AVG(p.rep_fps)) AS `Avg PC fps`, ROUND(AVG(p.client_ms),1) AS `Client ms`, ROUND(AVG(p.logic_ms),1) AS `Logic ms` FROM match_players p JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY p.name ORDER BY 2 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 1
+  },
+  {
+   "title": "Links",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT r.name AS `From`, r.peer AS `To`, COUNT(DISTINCT r.match_id) AS Games, ROUND(AVG(NULLIF(r.ping_ms,-1))) AS `Avg ping ms`, MAX(r.ping_ms) AS `Max ping ms`, ROUND(AVG(r.relayed)*100) AS `Relayed %`, MAX(r.pending) AS `Max queued bytes` FROM routes r JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY r.name, r.peer ORDER BY 1, 2",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 2
+  },
+  {
+   "title": "Stall seconds caused, per game",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 10,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT m.started_at AS time, b.blamed AS metric, b.stall_s AS value FROM blame b JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 3
+  },
+  {
+   "title": "Average ping per game",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.ping_ms AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.reported AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 4
+  },
+  {
+   "title": "Share of links relayed per game",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.relayed_share*100 AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.reported AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 5
+  }
+ ],
+ "links": [
+  {
+   "type": "dashboards",
+   "tags": [
+    "zulu"
+   ],
+   "asDropdown": false,
+   "title": "Zulu"
+  }
+ ]
+}

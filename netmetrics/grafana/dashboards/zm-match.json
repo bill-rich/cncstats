@@ -1,0 +1,711 @@
+{
+ "uid": "zm-match",
+ "title": "Game detail",
+ "description": "Open a game from the Game nights table so the time range matches it.",
+ "tags": [
+  "zulu"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "refresh": "",
+ "editable": true,
+ "templating": {
+  "list": [
+   {
+    "name": "match",
+    "label": "Game",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "zulumetrics"
+    },
+    "refresh": 1,
+    "query": "SELECT match_id AS __value, CONCAT(DATE_FORMAT(started_at,'%Y-%m-%d %H:%i'),' UTC  ',map,'  ',humans,'p') AS __text FROM matches ORDER BY started_at DESC LIMIT 300"
+   }
+  ]
+ },
+ "panels": [
+  {
+   "title": "Game",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT map AS Map, humans AS Players, router_name AS Router, version AS Version, ROUND(duration_s/60) AS Minutes, ROUND(sim_fps,1) AS `Speed fps`, slowest_name AS `Held speed down`, ROUND(frozen_s) AS `Frozen s`, ROUND(worst_stall_ms/1000,1) AS `Worst freeze s`, disc_screens AS `Disconnect screens`, desync AS Desync FROM matches WHERE match_id = $match",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 1
+  },
+  {
+   "title": "Players",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT slot AS Slot, name AS Player, IF(reported, IF(finished,'yes','no end'), 'no log') AS `Log`, version AS Version, ROUND(stall_s) AS `Stalled s`, ROUND(stall_max_ms/1000,1) AS `Worst stall s`, disc_screens AS `Disconnect screens`, ROUND(rep_fps) AS `PC fps`, ROUND(held_back*100) AS `Held speed down %`, ROUND(client_ms,1) AS `Client ms`, ROUND(logic_ms,1) AS `Logic ms`, resend_req AS `Resends asked`, resend_ans AS `Resends served`, ROUND(relayed_share*100) AS `Relayed %`, ping_ms AS `Avg ping ms` FROM match_players WHERE match_id = $match ORDER BY slot",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "description": "PC fps: what this PC reported to the router; the lowest sets the game speed. Held speed down: share of the game this PC was the slowest and under 54 fps. Client ms: input, UI and drawing per frame (includes any vsync wait). Logic ms: simulation per logic frame.",
+   "id": 2
+  },
+  {
+   "title": "Freezes, by who the game waited on (one point per player who logged it)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, blamed AS metric, waited_ms/1000 AS value FROM stalls WHERE match_id = $match ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 3
+  },
+  {
+   "title": "Game speed (frames per real second, 60 = full)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, name AS metric, value FROM (SELECT at, name, (frame - LAG(frame) OVER w) / TIMESTAMPDIFF(SECOND, LAG(at) OVER w, at) AS value FROM netstat WHERE match_id = $match WINDOW w AS (PARTITION BY slot ORDER BY at)) x WHERE value IS NOT NULL ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "Logic frames each player advanced between NETSTAT lines. Dips are stalls; a flat line under 60 is the slowest PC setting the pace.",
+   "id": 4
+  },
+  {
+   "title": "Each PC's fps as the router saw it (lowest sets the speed) (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 22,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, name AS metric, fps AS value FROM peer_fps WHERE match_id = $match AND fps > 0 ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 5
+  },
+  {
+   "title": "Client time per frame: input, UI, drawing (ms) (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, name AS metric, client_ms AS value FROM netstat WHERE match_id = $match AND client_ms IS NOT NULL ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "Average per drawn frame over 10 s. Above 16.7 ms a PC cannot draw 60 fps. Includes the vsync wait on a vsynced PC.",
+   "id": 6
+  },
+  {
+   "title": "Logic time per frame: the simulation (ms) (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 30,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, name AS metric, logic_ms AS value FROM netstat WHERE match_id = $match AND logic_ms IS NOT NULL ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "Average per logic frame over 10 s. Every PC runs the same simulation, so a PC far above the rest is a slow CPU.",
+   "id": 7
+  },
+  {
+   "title": "Objects in the game (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 38,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, 'objects' AS metric, objs AS value FROM netstat WHERE match_id = $match AND objs IS NOT NULL AND slot = (SELECT router_slot FROM matches WHERE match_id = $match) ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 8
+  },
+  {
+   "title": "Upload per player, all links (KB/s) (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 38,
+    "w": 16,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, name AS metric, SUM(out_kbps) AS value FROM routes WHERE match_id = $match AND out_kbps >= 0 GROUP BY at, name ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "KBs"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "The packet router sends everyone's commands, so its upload is the one that can run out.",
+   "id": 9
+  },
+  {
+   "title": "Ping per link",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 46,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, CONCAT(name,' > ',peer) AS metric, ping_ms AS value FROM routes WHERE match_id = $match AND ping_ms >= 0 ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 10
+  },
+  {
+   "title": "Send queue wait per link (ms) (2.1.6 and later clients only)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 46,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, CONCAT(name,' > ',peer) AS metric, queue_ms AS value FROM routes WHERE match_id = $match AND queue_ms >= 0 ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "ms"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "How long a new message waits before GNS sends it. Climbing on every link of one player at once = that player's upload is full.",
+   "id": 11
+  },
+  {
+   "title": "Unsent bytes queued per link",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 55,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT at AS time, CONCAT(name,' > ',peer) AS metric, pending AS value FROM routes WHERE match_id = $match AND pending >= 0 ORDER BY at",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "pointSize": 6,
+      "showPoints": "auto",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "decbytes"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "description": "GNS pending reliable + unreliable bytes. A link that stops draining is about to time out (about 10 s).",
+   "id": 12
+  },
+  {
+   "title": "Links",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 63,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT name AS `From`, peer AS `To`, COUNT(*) AS Samples, ROUND(AVG(relayed)*100) AS `Relayed %`, ROUND(AVG(NULLIF(ping_ms,-1))) AS `Avg ping ms`, MAX(ping_ms) AS `Max ping ms`, MAX(pending) AS `Max queued bytes`, ROUND(AVG(out_kbps)) AS `Avg KB/s out`, MAX(queue_ms) AS `Max queue ms` FROM routes WHERE match_id = $match GROUP BY name, peer ORDER BY 1, 2",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 13
+  }
+ ],
+ "links": [
+  {
+   "type": "dashboards",
+   "tags": [
+    "zulu"
+   ],
+   "asDropdown": false,
+   "title": "Zulu"
+  }
+ ]
+}

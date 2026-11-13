@@ -1,0 +1,627 @@
+{
+ "uid": "zm-overview",
+ "title": "Game nights",
+ "description": "One row per game from the players' uploaded logs. Times are in your browser's time zone.",
+ "tags": [
+  "zulu"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-30d",
+  "to": "now"
+ },
+ "refresh": "",
+ "editable": true,
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "title": "Games",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT COUNT(*) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "id": 1
+  },
+  {
+   "title": "Game speed (fps, 60 = full)",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 0,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT ROUND(SUM(frames)/SUM(duration_s),1) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "id": 2
+  },
+  {
+   "title": "Frozen minutes",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 9,
+    "y": 0,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT ROUND(SUM(frozen_s)/60,1) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "description": "Per game, the total stall time of the player who stalled the most, summed over games.",
+   "id": 3
+  },
+  {
+   "title": "Freezes of 5 s or more",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 14,
+    "y": 0,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT COUNT(DISTINCT s.match_id, s.frame) FROM stalls s JOIN matches m USING (match_id) WHERE s.waited_ms >= 5000 AND m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "id": 4
+  },
+  {
+   "title": "Desynced games",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 19,
+    "y": 0,
+    "w": 5,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT SUM(desync > 0) FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo()",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "id": 5
+  },
+  {
+   "title": "Games (click a game for detail)",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT started_at AS Started, map AS Map, humans AS Players, router_name AS Router, version AS Version, ROUND(duration_s/60) AS Minutes, ROUND(sim_fps,1) AS `Speed fps`, slowest_name AS `Held speed down`, ROUND(frozen_s) AS `Frozen s`, ROUND(frozen_s*3600/duration_s) AS `Frozen s per hour`, ROUND(worst_stall_ms/1000,1) AS `Worst freeze s`, disc_screens AS `Disconnect screens`, desync AS Desync, CONCAT(reports,'/',humans) AS `Logs in`, match_id AS `Match`, UNIX_TIMESTAMP(started_at)*1000 - 60000 AS from_ms, UNIX_TIMESTAMP(ended_at)*1000 + 60000 AS to_ms FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY started_at DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": "from_ms|to_ms"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Match"
+      },
+      "properties": [
+       {
+        "id": "links",
+        "value": [
+         {
+          "title": "Game detail",
+          "url": "/grafana/d/zm-match/match?var-match=${__data.fields.Match}&from=${__data.fields.from_ms}&to=${__data.fields.to_ms}"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 6
+  },
+  {
+   "title": "Frozen seconds per hour of play, per game",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT started_at AS time, frozen_s*3600/duration_s AS `Frozen s per hour` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 7
+  },
+  {
+   "title": "Game speed per game (fps)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 14,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT started_at AS time, sim_fps AS `Speed fps` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "showPoints": "always",
+      "spanNulls": true,
+      "lineWidth": 1
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "mean",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 8
+  },
+  {
+   "title": "Who the game waited on",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 8,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT b.blamed AS Player, COUNT(DISTINCT b.match_id) AS Games, ROUND(SUM(b.stall_s)) AS `Stall s caused`, SUM(b.stalls) AS `Logged stalls` FROM blame b JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY b.blamed ORDER BY 3 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "description": "From NETSTALL lines (stalls of 0.5 s or more, at most one every 5 s per player). 'several' = waiting on more than one player.",
+   "id": 9
+  },
+  {
+   "title": "By packet router",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 22,
+    "w": 8,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT router_name AS Router, COUNT(*) AS Games, ROUND(AVG(humans),1) AS `Avg players`, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY router_name ORDER BY 2 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 10
+  },
+  {
+   "title": "By player count",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 22,
+    "w": 8,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT humans AS Players, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, ROUND(MAX(worst_stall_ms)/1000,1) AS `Worst freeze s` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY humans ORDER BY 1",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 11
+  },
+  {
+   "title": "By release",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 32,
+    "w": 24,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT m.version AS Version, COUNT(*) AS Games, ROUND(SUM(frames)/SUM(duration_s),1) AS `Speed fps`, ROUND(SUM(frozen_s)*3600/SUM(duration_s)) AS `Frozen s per hour`, SUM(desync > 0) AS Desyncs, SUM(humans) - SUM(reports) AS `Missing logs`, MIN(started_at) AS `First game` FROM matches m WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY m.version ORDER BY 7 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "description": "Missing logs = players in the roster whose log never arrived (crash, kill, or quit before upload).",
+   "id": 12
+  },
+  {
+   "title": "Whose PC held the game speed down (2.1.6 and later clients only)",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 39,
+    "w": 24,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(SUM(p.held_back * m.duration_s)/60, 1) AS `Minutes holding speed down`, ROUND(AVG(p.rep_fps)) AS `Avg PC fps`, ROUND(AVG(p.client_ms),1) AS `Client ms`, ROUND(AVG(p.logic_ms),1) AS `Logic ms` FROM match_players p JOIN matches m USING (match_id) WHERE p.rep_fps IS NOT NULL AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY p.name ORDER BY 3 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "description": "The router sets everyone's speed to the lowest PC fps. Client ms high = drawing is the limit (graphics settings, GPU); logic ms high = the CPU cannot keep up with the simulation.",
+   "id": 13
+  }
+ ],
+ "links": [
+  {
+   "type": "dashboards",
+   "tags": [
+    "zulu"
+   ],
+   "asDropdown": false,
+   "title": "Zulu"
+  }
+ ]
+}
