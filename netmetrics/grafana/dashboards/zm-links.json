@@ -18,7 +18,7 @@
  },
  "panels": [
   {
-   "title": "Players",
+   "title": "Profile form (what players see in game, last 5 games)",
    "type": "table",
    "datasource": {
     "type": "mysql",
@@ -27,8 +27,8 @@
    "gridPos": {
     "x": 0,
     "y": 0,
-    "w": 12,
-    "h": 10
+    "w": 24,
+    "h": 9
    },
    "targets": [
     {
@@ -39,7 +39,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(AVG(p.ping_ms)) AS `Avg ping ms`, ROUND(AVG(p.relayed_share)*100) AS `Relayed %`, SUM(p.disc_screens) AS `Disconnect screens`, SUM(p.finished = 0) AS `Log without match end`, SUM(p.reported = 0) AS `No log`, ROUND(AVG(p.rep_fps)) AS `Avg PC fps`, ROUND(AVG(p.client_ms),1) AS `Client ms`, ROUND(AVG(p.logic_ms),1) AS `Logic ms` FROM match_players p JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY p.name ORDER BY 2 DESC",
+     "rawSql": "SELECT x.name AS Player, MAX(JSON_VALUE(f.form, '$.games')) AS Games, COALESCE(MAX(CASE WHEN x.k = 'ping' THEN CONCAT(CONCAT(ROUND(x.v), ' ms'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Ping`, COALESCE(MAX(CASE WHEN x.k = 'direct' THEN CONCAT(CONCAT(ROUND(x.v * 100), '%'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Direct links`, COALESCE(MAX(CASE WHEN x.k = 'lagcaused' THEN CONCAT(CONCAT(ROUND(x.v, 1), ' s'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Lag caused`, COALESCE(MAX(CASE WHEN x.k = 'fps' THEN CONCAT(CONCAT(ROUND(x.v), ' fps'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Game speed`, COALESCE(MAX(CASE WHEN x.k = 'heldback' THEN CONCAT(CONCAT(ROUND(x.v * 100), '%'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Slowest PC`, COALESCE(MAX(CASE WHEN x.k = 'drawms' THEN CONCAT(CONCAT(ROUND(x.v, 1), ' ms'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Drawing`, COALESCE(MAX(CASE WHEN x.k = 'simms' THEN CONCAT(CONCAT(ROUND(x.v, 1), ' ms'), ' \u00b7 ', COALESCE(ELT(x.t + 1, 'Top tier', 'Solid', 'Rough patch'), 'Not yet')) END), 'Not enough games yet') AS `Simulation`, MAX(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(JSON_UNQUOTE(JSON_EXTRACT(f.form, '$.badges')), '\"link\"', 'Rock Solid Link'), '\"nolag\"', 'Never the Lag'), '\"comms\"', 'Frontline Comms'), '\"machine\"', 'War Machine'), '\"improved\"', 'Most Improved'), '[', ''), ']', ''), '[]', '')) AS Badges FROM (SELECT f.name, x.* FROM player_form f, JSON_TABLE(f.form, '$.net[*]' COLUMNS (k VARCHAR(16) PATH '$.k', v DOUBLE PATH '$.v', t INT PATH '$.t')) x UNION ALL SELECT f.name, x.* FROM player_form f, JSON_TABLE(f.form, '$.pc[*]' COLUMNS (k VARCHAR(16) PATH '$.k', v DOUBLE PATH '$.v', t INT PATH '$.t')) x) x JOIN player_form f ON f.name = x.name GROUP BY x.name ORDER BY x.name",
      "format": "table"
     }
    ],
@@ -53,7 +53,47 @@
     "showHeader": true,
     "cellHeight": "sm"
    },
+   "description": "The player_form table the GO Services hand to the Network Form screen, rebuilt every 5 minutes. Tiers compare with the regulars (3+ games in 30 days): Top tier = their best third, Rough patch = their worst third. Measured like the in-game profile: ping is each game's middle link (one far away player does not count), direct % counts a relayed link only against the player who needed relays with everyone, and freeze caused comes from the packet router's own view (1v1 games and games without the router's log are left out).",
    "id": 1
+  },
+  {
+   "title": "Players",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "zulumetrics"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 9,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "zulumetrics"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "rawSql": "SELECT p.name AS Player, COUNT(*) AS Games, ROUND(AVG(p.ping_mid_ms)) AS `Ping ms`, ROUND(AVG(p.direct_share)*100) AS `Direct %`, ROUND(AVG(p.lag_caused),1) AS `Freeze s caused per game`, ROUND(AVG(p.felt_stall_s),1) AS `Frozen s per game`, SUM(p.disc_screens) AS `Disconnect screens`, SUM(p.finished = 0) AS `Log without match end`, SUM(p.reported = 0) AS `No log`, ROUND(AVG(p.rep_fps)) AS `Avg PC fps`, ROUND(AVG(p.client_ms),1) AS `Client ms`, ROUND(AVG(p.logic_ms),1) AS `Logic ms` FROM match_players p JOIN matches m USING (match_id) WHERE p.name IN (SELECT p2.name FROM match_players p2 JOIN matches m2 USING (match_id) WHERE p2.reported AND m2.humans >= 2 AND m2.started_at >= NOW() - INTERVAL 30 DAY GROUP BY p2.name HAVING COUNT(*) >= 3) AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY p.name ORDER BY 2 DESC",
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {}
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "description": "The regulars (3+ games in the last 30 days), averaged over every game in the time range (the profile uses the last 5). Measured like the in-game profile: ping is each game's middle link (one far away player does not count), direct % counts a relayed link only against the player who needed relays with everyone, and freeze caused comes from the packet router's own view (1v1 games and games without the router's log are left out).",
+   "id": 2
   },
   {
    "title": "Links",
@@ -63,9 +103,9 @@
     "uid": "zulumetrics"
    },
    "gridPos": {
-    "x": 12,
-    "y": 0,
-    "w": 12,
+    "x": 0,
+    "y": 19,
+    "w": 24,
     "h": 10
    },
    "targets": [
@@ -77,7 +117,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT r.name AS `From`, r.peer AS `To`, COUNT(DISTINCT r.match_id) AS Games, ROUND(AVG(NULLIF(r.ping_ms,-1))) AS `Avg ping ms`, MAX(r.ping_ms) AS `Max ping ms`, ROUND(AVG(r.relayed)*100) AS `Relayed %`, MAX(r.pending) AS `Max queued bytes` FROM routes r JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() GROUP BY r.name, r.peer ORDER BY 1, 2",
+     "rawSql": "SELECT p.a AS Player, p.b AS `With`, p.games AS Games, p.ping AS `Ping ms`, p.rel AS `Relayed %`, COALESCE(c.charged, '') AS `Relay charged to (games)` FROM (SELECT l.a, l.b, COUNT(*) AS games, ROUND(AVG(l.ping_ms)) AS ping, ROUND(AVG(l.relayed)*100) AS rel FROM link_pairs l JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() AND l.a IN (SELECT p2.name FROM match_players p2 JOIN matches m2 USING (match_id) WHERE p2.reported AND m2.humans >= 2 AND m2.started_at >= NOW() - INTERVAL 30 DAY GROUP BY p2.name HAVING COUNT(*) >= 3) AND l.b IN (SELECT p2.name FROM match_players p2 JOIN matches m2 USING (match_id) WHERE p2.reported AND m2.humans >= 2 AND m2.started_at >= NOW() - INTERVAL 30 DAY GROUP BY p2.name HAVING COUNT(*) >= 3) GROUP BY l.a, l.b) p LEFT JOIN (SELECT a, b, GROUP_CONCAT(CONCAT(charged_to, ' (', n, ')') ORDER BY n DESC SEPARATOR ', ') AS charged FROM (SELECT l.a, l.b, l.charged_to, COUNT(*) AS n FROM link_pairs l JOIN matches m USING (match_id) WHERE m.started_at BETWEEN $__timeFrom() AND $__timeTo() AND l.charged_to IS NOT NULL GROUP BY l.a, l.b, l.charged_to) z GROUP BY a, b) c ON c.a = p.a AND c.b = p.b ORDER BY p.rel DESC, p.ping DESC",
      "format": "table"
     }
    ],
@@ -91,7 +131,8 @@
     "showHeader": true,
     "cellHeight": "sm"
    },
-   "id": 2
+   "description": "One row per pair of players, both directions merged. 'Relay charged to' is whose fault the relays were, as the profile counts it: the player who needed relays with everyone else that game ('both' when it cannot tell, like a 1v1).",
+   "id": 3
   },
   {
    "title": "Freeze seconds caused, per game",
@@ -102,7 +143,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 10,
+    "y": 29,
     "w": 24,
     "h": 8
    },
@@ -147,10 +188,10 @@
     }
    },
    "description": "Freeze time each player caused, as the player's profile counts it. The packet router sees everyone directly, so who it waited on is charged to them; when most other players froze and the router did not, the router's relay is charged; when one player froze alone, that player's link. Games of 3+ players with the router's log only (in a 1v1 nobody can tell whose end of the link is bad). Only the part of each wait past its first 100 ms counts.",
-   "id": 3
+   "id": 4
   },
   {
-   "title": "Average ping per game",
+   "title": "Ping per game (middle link)",
    "type": "timeseries",
    "datasource": {
     "type": "mysql",
@@ -158,7 +199,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 18,
+    "y": 37,
     "w": 12,
     "h": 8
    },
@@ -171,7 +212,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.ping_ms AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.reported AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.ping_mid_ms AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.ping_mid_ms IS NOT NULL AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
      "format": "time_series"
     }
    ],
@@ -202,10 +243,11 @@
      "sort": "desc"
     }
    },
-   "id": 4
+   "description": "Measured like the in-game profile: ping is each game's middle link (one far away player does not count), direct % counts a relayed link only against the player who needed relays with everyone, and freeze caused comes from the packet router's own view (1v1 games and games without the router's log are left out).",
+   "id": 5
   },
   {
-   "title": "Share of links relayed per game",
+   "title": "Direct links per game",
    "type": "timeseries",
    "datasource": {
     "type": "mysql",
@@ -213,7 +255,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 18,
+    "y": 37,
     "w": 12,
     "h": 8
    },
@@ -226,7 +268,7 @@
      },
      "rawQuery": true,
      "editorMode": "code",
-     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.relayed_share*100 AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.reported AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
+     "rawSql": "SELECT m.started_at AS time, p.name AS metric, p.direct_share*100 AS value FROM match_players p JOIN matches m USING (match_id) WHERE p.direct_share IS NOT NULL AND m.started_at BETWEEN $__timeFrom() AND $__timeTo() ORDER BY 1",
      "format": "time_series"
     }
    ],
@@ -257,7 +299,8 @@
      "sort": "desc"
     }
    },
-   "id": 5
+   "description": "Measured like the in-game profile: ping is each game's middle link (one far away player does not count), direct % counts a relayed link only against the player who needed relays with everyone, and freeze caused comes from the packet router's own view (1v1 games and games without the router's log are left out).",
+   "id": 6
   }
  ],
  "links": [
