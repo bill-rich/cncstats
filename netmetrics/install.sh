@@ -9,7 +9,9 @@ ENV=$DST/grafana.env
 GRAFANA_IMAGE=grafana/grafana:11.4.0
 
 install -d -m 755 $DST
-cp -r "$SRC"/netmetrics.py "$SRC"/schema.sql "$SRC"/grafana $DST/
+cp -r "$SRC"/netmetrics.py "$SRC"/honors.py "$SRC"/radarvan_aliases.json "$SRC"/schema.sql "$SRC"/grafana $DST/
+install -d -m 700 /var/lib/netmetrics/radarvan   # honors.py's cache of radarvan game lists and details
+[ -f $DST/radarvan.env ] || echo "WARNING: no $DST/radarvan.env (RADARVAN_KEY=...); honors.py cannot run"
 chmod -R go-w $DST
 
 if [ ! -f $ENV ]; then
@@ -51,8 +53,26 @@ OnUnitActiveSec=5min
 [Install]
 WantedBy=timers.target
 EOF
+cat > /etc/systemd/system/netmetrics-honors.service <<UNIT
+[Unit]
+Description=Pick the Zulu GO profile honors from radarvan stats
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/usr/bin/python3 -I $DST/honors.py
+UNIT
+cat > /etc/systemd/system/netmetrics-honors.timer <<UNIT
+[Unit]
+Description=Pick the Zulu GO profile honors once a day
+[Timer]
+OnCalendar=*-*-* 10:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
 systemctl daemon-reload
-systemctl enable --now netmetrics.timer
+systemctl enable --now netmetrics.timer netmetrics-honors.timer
 
 docker rm -f grafana >/dev/null 2>&1 || true
 docker run -d --name grafana --restart unless-stopped --network host --memory 300m \

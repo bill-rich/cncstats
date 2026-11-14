@@ -154,6 +154,14 @@ CREATE TABLE IF NOT EXISTS player_form (
   updated_at     DATETIME
 );
 
+-- Single holder honors from radarvan stats, replaced daily by honors.py;
+-- netmetrics.py copies each player's list into their player_form.
+CREATE TABLE IF NOT EXISTS player_honors (
+  name           VARCHAR(64) PRIMARY KEY,
+  honors         TEXT NOT NULL,   -- JSON [{"k": key, "why": text}]
+  updated_at     DATETIME
+);
+
 CREATE TABLE IF NOT EXISTS ingest_state (
   bucket         BIGINT UNSIGNED PRIMARY KEY,
   newest_mtime   BIGINT,

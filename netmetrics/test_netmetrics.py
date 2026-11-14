@@ -95,4 +95,7 @@ assert "comms" in f["A"]["badges"] and "machine" in f["A"]["badges"]
 assert next(m for m in f["B"]["net"] if m["k"] == "lagcaused")["tr"] is None  # only 1 earlier game
 sql = nm.form_sql({"O'Neil": f["A"]})
 assert sql.startswith("START TRANSACTION;\nDELETE FROM player_form;") and "'O\\'Neil'" in sql, sql
+f = {"Modus": {"games": 5, "net": [], "pc": [], "badges": []}}
+nm.add_honors(f, [("modus", '[{"k": "duelist", "why": "x"}]'), ("STM", '[{"k": "nukecannon", "why": "y"}]'), ("bad", "{")])
+assert f["Modus"]["honors"][0]["k"] == "duelist" and f["STM"]["games"] == 0 and "bad" not in f, f
 print("ok")
