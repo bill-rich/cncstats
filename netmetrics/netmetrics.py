@@ -431,6 +431,22 @@ def form_rows(form_tsv):
     return [(f[1], int(f[2]), *(num(x) for x in f[3:])) for f in (l.split("\t") for l in form_tsv.splitlines() if l)]
 
 
+def add_honors(forms, rows):
+    """Copy honors.py's daily honors (name, JSON list) into the forms, by name, ignoring case.
+    A holder without a form (no Zulu GO game logged) gets one with only the honors."""
+    by_lower = {n.lower(): n for n in forms}
+    for name, text in rows:
+        try:
+            honors = json.loads(text)
+        except ValueError:
+            continue
+        n = by_lower.get(name.lower())
+        if n is None:
+            n = by_lower[name.lower()] = name
+            forms[n] = {"games": 0, "net": [], "pc": [], "badges": []}
+        forms[n]["honors"] = honors
+
+
 def form_sql(forms):
     rows = [(n, json.dumps(f, separators=(",", ":"))) for n, f in sorted(forms.items())]
     body = "".join("(%s,%s,UTC_TIMESTAMP())" % (q(n), q(f)) + (",\n" if i < len(rows) - 1 else ";\n")
@@ -497,6 +513,9 @@ def main():
     out = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "%s"' % FORM_SQL], check=True, capture_output=True, text=True).stdout
     rows = form_rows(out)
     forms = compute_forms(rows, dt.datetime.now(dt.timezone.utc).timestamp())
+    honors = subprocess.run(DB_CMD[:-1] + [DB_CMD[-1] + ' -N -e "SELECT name, honors FROM zulumetrics.player_honors"'],
+                            capture_output=True, text=True).stdout
+    add_honors(forms, [l.split("\t", 1) for l in honors.splitlines() if "\t" in l])
     subprocess.run(DB_CMD, input="SET NAMES utf8mb4;\nUSE zulumetrics;\n" + form_sql(forms), text=True, check=True)
     print("netmetrics: form rebuilt for %d players" % len(forms))
 
